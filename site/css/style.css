@@ -345,6 +345,55 @@ header {
   margin-bottom: 1.25rem;
 }
 
+.chart-footer-controls {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+  padding-left: 2.25rem;
+  width: 100%;
+}
+
+.x-axis-title {
+  font-size: 0.85rem;
+  font-weight: 400;
+  color: var(--text-muted);
+  font-family: var(--font-heading);
+}
+
+.toggle-group {
+  display: inline-flex;
+  background: rgba(0, 0, 0, 0.04);
+  padding: 3px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+}
+
+.toggle-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-family: var(--font-body);
+  font-size: 0.8rem;
+  font-weight: 300;
+  padding: 0.35rem 0.85rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.toggle-btn:hover {
+  color: var(--text-main);
+}
+
+.toggle-btn.active {
+  background: #ffffff;
+  color: var(--accent-amber);
+  font-weight: 500;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
 .chart-title {
   font-family: var(--font-heading);
   font-size: 1.2rem;
@@ -458,44 +507,7 @@ tr:hover td {
   color: var(--text-main);
 }
 
-.badge {
-  display: inline-block;
-  padding: 0.25rem 0.65rem;
-  border-radius: 12px;
-  font-size: 0.75rem;
-  font-weight: 400;
-  font-family: var(--font-mono);
-}
-
-.badge-recommended {
-  background: rgba(5, 150, 105, 0.1);
-  color: #047857;
-}
-
-.badge-intelligence {
-  background: rgba(249, 115, 22, 0.1);
-  color: #c2410c;
-}
-
-.badge-reasoning {
-  background: rgba(2, 132, 199, 0.1);
-  color: #0369a1;
-}
-
-.badge-velocity {
-  background: rgba(234, 88, 12, 0.12);
-  color: #c2410c;
-}
-
-.badge-warning {
-  background: rgba(225, 29, 72, 0.1);
-  color: #be123c;
-}
-
-.badge-default {
-  background: rgba(0, 0, 0, 0.05);
-  color: #475569;
-}
+/* Metric Highlight */
 
 /* Metric Highlight */
 .metric-highlight {
@@ -521,4 +533,201 @@ footer a {
 
 footer a:hover {
   color: var(--accent-orange);
+}
+
+/* Data Error State */
+.data-error-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  min-height: 240px;
+  text-align: center;
+  padding: 2rem;
+  background: rgba(249, 115, 22, 0.03);
+  border: 1px dashed rgba(249, 115, 22, 0.25);
+  border-radius: var(--radius-md);
+}
+
+.data-error-title {
+  font-family: var(--font-heading);
+  font-size: 1.1rem;
+  font-weight: 500;
+  color: var(--text-main);
+}
+
+.table-error-row td {
+  text-align: center;
+  padding: 2rem 1.5rem;
+}
+
+/* Methodology Accordion Section */
+.methodology-section {
+  max-width: 1280px;
+  margin: 0 auto 4rem;
+  padding: 0 1.5rem;
+}
+
+.accordion-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+}
+
+.accordion-item {
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--border-color);
+  border-radius: 0;
+  box-shadow: none;
+  transition: background 0.25s ease;
+}
+
+.accordion-item:last-child {
+  border-bottom: none;
+}
+
+.accordion-item[open] {
+  background: rgba(249, 115, 22, 0.02);
+}
+
+.accordion-header {
+  padding: 1.25rem 1.75rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+  background: transparent;
+  transition: background 0.2s;
+}
+
+.accordion-header::-webkit-details-marker {
+  display: none;
+}
+
+.accordion-header:hover {
+  background: rgba(249, 115, 22, 0.03);
+}
+
+.accordion-title-group {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.accordion-icon {
+  font-size: 1.25rem;
+}
+
+.accordion-title {
+  font-family: var(--font-heading);
+  font-size: 1.15rem;
+  font-weight: 400;
+  color: var(--text-main);
+}
+
+.accordion-chevron {
+  width: 9px;
+  height: 9px;
+  border-right: 2px solid var(--text-muted);
+  border-bottom: 2px solid var(--text-muted);
+  transform: rotate(45deg);
+  transition: transform 0.25s ease;
+  margin-right: 0.25rem;
+}
+
+.accordion-item[open] .accordion-chevron {
+  transform: rotate(-135deg);
+  border-color: var(--accent-amber);
+}
+
+.accordion-content {
+  padding: 0 1.75rem 1.5rem;
+  font-size: 0.95rem;
+  font-weight: 300;
+  color: var(--text-muted);
+  line-height: 1.7;
+  border-top: 1px dashed rgba(0, 0, 0, 0.06);
+  padding-top: 1.25rem;
+}
+
+.accordion-content code {
+  font-family: var(--font-mono);
+  font-size: 0.825rem;
+  background: rgba(249, 115, 22, 0.08);
+  color: var(--accent-amber);
+  padding: 0.15rem 0.45rem;
+  border-radius: 4px;
+}
+
+.methodology-list {
+  margin-top: 0.85rem;
+  padding-left: 1.25rem;
+}
+
+.methodology-list li {
+  margin-bottom: 0.5rem;
+}
+
+.methodology-list strong {
+  color: var(--text-main);
+  font-weight: 400;
+}
+
+/* Mobile Responsive Optimization for Full Width Charts */
+@media (max-width: 640px) {
+  .charts-section {
+    padding: 0 0.5rem;
+    margin-bottom: 2rem;
+  }
+
+  .chart-card {
+    padding: 1rem 0.65rem;
+    border-radius: var(--radius-md);
+    margin-bottom: 1.25rem;
+  }
+
+  .chart-header {
+    margin-bottom: 0.75rem;
+  }
+
+  .chart-title {
+    font-size: 1.1rem;
+  }
+
+  .chart-desc {
+    font-size: 0.85rem;
+  }
+
+  .chart-footer-controls {
+    padding-left: 0;
+  }
+
+  .table-section {
+    padding: 0 0.5rem;
+  }
+
+  .conclusions-section {
+    padding: 0 0.5rem;
+  }
+
+  .methodology-section {
+    padding: 0 0.5rem;
+  }
+
+  .accordion-header {
+    padding: 1rem 1.15rem;
+  }
+
+  .accordion-content {
+    padding: 0 1.15rem 1.25rem;
+  }
 }

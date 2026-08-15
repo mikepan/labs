@@ -1,0 +1,3 @@
+# Disable Prettier formatting for JSON schema files
+site/data/benchmark-data.schema.json
+*.schema.json

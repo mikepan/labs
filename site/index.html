@@ -11,7 +11,66 @@
     content="FiniBench, Pixelary Labs, AI, AI benchmark, agentic AI, llama.cpp, Ollama, vLLM, EXL2, LM Studio, KServe, TGI, GGUF, AWQ, GPTQ, K-quants, Q4_K_M, Q5_K_M, Q8_0, Q2_K, IQ2_XXS, FP8, INT4, NVFP4, SWE-bench, LiveCodeBench, GAIA, TAU-bench, HumanEval, MBPP, MMLU, Gemma, Kimi K3, GLM, MiniMax, MiMo, Inkling, Hy3, Nemotron, Muse Glimmer, Mistral, Llama 3.3, Qwen 2.5 Coder, DeepSeek R1, OpenCode, Pi, Claude Code, Aider, Cline, Roo Code, AutoGen, CrewAI, Mike Pan" />
   <meta name="author" content="Mike Pan, The Pixelary" />
   <meta name="robots" content="index, follow" />
-  <link rel="stylesheet" href="css/style.css" />
+  <link rel="canonical" href="https://labs.thepixelary.com/finibench" />
+
+  <!-- OpenGraph Metadata -->
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="Pixelary Labs" />
+  <meta property="og:title" content="FiniBench | Agentic AI Velocity & Efficiency Benchmark" />
+  <meta property="og:description"
+    content="FiniBench evaluates local AI models (Llama 3.3, Qwen 2.5 Coder, DeepSeek R1, Gemma, Kimi K3, GLM, MiniMax, MiMo, Inkling, Hy3, Nemotron, Muse Glimmer, Mistral), GGUF & EXL2 quantization formats, and agent harnesses." />
+  <meta property="og:url" content="https://labs.thepixelary.com/finibench" />
+
+  <!-- Twitter Card Metadata -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="FiniBench | Agentic AI Velocity & Efficiency Benchmark" />
+  <meta name="twitter:description"
+    content="Evaluating local AI models, quantization levels (FP16 down to IQ2_XXS), and agent harnesses across multi-turn task completion rates." />
+
+  <!-- Schema.org JSON-LD Structured Data for Search Engine Bots -->
+  <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "TechArticle",
+      "headline": "FiniBench: Agentic AI Velocity & Efficiency Benchmark",
+      "description": "Evaluates local open-weight AI models, quantization formats (GGUF, EXL2, NVFP4, FP8), and agent edit harnesses across multi-turn task completion rates.",
+      "author": {
+        "@type": "Person",
+        "name": "Mike Pan",
+        "url": "https://thepixelary.com"
+      },
+      "publisher": {
+        "@type": "Organization",
+        "name": "Pixelary Labs",
+        "url": "https://labs.thepixelary.com"
+      },
+      "mainEntity": {
+        "@type": "Dataset",
+        "name": "FiniBench Agentic AI Benchmark Dataset",
+        "description": "Multi-turn task pass rate, completion velocity (tasks/hr), and hardware efficiency (tasks/GB) across local LLMs.",
+        "license": "https://creativecommons.org/licenses/by/4.0/",
+        "distribution": [
+          {
+            "@type": "DataDownload",
+            "encodingFormat": "application/json",
+            "contentUrl": "https://labs.thepixelary.com/site/data/benchmark-data.json"
+          }
+        ]
+      }
+    }
+  </script>
+
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+  <script>
+    (function () {
+      const isLocal = ['localhost', '127.0.0.1', '::1', '0.0.0.0'].includes(window.location.hostname) || window.location.port === '8085';
+      const ts = isLocal ? '?v=' + Date.now() : '';
+      document.write('<link rel="stylesheet" href="css/style.css' + ts + '">');
+      document.write('<script src="js/app.js' + ts + '" defer><\/script>');
+    })();
+  </script>
   <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
 </head>
 
@@ -47,45 +106,47 @@
         We evaluate the combination of <strong>LLM &times; Quantization Level &times;
           Harness</strong>
         across a wide range of multi-turn agentic AI tasks. By focusing on end-to-end task completion rates, FiniBench
-        cuts through the advertised FP16 quality and reveal which quantization actually solves problems without
+        cuts through the advertised FP16 quality and reveals which quantization actually solves problems without
         collapsing.
       </p>
     </section>
 
     <!-- Charts Section -->
     <section class="charts-section">
-      <h2 class="section-title">AI Benchmark Visualizations</h2>
 
-      <!-- Chart 1: Quantization Collapse in Multi-Turn Agent Loops -->
+      <!-- Top Chart 1: XY Scatter Plot - Intelligence vs Time / VRAM Size -->
       <div class="chart-card">
         <div class="chart-header">
-          <h3 class="chart-title">Quantization Degradation in Multi-Turn Agentic AI Loops</h3>
-          <p class="chart-desc">Comparing single-turn AI benchmark accuracy (MMLU, HumanEval) against multi-turn agent
-            task completion
-            (%) across GGUF & EXL2 weight precision levels (FP16, Q8_0, Q4_K_M, Q2_K, IQ2_XXS).</p>
+          <h3 class="chart-title">Intelligence vs Efficiency</h3>
+          <p class="chart-desc">Task Pass Rate (%) vs Completion Time (seconds) or Memory Use (GB).</p>
         </div>
-        <div id="chart-quant-degradation" class="chart-container"></div>
+        <div id="chart-top-scatter" class="chart-container" style="height: 410px;"></div>
+        <div class="chart-footer-controls">
+          <div class="toggle-group" id="scatter-toggle-group">
+            <button type="button" class="toggle-btn active" data-view="time">Completion Time (seconds)</button>
+            <button type="button" class="toggle-btn" data-view="size">Memory Use (GB)</button>
+          </div>
+        </div>
       </div>
 
-      <div class="charts-row">
-        <!-- Chart 2: Harness Architecture Impact -->
+      <!-- Side-by-Side Leaderboard Charts Row -->
+      <div class="charts-row" style="margin-top: 1.5rem;">
+        <!-- Top Chart 2: Task Speed Leaderboard -->
         <div class="chart-card">
           <div class="chart-header">
-            <h3 class="chart-title">Harness Architecture Impact on AI Task Completion</h3>
-            <p class="chart-desc">Evaluating AI agent task completion rate per hour (CR/hr) and success (%) across
-              standardized edit harnesses (Aider, Claude Code, Cline, SWE-bench).</p>
+            <h3 class="chart-title">Task Speed Leaderboard</h3>
+            <p class="chart-desc">Comparing execution speed (tasks/hr) across evaluated model configurations.</p>
           </div>
-          <div id="chart-harness-impact" class="chart-container"></div>
+          <div id="chart-model-speed" class="chart-container" style="height: 360px;"></div>
         </div>
 
-        <!-- Chart 3: Completion Velocity (CR/hr vs VRAM Footprint) -->
+        <!-- Top Chart 3: Intelligence Density Leaderboard -->
         <div class="chart-card">
           <div class="chart-header">
-            <h3 class="chart-title">Deployment Efficiency: CR/hr vs Memory Footprint (GB)</h3>
-            <p class="chart-desc">Evaluating local AI completion velocity (CR/hr) relative to VRAM allocation on
-              runtimes like llama.cpp, Ollama, and vLLM. Bubble size indicates agentic success rate.</p>
+            <h3 class="chart-title">Intelligence Density Leaderboard</h3>
+            <p class="chart-desc">Comparing hardware efficiency (tasks/GB) across evaluated model configurations.</p>
           </div>
-          <div id="chart-velocity-comparison" class="chart-container"></div>
+          <div id="chart-model-density" class="chart-container" style="height: 360px;"></div>
         </div>
       </div>
     </section>
@@ -102,18 +163,17 @@
           <thead>
             <tr>
               <th>Model Name</th>
-              <th>Status</th>
               <th>Quant</th>
-              <th>CR / hr</th>
-              <th>CR / GB</th>
-              <th>Agent Success</th>
-              <th>Single-Turn Acc</th>
-              <th>VRAM Footprint</th>
-              <th>Raw Speed</th>
+              <th>Harness</th>
+              <th>Reasoning Effort</th>
+              <th>Task Speed</th>
+              <th>Intelligence Density</th>
+              <th>Intelligence</th>
+              <th>Memory Use</th>
             </tr>
           </thead>
           <tbody id="leaderboard-body">
-            <!-- Populated dynamically from JSON -->
+            <!-- Dynamically rendered from benchmark-data.json -->
           </tbody>
         </table>
       </div>
@@ -132,7 +192,7 @@
               often suffer total task failure when subjected to multi-step tool calls.</p>
           </div>
           <div class="card-insight">
-            <strong>Key Insight:</strong> A Q2 quant should be treated as a separate model than its FP16 equivalent.
+            <strong>Key Insight:</strong> A Q2 quant should be treated as a separate model from its FP16 equivalent.
           </div>
         </div>
 
@@ -153,15 +213,97 @@
           <div>
             <div class="card-tag">Task Efficiency</div>
             <h3 class="card-title">Token Efficiency and Reasoning Length Confound Results</h3>
-            <p class="card-summary">Evaluating agentic workflow requires shifting from raw generation speed
-              (tokens per second) to outcome-oriented metrics: Completion Rate per Hour and
-              Completion Rate per Gigabyte. These metrics provide an objective measure of system utility on fixed
+            <p class="card-summary">Evaluating agentic workflows requires shifting from raw generation speed (tokens per
+              second) to outcome-oriented metrics: Task Speed (tasks/hr) and
+              Intelligence Density (tasks/GB). These metrics provide an objective measure of system utility on fixed
               hardware footprints.</p>
           </div>
           <div class="card-insight">
             <strong>Key Insight:</strong> Outcome efficiency measures real work delivered per unit of resources.
           </div>
         </div>
+      </div>
+    </section>
+
+    <!-- Methodology Accordion Section -->
+    <section class="methodology-section">
+      <h2 class="section-title">Our Methodology</h2>
+
+      <div class="accordion-container">
+        <!-- Item 1: Model Serving -->
+        <details class="accordion-item">
+          <summary class="accordion-header">
+            <div class="accordion-title-group">
+              <span class="accordion-icon">🖥️</span>
+              <span class="accordion-title">Model Serving</span>
+            </div>
+            <span class="accordion-chevron"></span>
+          </summary>
+          <div class="accordion-content">
+            <p>Our model serving infrastructure evaluates open-weight AI models across the two most popular local
+              inference
+              runtimes <code>llama.cpp</code> and <code>vLLM</code>. All models are served on an Nvidia DGX Spark with
+              128GB of VRAM.
+            </p>
+            <ul class="methodology-list">
+              <li><strong>Weight Precision &amp; Quantization:</strong> We test FP16 unquantized baselines alongside
+                FP8, INT4, NVFP4, and GGUF / EXL2 K-quants (Q8_0, Q6_K, Q4_K_M, Q3_K_M, Q2_K, IQ2_XXS).</li>
+              <li><strong>Context &amp; Memory Allocation:</strong> Context windows are configured to model max with
+                optional KV-cache quantization enabled.</li>
+              <li><strong>Sampling &amp; Reproducibility:</strong> Temperature is set using the model-recommended value,
+                but each test is run 3 times and the results averaged. </li>
+            </ul>
+          </div>
+        </details>
+
+        <!-- Item 2: Harness Setup -->
+        <details class="accordion-item">
+          <summary class="accordion-header">
+            <div class="accordion-title-group">
+              <span class="accordion-icon">⚙️</span>
+              <span class="accordion-title">Harness Setup</span>
+            </div>
+            <span class="accordion-chevron"></span>
+          </summary>
+          <div class="accordion-content">
+            <p>The agent harness environment orchestrates multi-turn tool loops, terminal execution, file system
+              modifications, and error feedback recovery. We evaluate models across major open and commercial agent
+              frameworks (OpenCode, Claude Code, Aider, Cline, AutoGen, CrewAI).</p>
+            <ul class="methodology-list">
+              <li><strong>Edit Format Standardization:</strong> Evaluates performance across Unified Diff (line-level
+                edits), Search &amp; Replace blocks, AST Tree Mutations, and Full File Overwrites.</li>
+              <li><strong>Tool &amp; LSP Integration:</strong> System prompts specify explicit JSON schema tool calls
+                with Language Server Protocol (LSP) feedback for instant syntax error diagnostics.</li>
+              <li><strong>Loop Limits:</strong> Agents are permitted up to 30 sequential turns per problem instance
+                before flagging a timeout or unrecoverable loop failure.</li>
+            </ul>
+          </div>
+        </details>
+
+        <!-- Item 3: Tests and Evaluation -->
+        <details class="accordion-item">
+          <summary class="accordion-header">
+            <div class="accordion-title-group">
+              <span class="accordion-icon">📊</span>
+              <span class="accordion-title">Tests and Evaluation</span>
+            </div>
+            <span class="accordion-chevron"></span>
+          </summary>
+          <div class="accordion-content">
+            <p>FiniBench benchmarks end-to-end task completion on curated test suites including SWE-bench Lite,
+              LiveCodeBench, GAIA, TAU-bench, HumanEval Multi-Turn, and MBPP. Rather than relying on single-turn token
+              accuracy, we measure outcome-oriented engineering efficiency.</p>
+            <ul class="methodology-list">
+              <li><strong>Tasks Solved / Hour (Tasks/hr):</strong> Quantifies total verified multi-turn tasks completed
+                per 60 minutes of wall-clock execution time.</li>
+              <li><strong>Tasks Solved / GB Memory (Tasks/GB):</strong> Measures hardware efficiency by normalizing task
+                throughput against total run memory consumption.</li>
+              <li><strong>Trace Logging:</strong> Every evaluation run generates a deterministic execution trace
+                containing input/output token counts, run memory footprint, context utilization, and complete terminal
+                logs.</li>
+            </ul>
+          </div>
+        </details>
       </div>
     </section>
   </main>
@@ -172,8 +314,6 @@
     <p style="margin-top: 0.5rem; font-size: 0.75rem;">© 2026 The Pixelary Media. Built for static deployment on GitHub
       Pages.</p>
   </footer>
-
-  <script src="js/app.js"></script>
 </body>
 
 </html>

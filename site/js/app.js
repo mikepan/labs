@@ -28,19 +28,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
 /**
  * Extracts and normalizes benchmark evaluation metrics for a single evaluation record.
+ * Supports both Columnar Matrix objects and legacy nested structures.
  */
 function extractEvalMetrics(e) {
   if (!e) return {};
 
-  const llm = e.llm || {};
-  const harness = e.harness || {};
-  const metrics = e.summary_metrics || {};
-  const tests = e.test_results ? Object.values(e.test_results) : [];
+  const testsObj = e.test_results || {};
+  const tests = Array.isArray(testsObj) ? testsObj : Object.values(testsObj);
 
   const sumCompletion = tests.reduce((acc, t) => acc + (t.run_completion || 0), 0);
-  const intelligence = metrics.task_intelligence !== undefined
-    ? metrics.task_intelligence
-    : Math.round(sumCompletion * 10) / 10;
+  const intelligence = e.intelligence !== undefined
+    ? e.intelligence
+    : (e.summary_metrics?.intelligence !== undefined
+      ? e.summary_metrics.intelligence
+      : (e.summary_metrics?.task_intelligence !== undefined
+        ? e.summary_metrics.task_intelligence
+        : Math.round(sumCompletion * 10) / 10));
 
   const timeSec = tests.length > 0
     ? Math.round(tests.reduce((acc, t) => acc + (t.run_time_sec || t.completion_time_sec || 0), 0) / tests.length)
@@ -48,44 +51,69 @@ function extractEvalMetrics(e) {
 
   const runMemGb = tests.length > 0
     ? (tests.reduce((acc, t) => acc + (t.run_memory_gb || 0), 0) / tests.length)
-    : (llm.model_size_gb || 0);
+    : (e.model_size_gb || e.llm?.model_size_gb || 0);
+
+  const paramSizeB = e.param_size_b !== undefined
+    ? e.param_size_b
+    : (e.llm?.param_size_b !== undefined ? e.llm.param_size_b : (parseInt(e.param_size || e.llm?.param_size, 10) || 0));
+
+  const modelName = e.name || e.llm?.name || 'Unknown Model';
+  const company = e.company || e.llm?.company || '';
+  const quant = e.model_quant || e.llm?.model_quant || e.quant || 'FP16';
+  const kvQuant = e.kv_quant || e.llm?.kv_quant || 'FP16';
+  const harnessName = typeof e.harness === 'string' ? e.harness : (e.harness?.name || 'N/A');
+  const reasoning = e.reasoning || e.harness?.reasoning || e.harness?.reasoning_effort || 'off';
+  const taskSpeed = e.task_speed !== undefined ? e.task_speed : (e.summary_metrics?.task_speed ?? 0);
+  const intelligenceDensity = e.intelligence_density !== undefined ? e.intelligence_density : (e.summary_metrics?.intelligence_density ?? 0);
 
   return {
-    llm,
-    harness,
-    metrics,
+    raw: e,
     tests,
     intelligence,
     timeSec,
     runMemGb,
+    paramSizeB,
     memoryGb: Math.round(runMemGb),
-    modelName: llm.name || 'Unknown Model',
-    quant: llm.model_quant || 'FP16',
-    kvQuant: llm.kv_quant || 'FP16',
-    reasoningEffort: harness.reasoning_effort || 'off',
-    harnessName: harness.name || 'N/A',
-    taskSpeed: metrics.task_speed ?? 0,
-    intelligenceDensity: metrics.intelligence_density ?? 0
+    modelName,
+    company,
+    quant,
+    kvQuant,
+    reasoning,
+    harnessName,
+    taskSpeed,
+    intelligenceDensity
   };
 }
 
 function initDashboard(data) {
-  const evaluations = data.evaluations || [];
+  let evaluations = [];
+
+  if (data.rows && data.columns) {
+    const cols = data.columns;
+    evaluations = data.rows.map(row => {
+      const obj = {};
+      cols.forEach((col, idx) => {
+        obj[col] = row[idx];
+      });
+      return obj;
+    });
+  } else if (Array.isArray(data.evaluations)) {
+    evaluations = data.evaluations;
+  }
 
   const models = evaluations.map(e => {
     const m = extractEvalMetrics(e);
     return {
       name: m.modelName,
-      family: m.llm.company || '',
-      param_size: m.llm.param_size || '',
+      family: m.company,
+      param_size_b: m.paramSizeB,
       quant: m.quant,
       memory_gb: m.memoryGb,
-      task_intelligence: m.intelligence,
+      intelligence: m.intelligence,
       task_speed: m.taskSpeed,
       intelligence_density: m.intelligenceDensity,
       harness_name: m.harnessName,
-      reasoning_effort: m.reasoningEffort,
-      harness: m.harness,
+      reasoning: m.reasoning,
       test_results: e.test_results
     };
   });
@@ -151,10 +179,11 @@ function renderModelSpeedChart(evaluations) {
   const chart = echarts.init(chartEl);
 
   // Sort evaluations by task_speed descending and take top 10
-  const sorted = [...evaluations].sort((a, b) => (b.summary_metrics?.task_speed || 0) - (a.summary_metrics?.task_speed || 0)).slice(0, 10);
+  const normalized = evaluations.map(e => extractEvalMetrics(e));
+  const sorted = normalized.sort((a, b) => (b.taskSpeed || 0) - (a.taskSpeed || 0)).slice(0, 10);
 
-  const modelLabels = sorted.map(e => `${e.llm?.name || 'Unknown'} (${e.llm?.model_quant || 'FP16'})`);
-  const speedValues = sorted.map(e => Number(e.summary_metrics?.task_speed || 0).toFixed(1));
+  const modelLabels = sorted.map(m => `${m.modelName} (${m.quant})`);
+  const speedValues = sorted.map(m => Number(m.taskSpeed || 0).toFixed(1));
 
   const option = {
     backgroundColor: 'transparent',
@@ -165,10 +194,10 @@ function renderModelSpeedChart(evaluations) {
       borderColor: '#e2e8f0',
       shadowColor: 'rgba(0, 0, 0, 0.08)',
       shadowBlur: 12,
-      textStyle: { color: '#0f172a', fontFamily: 'Inter' },
+      textStyle: { color: '#0f172a', fontFamily: 'system-ui, -apple-system, sans-serif' },
       formatter: function (params) {
         const item = params[0];
-        const rawEval = sorted[item.dataIndex];
+        const rawEval = sorted[item.dataIndex]?.raw;
         return formatModelCardTooltip(rawEval);
       }
     },
@@ -185,7 +214,7 @@ function renderModelSpeedChart(evaluations) {
       axisLine: { lineStyle: { color: '#cbd5e1' } },
       axisLabel: {
         color: '#64748b',
-        fontFamily: 'Inter',
+        fontFamily: 'system-ui, -apple-system, sans-serif',
         interval: 0,
         rotate: 25,
         fontSize: 11
@@ -196,7 +225,7 @@ function renderModelSpeedChart(evaluations) {
       name: 'Task Speed',
       axisLine: { lineStyle: { color: '#cbd5e1' } },
       splitLine: { lineStyle: { color: '#f1f5f9' } },
-      axisLabel: { color: '#64748b', fontFamily: 'Inter' }
+      axisLabel: { color: '#64748b', fontFamily: 'system-ui, -apple-system, sans-serif' }
     },
     series: [
       {
@@ -231,10 +260,11 @@ function renderModelDensityChart(evaluations) {
   const chart = echarts.init(chartEl);
 
   // Sort evaluations by intelligence_density descending and take top 10
-  const sorted = [...evaluations].sort((a, b) => (b.summary_metrics?.intelligence_density || 0) - (a.summary_metrics?.intelligence_density || 0)).slice(0, 10);
+  const normalized = evaluations.map(e => extractEvalMetrics(e));
+  const sorted = normalized.sort((a, b) => (b.intelligenceDensity || 0) - (a.intelligenceDensity || 0)).slice(0, 10);
 
-  const modelLabels = sorted.map(e => `${e.llm?.name || 'Unknown'} (${e.llm?.model_quant || 'FP16'})`);
-  const densityValues = sorted.map(e => Number(e.summary_metrics?.intelligence_density || 0).toFixed(1));
+  const modelLabels = sorted.map(m => `${m.modelName} (${m.quant})`);
+  const densityValues = sorted.map(m => Number(m.intelligenceDensity || 0).toFixed(1));
 
   const option = {
     backgroundColor: 'transparent',
@@ -245,10 +275,10 @@ function renderModelDensityChart(evaluations) {
       borderColor: '#e2e8f0',
       shadowColor: 'rgba(0, 0, 0, 0.08)',
       shadowBlur: 12,
-      textStyle: { color: '#0f172a', fontFamily: 'Inter' },
+      textStyle: { color: '#0f172a', fontFamily: 'system-ui, -apple-system, sans-serif' },
       formatter: function (params) {
         const item = params[0];
-        const rawEval = sorted[item.dataIndex];
+        const rawEval = sorted[item.dataIndex]?.raw;
         return formatModelCardTooltip(rawEval);
       }
     },
@@ -265,7 +295,7 @@ function renderModelDensityChart(evaluations) {
       axisLine: { lineStyle: { color: '#cbd5e1' } },
       axisLabel: {
         color: '#64748b',
-        fontFamily: 'Inter',
+        fontFamily: 'system-ui, -apple-system, sans-serif',
         interval: 0,
         rotate: 25,
         fontSize: 11
@@ -276,7 +306,7 @@ function renderModelDensityChart(evaluations) {
       name: 'Intelligence Density',
       axisLine: { lineStyle: { color: '#cbd5e1' } },
       splitLine: { lineStyle: { color: '#f1f5f9' } },
-      axisLabel: { color: '#64748b', fontFamily: 'Inter' }
+      axisLabel: { color: '#64748b', fontFamily: 'system-ui, -apple-system, sans-serif' }
     },
     series: [
       {
@@ -423,7 +453,7 @@ function renderTopScatterChart(evaluations, viewMode = 'time') {
       borderColor: '#e2e8f0',
       shadowColor: 'rgba(0, 0, 0, 0.08)',
       shadowBlur: 12,
-      textStyle: { color: '#0f172a', fontFamily: 'Inter' },
+      textStyle: { color: '#0f172a', fontFamily: 'system-ui, -apple-system, sans-serif' },
       formatter: function (params) {
         return formatModelCardTooltip(params.data.rawEval);
       }
@@ -432,7 +462,7 @@ function renderTopScatterChart(evaluations, viewMode = 'time') {
       data: ['Best-In-Class', 'Average', 'Below Average'],
       top: 0,
       right: '5%',
-      textStyle: { color: '#64748b', fontFamily: 'Inter' }
+      textStyle: { color: '#64748b', fontFamily: 'system-ui, -apple-system, sans-serif' }
     },
     grid: {
       left: '4%',
@@ -448,7 +478,7 @@ function renderTopScatterChart(evaluations, viewMode = 'time') {
       nameGap: 32,
       axisLine: { lineStyle: { color: '#cbd5e1' } },
       splitLine: { lineStyle: { color: '#f1f5f9' } },
-      axisLabel: { color: '#64748b', fontFamily: 'Inter' }
+      axisLabel: { color: '#64748b', fontFamily: 'system-ui, -apple-system, sans-serif' }
     },
     yAxis: {
       type: 'value',
@@ -457,7 +487,7 @@ function renderTopScatterChart(evaluations, viewMode = 'time') {
       min: 0,
       axisLine: { lineStyle: { color: '#cbd5e1' } },
       splitLine: { lineStyle: { color: '#f1f5f9' } },
-      axisLabel: { color: '#64748b', fontFamily: 'Inter' }
+      axisLabel: { color: '#64748b', fontFamily: 'system-ui, -apple-system, sans-serif' }
     },
     series: [
       {
@@ -553,7 +583,7 @@ function renderLeaderboard(models) {
   const headers = document.querySelectorAll('th.sortable-header');
   if (!tbody) return;
 
-  let currentSortKey = 'task_intelligence';
+  let currentSortKey = 'intelligence';
   let currentSortOrder = 'desc';
 
   function updateTable() {
@@ -563,7 +593,8 @@ function renderLeaderboard(models) {
       m.name.toLowerCase().includes(filterText) ||
       m.family.toLowerCase().includes(filterText) ||
       m.quant.toLowerCase().includes(filterText) ||
-      m.harness_name.toLowerCase().includes(filterText)
+      m.harness_name.toLowerCase().includes(filterText) ||
+      m.reasoning.toLowerCase().includes(filterText)
     );
 
     filtered.sort((a, b) => {
@@ -609,16 +640,16 @@ function renderLeaderboard(models) {
         <tr>
           <td class="model-name ${cls('name')}">
             <strong>${escapeHtml(m.name)}</strong>
-            <br/><span style="font-size:0.75rem; color:#6b7280;">${m.param_size} • ${m.family}</span>
-            <div class="mobile-sub-info">${escapeHtml(m.quant)} • ${escapeHtml(m.harness_name)} • ${escapeHtml(m.reasoning_effort)}</div>
+            <br/><span style="font-size:0.75rem; color:#6b7280;">${m.param_size_b ? m.param_size_b + 'B' : ''} • ${m.family}</span>
+            <div class="mobile-sub-info">${escapeHtml(m.quant)} • ${escapeHtml(m.harness_name)} • ${escapeHtml(m.reasoning)}</div>
           </td>
           <td class="${cls('task_speed')}">${Number(m.task_speed).toFixed(1)}</td>
           <td class="${cls('intelligence_density')}">${Number(m.intelligence_density).toFixed(1)}</td>
-          <td class="${cls('task_intelligence')}">${m.task_intelligence}</td>
+          <td class="${cls('intelligence')}">${m.intelligence}</td>
           <td class="${cls('memory_gb')}">${Math.round(m.memory_gb)} GB</td>
           <td class="hide-mobile ${cls('quant')}"><code>${escapeHtml(m.quant)}</code></td>
           <td class="hide-mobile ${cls('harness_name')}">${escapeHtml(m.harness_name)}</td>
-          <td class="hide-mobile ${cls('reasoning_effort')}"><span style="font-family:var(--font-mono); font-size:0.85rem; font-weight:500;">${escapeHtml(m.reasoning_effort)}</span></td>
+          <td class="hide-mobile ${cls('reasoning')}"><span style="font-family:var(--font-mono); font-size:0.85rem; font-weight:500;">${escapeHtml(m.reasoning)}</span></td>
         </tr>
       `;
     }).join('');
@@ -632,7 +663,7 @@ function renderLeaderboard(models) {
         currentSortOrder = currentSortOrder === 'asc' ? 'desc' : 'asc';
       } else {
         currentSortKey = key;
-        currentSortOrder = ['name', 'quant', 'harness_name', 'reasoning_effort'].includes(key) ? 'asc' : 'desc';
+        currentSortOrder = ['name', 'quant', 'harness_name', 'reasoning'].includes(key) ? 'asc' : 'desc';
       }
       updateTable();
     });
@@ -682,7 +713,7 @@ function formatModelCardTooltip(evalRecord) {
       ${row('Completion Time', m.timeSec + ' sec')}
       ${row('Memory Use', m.memoryGb + ' GB')}
       ${row('Harness', m.harnessName)}
-      ${row('Reasoning Effort', m.reasoningEffort)}
+      ${row('Reasoning', m.reasoning)}
       ${row('KV Cache Quant', m.kvQuant)}
     </div>
   `;

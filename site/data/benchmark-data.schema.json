@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "FiniBench Columnar Benchmark Data Schema",
+  "type": "object",
+  "required": ["columns", "rows"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "columns": {
+      "type": "array",
+      "items": { "type": "string" },
+      "minItems": 17,
+      "maxItems": 17,
+      "description": "Column header names ordered to match row element indexes."
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "array",
+        "minItems": 17,
+        "maxItems": 17,
+        "prefixItems": [
+          { "type": "string", "description": "LLM display name" },
+          { "type": "string", "description": "Company / Creator" },
+          { "type": "string", "description": "Canonical parent model path" },
+          { "type": "string", "description": "Model weight quantization level" },
+          { "type": "string", "description": "KV cache quantization level" },
+          { "type": "integer", "minimum": 0, "description": "Parameter size in billions" },
+          { "type": "number", "minimum": 0, "description": "Model size in GB" },
+          { "type": "integer", "minimum": 0, "description": "Context length in tokens" },
+          { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$", "description": "Release date (YYYY-MM-DD)" },
+          { "type": "string", "description": "Harness name" },
+          { "type": "string", "description": "Harness version" },
+          { "type": "string", "enum": ["off", "low", "med", "high", "max"], "description": "Reasoning effort" },
+          { "type": "string", "description": "Launch config" },
+          { "type": "number", "minimum": 0, "description": "Intelligence score" },
+          { "type": "number", "minimum": 0, "description": "Task speed (tasks/hr)" },
+          { "type": "number", "minimum": 0, "description": "Intelligence density (tasks/GB)" },
+          {
+            "type": "object",
+            "description": "Map of arbitrary evaluated benchmark test suites and their execution metrics",
+            "additionalProperties": {
+              "type": "object",
+              "required": [
+                "name",
+                "run_completion",
+                "run_time_sec",
+                "run_memory_gb",
+                "tokens_in",
+                "tokens_out",
+                "context_used_pct",
+                "trace_id"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "name": { "type": "string", "description": "Display name of the benchmark test suite (e.g. SWE-bench Lite, LiveCodeBench)." },
+                "run_completion": { "type": "number", "minimum": 0, "maximum": 100, "description": "Task completion rate percentage for the specific test run." },
+                "run_time_sec": { "type": "number", "minimum": 0, "description": "Test execution wall-clock time in seconds." },
+                "run_memory_gb": { "type": "number", "minimum": 0, "description": "Peak or mean memory footprint during test run in GB." },
+                "tokens_in": { "type": "integer", "minimum": 0 },
+                "tokens_out": { "type": "integer", "minimum": 0 },
+                "context_used_pct": { "type": "number", "minimum": 0, "maximum": 100, "description": "Percentage of context window utilized during test execution." },
+                "trace_id": { "type": "string" }
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}

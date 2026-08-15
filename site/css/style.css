@@ -75,8 +75,7 @@ strong {
 
 /* Header & Nav */
 header {
-  position: sticky;
-  top: 0;
+  position: relative;
   z-index: 100;
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
@@ -405,7 +404,7 @@ header {
 
 .charts-row {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(550px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
   gap: 1.5rem;
 }
 
@@ -666,6 +665,19 @@ footer a:hover {
 
 /* Mobile Responsive Optimization for Full Width Charts */
 @media (max-width: 640px) {
+  .nav-container {
+    padding: 0.75rem 0.85rem;
+  }
+
+  .brand-text {
+    font-size: 0.95rem;
+  }
+
+  .brand-icon {
+    width: 26px;
+    height: 26px;
+    font-size: 0.85rem;
+  }
   .charts-section {
     padding: 0 0.5rem;
     margin-bottom: 2rem;

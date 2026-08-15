@@ -172,11 +172,26 @@ function handleFetchError(error) {
   }
 }
 
+function getOrCreateChart(chartEl) {
+  if (!chartEl) return null;
+  let chart = echarts.getInstanceByDom(chartEl);
+  if (!chart) {
+    chart = echarts.init(chartEl);
+    if (typeof ResizeObserver !== 'undefined') {
+      const ro = new ResizeObserver(() => chart.resize({ animation: { duration: 0 } }));
+      ro.observe(chartEl);
+      chartEl._resizeObserver = ro;
+    } else {
+      window.addEventListener('resize', () => chart.resize({ animation: { duration: 0 } }));
+    }
+  }
+  return chart;
+}
+
 function renderModelSpeedChart(evaluations) {
   const chartEl = document.getElementById('chart-model-speed');
-  if (!chartEl) return;
-
-  const chart = echarts.init(chartEl);
+  const chart = getOrCreateChart(chartEl);
+  if (!chart) return;
 
   // Sort evaluations by task_speed descending and take top 10
   const normalized = evaluations.map(e => extractEvalMetrics(e));
@@ -239,7 +254,7 @@ function renderModelSpeedChart(evaluations) {
           ]),
           borderRadius: [6, 6, 0, 0]
         },
-        barWidth: 28,
+        barWidth: 18,
         emphasis: {
           itemStyle: {
             color: '#c2410c'
@@ -250,14 +265,12 @@ function renderModelSpeedChart(evaluations) {
   };
 
   chart.setOption(option);
-  window.addEventListener('resize', () => chart.resize());
 }
 
 function renderModelDensityChart(evaluations) {
   const chartEl = document.getElementById('chart-model-density');
-  if (!chartEl) return;
-
-  const chart = echarts.init(chartEl);
+  const chart = getOrCreateChart(chartEl);
+  if (!chart) return;
 
   // Sort evaluations by intelligence_density descending and take top 10
   const normalized = evaluations.map(e => extractEvalMetrics(e));
@@ -320,7 +333,7 @@ function renderModelDensityChart(evaluations) {
           ]),
           borderRadius: [6, 6, 0, 0]
         },
-        barWidth: 28,
+        barWidth: 18,
         emphasis: {
           itemStyle: {
             color: '#047857'
@@ -331,18 +344,12 @@ function renderModelDensityChart(evaluations) {
   };
 
   chart.setOption(option);
-  window.addEventListener('resize', () => chart.resize());
 }
 
 function renderTopScatterChart(evaluations, viewMode = 'time') {
   const chartEl = document.getElementById('chart-top-scatter');
-  if (!chartEl) return;
-
-  let chart = echarts.getInstanceByDom(chartEl);
-  if (!chart) {
-    chart = echarts.init(chartEl);
-    window.addEventListener('resize', () => chart.resize());
-  }
+  const chart = getOrCreateChart(chartEl);
+  if (!chart) return;
 
   // 1. Extract raw points for Pareto frontier calculation
   const rawPoints = evaluations.map((e, idx) => {

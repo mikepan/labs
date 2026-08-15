@@ -508,12 +508,8 @@ tr:hover td {
 }
 
 /* Metric Highlight */
-
-/* Metric Highlight */
 .metric-highlight {
   font-family: var(--font-mono);
-  font-weight: 400;
-  color: var(--accent-amber);
 }
 
 /* Footer */
@@ -729,5 +725,89 @@ footer a:hover {
 
   .accordion-content {
     padding: 0 1.15rem 1.25rem;
+  }
+}
+
+/* Sortable Table Headers */
+th.sortable-header {
+  cursor: pointer;
+  user-select: none;
+  transition: color 0.15s ease;
+}
+
+th.sortable-header:hover {
+  color: var(--accent-orange);
+}
+
+th.sort-active,
+td.sort-active {
+  color: #ea580c !important;
+  font-weight: 500;
+}
+
+td.sort-active strong {
+  color: #ea580c !important;
+}
+
+.sort-icon {
+  font-size: 0.75rem;
+  color: #ea580c;
+}
+
+.mobile-sub-info {
+  display: none;
+}
+
+/* Compact Tabular View for Mobile (Fits cleanly without side-scrolling) */
+@media (max-width: 640px) {
+  .table-section {
+    padding: 0 0.25rem;
+  }
+
+  .hide-mobile {
+    display: none !important;
+  }
+
+  .mobile-sub-info {
+    display: block;
+    font-size: 0.675rem;
+    color: #94a3b8;
+    margin-top: 2px;
+    font-weight: 300;
+    line-height: 1.2;
+  }
+
+  table {
+    table-layout: fixed;
+    width: 100%;
+  }
+
+  th, td {
+    padding: 0.5rem 0.15rem;
+    font-size: 0.725rem;
+    text-align: right;
+  }
+
+  th:first-child, td:first-child {
+    text-align: left;
+    width: 38%;
+  }
+
+  th:not(:first-child), td:not(:first-child) {
+    width: 15.5%;
+  }
+
+  .model-name strong {
+    font-size: 0.775rem;
+    line-height: 1.2;
+    display: block;
+  }
+
+  .sort-icon {
+    font-size: 0.65rem;
+  }
+
+  .table-wrapper {
+    overflow-x: hidden;
   }
 }

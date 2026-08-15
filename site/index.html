@@ -118,7 +118,7 @@
       <div class="chart-card">
         <div class="chart-header">
           <h3 class="chart-title">Intelligence vs Efficiency</h3>
-          <p class="chart-desc">Task Pass Rate (%) vs Completion Time (seconds) or Memory Use (GB).</p>
+          <p class="chart-desc">Task Intelligence vs Completion Time (seconds) or Memory Use (GB).</p>
         </div>
         <div id="chart-top-scatter" class="chart-container" style="height: 410px;"></div>
         <div class="chart-footer-controls">
@@ -154,7 +154,7 @@
     <!-- Leaderboard Table Section -->
     <section class="table-section">
       <div class="table-controls">
-        <h2 class="section-title" style="margin-bottom:0;">AI Model Leaderboard</h2>
+        <h2 class="section-title" style="margin-bottom:0;">AI Agent Leaderboard</h2>
         <input type="text" id="model-search" class="search-box" placeholder="Search model, quant, or family..." />
       </div>
 
@@ -162,14 +162,17 @@
         <table>
           <thead>
             <tr>
-              <th>Model Name</th>
-              <th>Quant</th>
-              <th>Harness</th>
-              <th>Reasoning Effort</th>
-              <th>Task Speed</th>
-              <th>Intelligence Density</th>
-              <th>Intelligence</th>
-              <th>Memory Use</th>
+              <th data-sort="name" class="sortable-header">Model Name <span class="sort-icon"></span></th>
+              <th data-sort="task_speed" class="sortable-header">Speed <span class="sort-icon"></span></th>
+              <th data-sort="intelligence_density" class="sortable-header">Density <span class="sort-icon"></span></th>
+              <th data-sort="task_intelligence" class="sortable-header">Intelligence <span class="sort-icon"></span>
+              </th>
+              <th data-sort="memory_gb" class="sortable-header">Memory <span class="sort-icon"></span></th>
+              <th data-sort="quant" class="sortable-header hide-mobile">Quant <span class="sort-icon"></span></th>
+              <th data-sort="harness_name" class="sortable-header hide-mobile">Harness <span class="sort-icon"></span>
+              </th>
+              <th data-sort="reasoning_effort" class="sortable-header hide-mobile">Reasoning Effort <span
+                  class="sort-icon"></span></th>
             </tr>
           </thead>
           <tbody id="leaderboard-body">

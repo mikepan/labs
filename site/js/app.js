@@ -39,7 +39,7 @@ function initDashboard(data) {
       family: e.llm.company,
       param_size: e.llm.param_size,
       quant: e.llm.model_quant,
-      memory_gb: Math.round(runMemGb * 10) / 10,
+      memory_gb: Math.round(runMemGb),
       task_intelligence: intel,
       task_speed: e.summary_metrics.task_speed,
       intelligence_density: e.summary_metrics.intelligence_density,
@@ -357,7 +357,7 @@ function renderTopScatterChart(evaluations, viewMode = 'time') {
       y: intelligence,
       name: e.llm.name,
       quant: e.llm.model_quant,
-      memoryGb: Math.round(runMemGb * 10) / 10,
+      memoryGb: Math.round(runMemGb),
       timeSec: Math.round(timeSec),
       harnessName: e.harness.name,
       kvQuant: e.llm.kv_quant || 'FP16',
@@ -588,42 +588,88 @@ function renderTopScatterChart(evaluations, viewMode = 'time') {
 function renderLeaderboard(models) {
   const tbody = document.getElementById('leaderboard-body');
   const searchInput = document.getElementById('model-search');
+  const headers = document.querySelectorAll('th.sortable-header');
   if (!tbody) return;
 
-  function updateTable(filterText = '') {
+  let currentSortKey = 'task_intelligence';
+  let currentSortOrder = 'desc';
+
+  function updateTable() {
+    const filterText = searchInput ? searchInput.value.trim().toLowerCase() : '';
+
     const filtered = models.filter(m =>
-      m.name.toLowerCase().includes(filterText.toLowerCase()) ||
-      m.family.toLowerCase().includes(filterText.toLowerCase()) ||
-      m.quant.toLowerCase().includes(filterText.toLowerCase()) ||
-      m.harness_name.toLowerCase().includes(filterText.toLowerCase())
+      m.name.toLowerCase().includes(filterText) ||
+      m.family.toLowerCase().includes(filterText) ||
+      m.quant.toLowerCase().includes(filterText) ||
+      m.harness_name.toLowerCase().includes(filterText)
     );
+
+    filtered.sort((a, b) => {
+      let valA = a[currentSortKey];
+      let valB = b[currentSortKey];
+      if (typeof valA === 'string') {
+        valA = valA.toLowerCase();
+        valB = (valB || '').toLowerCase();
+        return currentSortOrder === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+      }
+      valA = Number(valA || 0);
+      valB = Number(valB || 0);
+      return currentSortOrder === 'asc' ? valA - valB : valB - valA;
+    });
+
+    headers.forEach(th => {
+      const key = th.getAttribute('data-sort');
+      const icon = th.querySelector('.sort-icon');
+      if (key === currentSortKey) {
+        th.classList.add('sort-active');
+        if (icon) icon.textContent = currentSortOrder === 'asc' ? ' ▲' : ' ▼';
+      } else {
+        th.classList.remove('sort-active');
+        if (icon) icon.textContent = '';
+      }
+    });
+
+    const cls = (key) => key === currentSortKey ? 'sort-active' : '';
 
     tbody.innerHTML = filtered.map(m => {
       return `
         <tr>
-          <td class="model-name">
-            ${escapeHtml(m.name)}
+          <td class="model-name ${cls('name')}">
+            <strong>${escapeHtml(m.name)}</strong>
             <br/><span style="font-size:0.75rem; color:#6b7280;">${m.param_size} • ${m.family}</span>
+            <div class="mobile-sub-info">${escapeHtml(m.quant)} • ${escapeHtml(m.harness_name)} • ${escapeHtml(m.reasoning_effort)}</div>
           </td>
-          <td><code>${escapeHtml(m.quant)}</code></td>
-          <td>${escapeHtml(m.harness_name)}</td>
-          <td><span style="font-family:var(--font-mono); font-size:0.85rem; font-weight:500;">${escapeHtml(m.reasoning_effort)}</span></td>
-          <td class="metric-highlight">${Number(m.task_speed).toFixed(1)}</td>
-          <td class="metric-highlight">${Number(m.intelligence_density).toFixed(1)}</td>
-          <td>${m.task_intelligence}%</td>
-          <td>${m.memory_gb} GB</td>
+          <td class="${cls('task_speed')}">${Number(m.task_speed).toFixed(1)}</td>
+          <td class="${cls('intelligence_density')}">${Number(m.intelligence_density).toFixed(1)}</td>
+          <td class="${cls('task_intelligence')}">${m.task_intelligence}</td>
+          <td class="${cls('memory_gb')}">${Math.round(m.memory_gb)} GB</td>
+          <td class="hide-mobile ${cls('quant')}"><code>${escapeHtml(m.quant)}</code></td>
+          <td class="hide-mobile ${cls('harness_name')}">${escapeHtml(m.harness_name)}</td>
+          <td class="hide-mobile ${cls('reasoning_effort')}"><span style="font-family:var(--font-mono); font-size:0.85rem; font-weight:500;">${escapeHtml(m.reasoning_effort)}</span></td>
         </tr>
       `;
     }).join('');
   }
 
-  updateTable();
+  headers.forEach(th => {
+    th.addEventListener('click', () => {
+      const key = th.getAttribute('data-sort');
+      if (!key) return;
+      if (currentSortKey === key) {
+        currentSortOrder = currentSortOrder === 'asc' ? 'desc' : 'asc';
+      } else {
+        currentSortKey = key;
+        currentSortOrder = ['name', 'quant', 'harness_name', 'reasoning_effort'].includes(key) ? 'asc' : 'desc';
+      }
+      updateTable();
+    });
+  });
 
   if (searchInput) {
-    searchInput.addEventListener('input', (e) => {
-      updateTable(e.target.value);
-    });
+    searchInput.addEventListener('input', () => updateTable());
   }
+
+  updateTable();
 }
 
 function escapeHtml(str) {
@@ -663,7 +709,7 @@ function formatModelCardTooltip(evalRecord) {
     ? (tests.reduce((acc, t) => acc + (t.run_memory_gb || 0), 0) / tests.length) 
     : (llm.model_size_gb || 0);
 
-  const memoryGb = Math.round(runMemGb * 10) / 10;
+  const memoryGb = Math.round(runMemGb);
   const harnessName = harness.name || 'N/A';
   const reasoningEffort = harness.reasoning_effort || 'off';
   const kvQuant = llm.kv_quant || 'FP16';

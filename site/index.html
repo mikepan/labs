@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FiniBench | Agentic AI Velocity & Efficiency Benchmark</title>
+  <meta name="description"
+    content="FiniBench by Pixelary Labs evaluates local AI models (Llama 3.3, Qwen 2.5 Coder, DeepSeek R1, Gemma, Kimi K3, GLM, MiniMax, MiMo, Inkling, Hy3, Nemotron, Muse Glimmer, Mistral), GGUF & EXL2 quantization formats, and agent harnesses across llama.cpp, Ollama, vLLM, and LM Studio." />
+  <meta name="keywords"
+    content="FiniBench, Pixelary Labs, AI, AI benchmark, agentic AI, llama.cpp, Ollama, vLLM, EXL2, LM Studio, KServe, TGI, GGUF, AWQ, GPTQ, K-quants, Q4_K_M, Q5_K_M, Q8_0, Q2_K, IQ2_XXS, FP8, INT4, NVFP4, SWE-bench, LiveCodeBench, GAIA, TAU-bench, HumanEval, MBPP, MMLU, Gemma, Kimi K3, GLM, MiniMax, MiMo, Inkling, Hy3, Nemotron, Muse Glimmer, Mistral, Llama 3.3, Qwen 2.5 Coder, DeepSeek R1, OpenCode, Pi, Claude Code, Aider, Cline, Roo Code, AutoGen, CrewAI, Mike Pan" />
+  <meta name="author" content="Mike Pan, The Pixelary" />
+  <meta name="robots" content="index, follow" />
+  <link rel="stylesheet" href="css/style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
+</head>
+
+<body>
+
+  <!-- Ambient Light Effects -->
+  <div class="ambient-bg">
+    <div class="blob-1"></div>
+    <div class="blob-2"></div>
+  </div>
+
+  <!-- Header -->
+  <header>
+    <div class="nav-container">
+      <a href="https://labs.thepixelary.com" class="brand">
+        <div class="brand-icon">🧪</div>
+        <span class="brand-text">Pixelary Labs</span>
+      </a>
+      <div class="nav-links">
+        <a href="#finibench" class="nav-link active">FiniBench</a>
+        <a href="#" class="nav-link">PoseTransfer</a>
+        <a href="https://thepixelary.com" class="nav-link" target="_blank">Pixelary.com</a>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <!-- Hero Section -->
+    <section class="hero" id="finibench">
+      <div class="hero-grid-bg" aria-hidden="true"></div>
+      <h1 class="hero-title">FiniBench: Agentic AI Efficiency Benchmark</h1>
+      <p class="hero-subtitle">
+        We evaluate the combination of <strong>LLM &times; Quantization Level &times;
+          Harness</strong>
+        across a wide range of multi-turn agentic AI tasks. By focusing on end-to-end task completion rates, FiniBench
+        cuts through the advertised FP16 quality and reveal which quantization actually solves problems without
+        collapsing.
+      </p>
+    </section>
+
+    <!-- Charts Section -->
+    <section class="charts-section">
+      <h2 class="section-title">AI Benchmark Visualizations</h2>
+
+      <!-- Chart 1: Quantization Collapse in Multi-Turn Agent Loops -->
+      <div class="chart-card">
+        <div class="chart-header">
+          <h3 class="chart-title">Quantization Degradation in Multi-Turn Agentic AI Loops</h3>
+          <p class="chart-desc">Comparing single-turn AI benchmark accuracy (MMLU, HumanEval) against multi-turn agent
+            task completion
+            (%) across GGUF & EXL2 weight precision levels (FP16, Q8_0, Q4_K_M, Q2_K, IQ2_XXS).</p>
+        </div>
+        <div id="chart-quant-degradation" class="chart-container"></div>
+      </div>
+
+      <div class="charts-row">
+        <!-- Chart 2: Harness Architecture Impact -->
+        <div class="chart-card">
+          <div class="chart-header">
+            <h3 class="chart-title">Harness Architecture Impact on AI Task Completion</h3>
+            <p class="chart-desc">Evaluating AI agent task completion rate per hour (CR/hr) and success (%) across
+              standardized edit harnesses (Aider, Claude Code, Cline, SWE-bench).</p>
+          </div>
+          <div id="chart-harness-impact" class="chart-container"></div>
+        </div>
+
+        <!-- Chart 3: Completion Velocity (CR/hr vs VRAM Footprint) -->
+        <div class="chart-card">
+          <div class="chart-header">
+            <h3 class="chart-title">Deployment Efficiency: CR/hr vs Memory Footprint (GB)</h3>
+            <p class="chart-desc">Evaluating local AI completion velocity (CR/hr) relative to VRAM allocation on
+              runtimes like llama.cpp, Ollama, and vLLM. Bubble size indicates agentic success rate.</p>
+          </div>
+          <div id="chart-velocity-comparison" class="chart-container"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Leaderboard Table Section -->
+    <section class="table-section">
+      <div class="table-controls">
+        <h2 class="section-title" style="margin-bottom:0;">AI Model Leaderboard</h2>
+        <input type="text" id="model-search" class="search-box" placeholder="Search model, quant, or family..." />
+      </div>
+
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>Model Name</th>
+              <th>Status</th>
+              <th>Quant</th>
+              <th>CR / hr</th>
+              <th>CR / GB</th>
+              <th>Agent Success</th>
+              <th>Single-Turn Acc</th>
+              <th>VRAM Footprint</th>
+              <th>Raw Speed</th>
+            </tr>
+          </thead>
+          <tbody id="leaderboard-body">
+            <!-- Populated dynamically from JSON -->
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Conclusions Grid Section -->
+    <section class="conclusions-section">
+      <h2 class="section-title">Why is FiniBench Different?</h2>
+      <div class="conclusions-grid">
+        <div class="card">
+          <div>
+            <div class="card-tag">Quantization &amp; Agent Loops</div>
+            <h3 class="card-title">KL Divergence Fails to Predict Agentic Performance</h3>
+            <p class="card-summary">Model cards are usually advertised at FP16 quality, but most home labs run models at
+              FP8 or even FP4 quality. Quantization levels that show minor quality loss on single-turn tests
+              often suffer total task failure when subjected to multi-step tool calls.</p>
+          </div>
+          <div class="card-insight">
+            <strong>Key Insight:</strong> A Q2 quant should be treated as a separate model than its FP16 equivalent.
+          </div>
+        </div>
+
+        <div class="card">
+          <div>
+            <div class="card-tag">Harness Impact</div>
+            <h3 class="card-title">Harness Architecture Significantly Impacts Success</h3>
+            <p class="card-summary">The design of an agent harness—including its prompt structures, tool definitions,
+              and edit formats—exerts a major influence on task completion rates. Benchmark suites must evaluate models
+              across standardized harnesses to isolate weight precision effects from harness overhead.</p>
+          </div>
+          <div class="card-insight">
+            <strong>Key Insight:</strong> LLMs don't work alone, the harness matters even more.
+          </div>
+        </div>
+
+        <div class="card">
+          <div>
+            <div class="card-tag">Task Efficiency</div>
+            <h3 class="card-title">Token Efficiency and Reasoning Length Confound Results</h3>
+            <p class="card-summary">Evaluating agentic workflow requires shifting from raw generation speed
+              (tokens per second) to outcome-oriented metrics: Completion Rate per Hour and
+              Completion Rate per Gigabyte. These metrics provide an objective measure of system utility on fixed
+              hardware footprints.</p>
+          </div>
+          <div class="card-insight">
+            <strong>Key Insight:</strong> Outcome efficiency measures real work delivered per unit of resources.
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <p>Pixelary Labs • Research & Development Division of <a href="https://thepixelary.com" target="_blank">The
+        Pixelary</a></p>
+    <p style="margin-top: 0.5rem; font-size: 0.75rem;">© 2026 The Pixelary Media. Built for static deployment on GitHub
+      Pages.</p>
+  </footer>
+
+  <script src="js/app.js"></script>
+</body>
+
+</html>

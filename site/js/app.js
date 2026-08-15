@@ -26,26 +26,66 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
+/**
+ * Extracts and normalizes benchmark evaluation metrics for a single evaluation record.
+ */
+function extractEvalMetrics(e) {
+  if (!e) return {};
+
+  const llm = e.llm || {};
+  const harness = e.harness || {};
+  const metrics = e.summary_metrics || {};
+  const tests = e.test_results ? Object.values(e.test_results) : [];
+
+  const sumCompletion = tests.reduce((acc, t) => acc + (t.run_completion || 0), 0);
+  const intelligence = metrics.task_intelligence !== undefined
+    ? metrics.task_intelligence
+    : Math.round(sumCompletion * 10) / 10;
+
+  const timeSec = tests.length > 0
+    ? Math.round(tests.reduce((acc, t) => acc + (t.run_time_sec || t.completion_time_sec || 0), 0) / tests.length)
+    : 0;
+
+  const runMemGb = tests.length > 0
+    ? (tests.reduce((acc, t) => acc + (t.run_memory_gb || 0), 0) / tests.length)
+    : (llm.model_size_gb || 0);
+
+  return {
+    llm,
+    harness,
+    metrics,
+    tests,
+    intelligence,
+    timeSec,
+    runMemGb,
+    memoryGb: Math.round(runMemGb),
+    modelName: llm.name || 'Unknown Model',
+    quant: llm.model_quant || 'FP16',
+    kvQuant: llm.kv_quant || 'FP16',
+    reasoningEffort: harness.reasoning_effort || 'off',
+    harnessName: harness.name || 'N/A',
+    taskSpeed: metrics.task_speed ?? 0,
+    intelligenceDensity: metrics.intelligence_density ?? 0
+  };
+}
+
 function initDashboard(data) {
   const evaluations = data.evaluations || [];
 
   const models = evaluations.map(e => {
-    const tests = e.test_results ? Object.values(e.test_results) : [];
-    const sumCompletion = tests.reduce((acc, t) => acc + (t.run_completion || 0), 0);
-    const intel = e.summary_metrics.task_intelligence !== undefined ? e.summary_metrics.task_intelligence : Math.round(sumCompletion * 10) / 10;
-    const runMemGb = tests.length > 0 ? (tests.reduce((acc, t) => acc + (t.run_memory_gb || 0), 0) / tests.length) : (e.llm.model_size_gb || 16);
+    const m = extractEvalMetrics(e);
     return {
-      name: e.llm.name,
-      family: e.llm.company,
-      param_size: e.llm.param_size,
-      quant: e.llm.model_quant,
-      memory_gb: Math.round(runMemGb),
-      task_intelligence: intel,
-      task_speed: e.summary_metrics.task_speed,
-      intelligence_density: e.summary_metrics.intelligence_density,
-      harness_name: e.harness.name,
-      reasoning_effort: e.harness.reasoning_effort || 'off',
-      harness: e.harness,
+      name: m.modelName,
+      family: m.llm.company || '',
+      param_size: m.llm.param_size || '',
+      quant: m.quant,
+      memory_gb: m.memoryGb,
+      task_intelligence: m.intelligence,
+      task_speed: m.taskSpeed,
+      intelligence_density: m.intelligenceDensity,
+      harness_name: m.harnessName,
+      reasoning_effort: m.reasoningEffort,
+      harness: m.harness,
       test_results: e.test_results
     };
   });
@@ -74,74 +114,6 @@ function initDashboard(data) {
       renderTopScatterChart(evaluations, currentScatterView);
     });
   }
-}
-
-function deriveQuantizationAnalysis(evaluations) {
-  const quantGroups = {};
-  evaluations.forEach(e => {
-    const quant = e.llm.model_quant;
-    if (!quantGroups[quant]) {
-      quantGroups[quant] = {
-        count: 0,
-        sumIntelligence: 0,
-        sumSyntaxErrors: 0
-      };
-    }
-    const tests = e.test_results ? Object.values(e.test_results) : [];
-    const sumCompletion = tests.reduce((acc, t) => acc + (t.run_completion || 0), 0);
-    const intel = e.summary_metrics.task_intelligence !== undefined ? e.summary_metrics.task_intelligence : sumCompletion;
-    const syntaxErrRate = Math.max(1.2, Math.round((100 - intel) * 0.65 * 10) / 10);
-
-    quantGroups[quant].count += 1;
-    quantGroups[quant].sumIntelligence += intel;
-    quantGroups[quant].sumSyntaxErrors += syntaxErrRate;
-  });
-
-  const targetOrder = ['NVFP4', 'Q8_0', 'Q6_K', 'Q4_K_M', 'Q3_K_M', 'Q2_K', 'IQ2_XXS'];
-
-  const sortedKeys = Object.keys(quantGroups).sort((a, b) => {
-    const idxA = targetOrder.indexOf(a);
-    const idxB = targetOrder.indexOf(b);
-    if (idxA !== -1 && idxB !== -1) return idxA - idxB;
-    if (idxA !== -1) return -1;
-    if (idxB !== -1) return 1;
-    return a.localeCompare(b);
-  });
-
-  return sortedKeys.map(quant => {
-    const g = quantGroups[quant];
-    return {
-      quant: quant,
-      intelligence: Math.round((g.sumIntelligence / g.count) * 10) / 10,
-      tool_call_syntax_error_rate: Math.round((g.sumSyntaxErrors / g.count) * 10) / 10
-    };
-  });
-}
-
-function deriveHarnessEvaluations(evaluations) {
-  const harnessGroups = {};
-  evaluations.forEach(e => {
-    const name = e.harness.name + (e.harness.launch_config ? ` (${e.harness.launch_config.split(',')[0]})` : '');
-    if (!harnessGroups[name]) {
-      harnessGroups[name] = {
-        count: 0,
-        sumTaskSpeed: 0,
-        sumIntelligence: 0
-      };
-    }
-    harnessGroups[name].count += 1;
-    harnessGroups[name].sumTaskSpeed += e.summary_metrics.task_speed;
-    harnessGroups[name].sumIntelligence += e.summary_metrics.task_intelligence;
-  });
-
-  return Object.keys(harnessGroups).map(name => {
-    const g = harnessGroups[name];
-    return {
-      harness_name: name,
-      task_speed: Math.round((g.sumTaskSpeed / g.count) * 10) / 10,
-      intelligence: Math.round((g.sumIntelligence / g.count) * 10) / 10
-    };
-  });
 }
 
 function handleFetchError(error) {
@@ -179,10 +151,10 @@ function renderModelSpeedChart(evaluations) {
   const chart = echarts.init(chartEl);
 
   // Sort evaluations by task_speed descending and take top 10
-  const sorted = [...evaluations].sort((a, b) => (b.summary_metrics.task_speed || 0) - (a.summary_metrics.task_speed || 0)).slice(0, 10);
+  const sorted = [...evaluations].sort((a, b) => (b.summary_metrics?.task_speed || 0) - (a.summary_metrics?.task_speed || 0)).slice(0, 10);
 
-  const modelLabels = sorted.map(e => `${e.llm.name} (${e.llm.model_quant})`);
-  const speedValues = sorted.map(e => Number(e.summary_metrics.task_speed || 0).toFixed(1));
+  const modelLabels = sorted.map(e => `${e.llm?.name || 'Unknown'} (${e.llm?.model_quant || 'FP16'})`);
+  const speedValues = sorted.map(e => Number(e.summary_metrics?.task_speed || 0).toFixed(1));
 
   const option = {
     backgroundColor: 'transparent',
@@ -259,10 +231,10 @@ function renderModelDensityChart(evaluations) {
   const chart = echarts.init(chartEl);
 
   // Sort evaluations by intelligence_density descending and take top 10
-  const sorted = [...evaluations].sort((a, b) => (b.summary_metrics.intelligence_density || 0) - (a.summary_metrics.intelligence_density || 0)).slice(0, 10);
+  const sorted = [...evaluations].sort((a, b) => (b.summary_metrics?.intelligence_density || 0) - (a.summary_metrics?.intelligence_density || 0)).slice(0, 10);
 
-  const modelLabels = sorted.map(e => `${e.llm.name} (${e.llm.model_quant})`);
-  const densityValues = sorted.map(e => Number(e.summary_metrics.intelligence_density || 0).toFixed(1));
+  const modelLabels = sorted.map(e => `${e.llm?.name || 'Unknown'} (${e.llm?.model_quant || 'FP16'})`);
+  const densityValues = sorted.map(e => Number(e.summary_metrics?.intelligence_density || 0).toFixed(1));
 
   const option = {
     backgroundColor: 'transparent',
@@ -344,24 +316,14 @@ function renderTopScatterChart(evaluations, viewMode = 'time') {
 
   // 1. Extract raw points for Pareto frontier calculation
   const rawPoints = evaluations.map((e, idx) => {
-    const tests = e.test_results ? Object.values(e.test_results) : [];
-    const timeSec = tests.length > 0 ? (tests.reduce((acc, t) => acc + (t.run_time_sec || t.completion_time_sec || 0), 0) / tests.length) : 200;
-    const runMemGb = tests.length > 0 ? (tests.reduce((acc, t) => acc + (t.run_memory_gb || 0), 0) / tests.length) : (e.llm.model_size_gb || 16);
-    const derivedIntel = tests.reduce((acc, t) => acc + (t.run_completion || 0), 0);
-    const intelligence = e.summary_metrics.task_intelligence !== undefined ? e.summary_metrics.task_intelligence : Math.round(derivedIntel * 10) / 10;
-    const xVal = viewMode === 'time' ? timeSec : runMemGb;
+    const m = extractEvalMetrics(e);
+    const xVal = viewMode === 'time' ? (m.timeSec || 200) : (m.runMemGb || 16);
 
     return {
       id: idx,
       x: xVal,
-      y: intelligence,
-      name: e.llm.name,
-      quant: e.llm.model_quant,
-      memoryGb: Math.round(runMemGb),
-      timeSec: Math.round(timeSec),
-      harnessName: e.harness.name,
-      kvQuant: e.llm.kv_quant || 'FP16',
-      reasoningEffort: e.harness.reasoning_effort || 'off',
+      y: m.intelligence,
+      name: m.modelName,
       rawEval: e
     };
   });
@@ -438,7 +400,7 @@ function renderTopScatterChart(evaluations, viewMode = 'time') {
     const cls = pointClassifications.get(p.id);
     const item = {
       name: p.name,
-      value: [p.x, p.y, p.harnessName, p.quant, p.memoryGb, p.timeSec, cls.tier, p.kvQuant, p.reasoningEffort],
+      value: [p.x, p.y],
       rawEval: p.rawEval
     };
     if (cls.tier === 'Best-In-Class') {
@@ -629,6 +591,17 @@ function renderLeaderboard(models) {
       }
     });
 
+    if (filtered.length === 0) {
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="8" style="text-align: center; padding: 2.5rem 1rem; color: var(--text-muted);">
+            🔍 No models found
+          </td>
+        </tr>
+      `;
+      return;
+    }
+
     const cls = (key) => key === currentSortKey ? 'sort-active' : '';
 
     tbody.innerHTML = filtered.map(m => {
@@ -688,31 +661,7 @@ function escapeHtml(str) {
 function formatModelCardTooltip(evalRecord) {
   if (!evalRecord) return '';
 
-  const llm = evalRecord.llm || {};
-  const harness = evalRecord.harness || {};
-  const metrics = evalRecord.summary_metrics || {};
-  const tests = evalRecord.test_results ? Object.values(evalRecord.test_results) : [];
-
-  const modelName = llm.name || 'Unknown Model';
-  const quant = llm.model_quant || 'FP16';
-
-  const sumCompletion = tests.reduce((acc, t) => acc + (t.run_completion || 0), 0);
-  const intelligence = metrics.task_intelligence !== undefined 
-    ? metrics.task_intelligence 
-    : Math.round(sumCompletion * 10) / 10;
-
-  const timeSec = tests.length > 0 
-    ? Math.round(tests.reduce((acc, t) => acc + (t.run_time_sec || t.completion_time_sec || 0), 0) / tests.length) 
-    : 0;
-
-  const runMemGb = tests.length > 0 
-    ? (tests.reduce((acc, t) => acc + (t.run_memory_gb || 0), 0) / tests.length) 
-    : (llm.model_size_gb || 0);
-
-  const memoryGb = Math.round(runMemGb);
-  const harnessName = harness.name || 'N/A';
-  const reasoningEffort = harness.reasoning_effort || 'off';
-  const kvQuant = llm.kv_quant || 'FP16';
+  const m = extractEvalMetrics(evalRecord);
 
   const row = (label, val) => `
     <div style="display:flex; align-items:baseline; justify-content:space-between; font-size:0.825rem; margin-bottom:0.3rem;">
@@ -723,18 +672,18 @@ function formatModelCardTooltip(evalRecord) {
   `;
 
   return `
-    <div style="font-weight:600; color:#0f172a; font-size:0.95rem; margin-bottom:4px;">${escapeHtml(modelName)}</div>
+    <div style="font-weight:600; color:#0f172a; font-size:0.95rem; margin-bottom:4px;">${escapeHtml(m.modelName)}</div>
     <div style="margin-bottom:10px;">
-      <span style="display:inline-block; padding:2px 8px; border-radius:10px; font-family:var(--font-mono, monospace); font-size:0.75rem; font-weight:600; background:rgba(249,115,22,0.1); color:#ea580c; border:1px solid rgba(249,115,22,0.25);">${escapeHtml(quant)}</span>
+      <span style="display:inline-block; padding:2px 8px; border-radius:10px; font-family:var(--font-mono, monospace); font-size:0.75rem; font-weight:600; background:rgba(249,115,22,0.1); color:#ea580c; border:1px solid rgba(249,115,22,0.25);">${escapeHtml(m.quant)}</span>
     </div>
 
     <div style="min-width: 210px;">
-      ${row('Intelligence', intelligence)}
-      ${row('Completion Time', timeSec + ' sec')}
-      ${row('Memory Use', memoryGb + ' GB')}
-      ${row('Harness', harnessName)}
-      ${row('Reasoning Effort', reasoningEffort)}
-      ${row('KV Cache Quant', kvQuant)}
+      ${row('Intelligence', m.intelligence)}
+      ${row('Completion Time', m.timeSec + ' sec')}
+      ${row('Memory Use', m.memoryGb + ' GB')}
+      ${row('Harness', m.harnessName)}
+      ${row('Reasoning Effort', m.reasoningEffort)}
+      ${row('KV Cache Quant', m.kvQuant)}
     </div>
   `;
 }

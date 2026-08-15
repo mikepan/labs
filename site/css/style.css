@@ -351,15 +351,7 @@ header {
   align-items: center;
   gap: 0.75rem;
   margin-top: 0.5rem;
-  padding-left: 2.25rem;
   width: 100%;
-}
-
-.x-axis-title {
-  font-size: 0.85rem;
-  font-weight: 400;
-  color: var(--text-muted);
-  font-family: var(--font-heading);
 }
 
 .toggle-group {
@@ -507,10 +499,6 @@ tr:hover td {
   color: var(--text-main);
 }
 
-/* Metric Highlight */
-.metric-highlight {
-  font-family: var(--font-mono);
-}
 
 /* Footer */
 footer {
@@ -703,9 +691,6 @@ footer a:hover {
     font-size: 0.85rem;
   }
 
-  .chart-footer-controls {
-    padding-left: 0;
-  }
 
   .table-section {
     padding: 0 0.5rem;

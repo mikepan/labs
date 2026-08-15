@@ -60,17 +60,8 @@
     }
   </script>
 
-  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
-  <meta http-equiv="Pragma" content="no-cache" />
-  <meta http-equiv="Expires" content="0" />
-  <script>
-    (function () {
-      const isLocal = ['localhost', '127.0.0.1', '::1', '0.0.0.0'].includes(window.location.hostname) || window.location.port === '8085';
-      const ts = isLocal ? '?v=' + Date.now() : '';
-      document.write('<link rel="stylesheet" href="css/style.css' + ts + '">');
-      document.write('<script src="js/app.js' + ts + '" defer><\/script>');
-    })();
-  </script>
+  <link rel="stylesheet" href="css/style.css" />
+  <script src="js/app.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
 </head>
 
@@ -208,7 +199,8 @@
               across standardized harnesses to isolate weight precision effects from harness overhead.</p>
           </div>
           <div class="card-insight">
-            <strong>Key Insight:</strong> LLMs don't work alone, the harness matters even more.
+            <strong>Key Insight:</strong> LLMs don't work alone, the harness and deployment configs matters even more on
+            resource constrained devices.
           </div>
         </div>
 

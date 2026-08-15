@@ -1,6 +1,6 @@
 # 🧪 Pixelary Labs
 
-**[Pixelary Labs](labs.thepixelary.com) is the Research & Development Division of [The Pixelary](https://thepixelary.com).**
+**[Pixelary Labs](https://labs.thepixelary.com) is the Research & Development Division of [The Pixelary](https://thepixelary.com).**
 
 **We explore the intersection of 3D graphics, generative AI, and LLM based automation.**
 

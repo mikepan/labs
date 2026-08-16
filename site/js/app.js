@@ -61,6 +61,8 @@ function extractEvalMetrics(e) {
   const company = e.company || e.llm?.company || '';
   const quant = e.model_quant || e.llm?.model_quant || e.quant || 'FP16';
   const kvQuant = e.kv_quant || e.llm?.kv_quant || 'FP16';
+  const llmServer = e.llm_server || e.llm?.llm_server || e.server || 'N/A';
+  const speculativeDecoding = e.speculative_decoding || e.llm?.speculative_decoding || 'off';
   const harnessName = typeof e.harness === 'string' ? e.harness : (e.harness?.name || 'N/A');
   const reasoning = e.reasoning || e.harness?.reasoning || e.harness?.reasoning_effort || 'off';
   const taskSpeed = e.task_speed !== undefined ? e.task_speed : (e.summary_metrics?.task_speed ?? 0);
@@ -78,6 +80,8 @@ function extractEvalMetrics(e) {
     company,
     quant,
     kvQuant,
+    llmServer,
+    speculativeDecoding,
     reasoning,
     harnessName,
     taskSpeed,
@@ -112,6 +116,8 @@ function initDashboard(data) {
       intelligence: m.intelligence,
       task_speed: m.taskSpeed,
       intelligence_density: m.intelligenceDensity,
+      llm_server: m.llmServer,
+      speculative_decoding: m.speculativeDecoding,
       harness_name: m.harnessName,
       reasoning: m.reasoning,
       test_results: e.test_results
@@ -600,6 +606,8 @@ function renderLeaderboard(models) {
       m.name.toLowerCase().includes(filterText) ||
       m.family.toLowerCase().includes(filterText) ||
       m.quant.toLowerCase().includes(filterText) ||
+      (m.llm_server && m.llm_server.toLowerCase().includes(filterText)) ||
+      (m.speculative_decoding && m.speculative_decoding.toLowerCase().includes(filterText)) ||
       m.harness_name.toLowerCase().includes(filterText) ||
       m.reasoning.toLowerCase().includes(filterText)
     );
@@ -719,6 +727,8 @@ function formatModelCardTooltip(evalRecord) {
       ${row('Intelligence', m.intelligence)}
       ${row('Completion Time', m.timeSec + ' sec')}
       ${row('Memory Use', m.memoryGb + ' GB')}
+      ${row('Server', m.llmServer)}
+      ${row('Speculative', m.speculativeDecoding)}
       ${row('Harness', m.harnessName)}
       ${row('Reasoning', m.reasoning)}
       ${row('KV Cache Quant', m.kvQuant)}

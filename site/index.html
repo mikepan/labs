@@ -96,7 +96,7 @@
         We evaluate the combination of <strong>LLM &times; Quantization Level &times;
           Harness</strong>
         across a wide range of multi-turn agentic AI tasks. By focusing on end-to-end task completion rates, FiniBench
-        cuts through the advertised FP16 quality and reveals which quantization actually solves problems without
+        cuts through the advertised FP16 quality and reveals which quantization levels actually solve problems without
         collapsing.
       </p>
     </section>
@@ -197,8 +197,8 @@
               across standardized harnesses to isolate weight precision effects from harness overhead.</p>
           </div>
           <div class="card-insight">
-            <strong>Key Insight:</strong> LLMs don't work alone, the harness and deployment configs matters even more on
-            resource constrained devices.
+            <strong>Key Insight:</strong> LLMs don't work alone; the harness and deployment configs matter even more on
+            resource-constrained devices.
           </div>
         </div>
 
@@ -227,24 +227,27 @@
         <details class="accordion-item">
           <summary class="accordion-header">
             <div class="accordion-title-group">
-              <span class="accordion-icon">🖥️</span>
+              <span class="accordion-icon">✨</span>
               <span class="accordion-title">Model Serving</span>
             </div>
             <span class="accordion-chevron"></span>
           </summary>
           <div class="accordion-content">
             <p>Our model serving infrastructure evaluates open-weight AI models across the two most popular local
-              inference
-              runtimes <code>llama.cpp</code> and <code>vLLM</code>. All models are served on an Nvidia DGX Spark with
+              inference runtimes: <code>llama.cpp</code> and <code>vLLM</code>. All models are served on an Nvidia DGX
+              Spark with
               128GB of VRAM.
             </p>
             <ul class="methodology-list">
               <li><strong>Weight Precision &amp; Quantization:</strong> We test FP16 unquantized baselines alongside
-                FP8, INT4, NVFP4, and GGUF / EXL2 K-quants (Q8_0, Q6_K, Q4_K_M, Q3_K_M, Q2_K, IQ2_XXS).</li>
-              <li><strong>Context &amp; Memory Allocation:</strong> Context windows are configured to model max with
+                FP8, INT4, NVFP4, and GGUF / EXL2 K-quants (Q8_0, Q6_K, Q4_K_M, Q3_K_M, Q2_K).</li>
+              <li><strong>Context &amp; Memory Allocation:</strong> Agentic workflows with reasoning LLMs benefit
+                immensely from long context windows. We default to the model maximum with
                 optional KV-cache quantization enabled.</li>
-              <li><strong>Sampling &amp; Reproducibility:</strong> Temperature is set using the model-recommended value,
-                but each test is run 3 times and the results averaged. </li>
+              <li><strong>Speculative Decoding:</strong> When possible, we test models with various speculative decoding
+                methods such as MTP, DFlash, or DSpark for the best single-user performance.</li>
+              <li><strong>Sampling &amp; Reproducibility:</strong> Temperature, Top-P, and Top-K are set to
+                model-recommended values. Each test is run 3 times and the results are averaged.</li>
             </ul>
           </div>
         </details>
@@ -253,45 +256,77 @@
         <details class="accordion-item">
           <summary class="accordion-header">
             <div class="accordion-title-group">
-              <span class="accordion-icon">⚙️</span>
+              <span class="accordion-icon">🤖</span>
               <span class="accordion-title">Harness Setup</span>
             </div>
             <span class="accordion-chevron"></span>
           </summary>
           <div class="accordion-content">
-            <p>The agent harness environment orchestrates multi-turn tool loops, terminal execution, file system
-              modifications, and error feedback recovery. We evaluate models across major open and commercial agent
-              frameworks (OpenCode, Claude Code, Aider, Cline, AutoGen, CrewAI).</p>
+            <p>Our custom agent harness runs in an isolated container and orchestrates multi-turn tool loops,
+              terminal execution, file system
+              modifications, and error feedback recovery. The harness runs on an Apple M1 Pro MacBook Pro with 32GB of
+              RAM.
+            </p>
             <ul class="methodology-list">
-              <li><strong>Edit Format Standardization:</strong> Evaluates performance across Unified Diff (line-level
-                edits), Search &amp; Replace blocks, AST Tree Mutations, and Full File Overwrites.</li>
-              <li><strong>Tool &amp; LSP Integration:</strong> System prompts specify explicit JSON schema tool calls
-                with Language Server Protocol (LSP) feedback for instant syntax error diagnostics.</li>
-              <li><strong>Loop Limits:</strong> Agents are permitted up to 30 sequential turns per problem instance
-                before flagging a timeout or unrecoverable loop failure.</li>
+              <li><strong>Most Popular Agents:</strong> We evaluate models across popular agent
+                frameworks (such as OpenCode and Pi) in their out-of-the-box configurations.</li>
+              <li><strong>Loop Limits:</strong> Agents are permitted up to a predefined maximum number of sequential
+                turns
+                per problem instance before triggering a timeout or unrecoverable loop failure.</li>
             </ul>
           </div>
         </details>
 
-        <!-- Item 3: Tests and Evaluation -->
+        <!-- Item 3: Benchmark Tasks -->
         <details class="accordion-item">
           <summary class="accordion-header">
             <div class="accordion-title-group">
-              <span class="accordion-icon">📊</span>
-              <span class="accordion-title">Tests and Evaluation</span>
+              <span class="accordion-icon">📝</span>
+              <span class="accordion-title">Benchmark Tasks</span>
             </div>
             <span class="accordion-chevron"></span>
           </summary>
           <div class="accordion-content">
-            <p>FiniBench benchmarks end-to-end task completion on curated test suites including SWE-bench Lite,
-              LiveCodeBench, GAIA, TAU-bench, HumanEval Multi-Turn, and MBPP. Rather than relying on single-turn token
-              accuracy, we measure outcome-oriented engineering efficiency.</p>
+            <p>We evaluate models across a private test suite of real-world agentic workflows. To prevent benchmark
+              contamination, test prompts remain private, but each test has a descriptive name indicating its scope.
+              Task difficulty varies and is scored accordingly:</p>
             <ul class="methodology-list">
-              <li><strong>Tasks Solved / Hour (Tasks/hr):</strong> Quantifies total verified multi-turn tasks completed
+              <li><strong>Greenfield Software Engineering:</strong> Building new features, modular components, and
+                applications from scratch based on user specifications.</li>
+              <li><strong>Software Maintenance &amp; Bug Fixing:</strong> Navigating existing large codebases,
+                diagnosing errors, and applying clean, git-verified multi-file diffs.</li>
+              <li><strong>Software Porting:</strong> Taking exisitng software and porting it to a different language or
+                framework.</li>
+              <li><strong>Data Analytics &amp; Report Generation:</strong> Data scraping, parsing, calculating summary
+                metrics, and synthesizing findings into formatted reports.</li>
+              <li><strong>Content Translation &amp; Summarization:</strong> Multi-language translation, document
+                restructuring, and cross-format content synthesis.</li>
+              <li><strong>Enterprise Business Operations:</strong> ingesting incoming support tickets, performing
+                initial intent classification via lightweight models, querying internal knowledge bases.</li>
+            </ul>
+          </div>
+        </details>
+
+        <!-- Item 4: Evaluation & Metrics -->
+        <details class="accordion-item">
+          <summary class="accordion-header">
+            <div class="accordion-title-group">
+              <span class="accordion-icon">📊</span>
+              <span class="accordion-title">Evaluation &amp; Metrics</span>
+            </div>
+            <span class="accordion-chevron"></span>
+          </summary>
+          <div class="accordion-content">
+            <p>Tasks are evaluated using a combination of deterministic verification tests and LLM-as-a-judge
+              assessments to measure end-to-end task completion.</p>
+            <ul class="methodology-list">
+              <li><strong>Automated Verification:</strong> Evaluation combines deterministic checks (e.g., git diff line
+                verification, automated unit tests) and calibrated LLM judges.</li>
+              <li><strong>Task Speed (Tasks/hr):</strong> Quantifies total verified multi-turn tasks completed
                 per 60 minutes of wall-clock execution time.</li>
-              <li><strong>Tasks Solved / GB Memory (Tasks/GB):</strong> Measures hardware efficiency by normalizing task
-                throughput against total run memory consumption.</li>
-              <li><strong>Trace Logging:</strong> Every evaluation run generates a deterministic execution trace
+              <li><strong>Intelligence Density (Tasks/GB):</strong> Measures model size efficiency by normalizing
+                task throughput against peak run memory consumption.</li>
+              <li><strong>Trace Logging:</strong> Every evaluation run generates an execution trace
                 containing input/output token counts, run memory footprint, context utilization, and complete terminal
                 logs.</li>
             </ul>

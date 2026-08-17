@@ -1,0 +1,10 @@
+{
+    "pi": {
+        "harness-arg": "",
+        "version": "0.84.2"
+    },
+    "opencode cli": {
+        "harness-arg": "",
+        "version": "1.18.18"
+    }
+}

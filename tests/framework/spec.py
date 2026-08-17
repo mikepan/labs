@@ -1,0 +1,30 @@
+"""
+spec.py - Minimal, declarative data structures for defining multi-step agent evaluation tests.
+"""
+
+from dataclasses import dataclass, field
+from typing import Any, Callable
+
+
+@dataclass
+class Step:
+    """A single sequential step in an agent evaluation test."""
+    prompt: str
+    checks: list[Any] = field(default_factory=list)
+    name: str = ""
+
+
+@dataclass
+class Test:
+    """A multi-step evaluation test specification."""
+    name: str
+    steps: list[Step] = field(default_factory=list)
+    description: str = ""
+    setup: list[str] = field(
+        default_factory=lambda: [
+            "git init",
+            "git config user.email 'eval@example.com'",
+            "git config user.name 'Eval Runner'",
+            "git commit --allow-empty -m 'initial commit'",
+        ]
+    )

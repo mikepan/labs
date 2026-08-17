@@ -9,16 +9,16 @@
     "columns": {
       "type": "array",
       "items": { "type": "string" },
-      "minItems": 19,
-      "maxItems": 19,
+      "minItems": 20,
+      "maxItems": 20,
       "description": "Column header names ordered to match row element indexes."
     },
     "rows": {
       "type": "array",
       "items": {
         "type": "array",
-        "minItems": 19,
-        "maxItems": 19,
+        "minItems": 20,
+        "maxItems": 20,
         "prefixItems": [
           { "type": "string", "description": "LLM display name" },
           { "type": "string", "description": "Company / Creator" },
@@ -29,6 +29,7 @@
           { "type": "number", "minimum": 0, "description": "Model size in GB" },
           { "type": "integer", "minimum": 0, "description": "Context length in tokens" },
           { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$", "description": "Release date (YYYY-MM-DD)" },
+          { "type": "string", "description": "Benchmark execution start timestamp (ISO-8601 or YYYY-MM-DDTHH:MM:SSZ)" },
           { "type": "string", "description": "LLM server" },
           { "type": "string", "description": "Speculative decoding" },
           { "type": "string", "description": "Harness name" },

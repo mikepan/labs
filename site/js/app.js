@@ -65,6 +65,7 @@ function extractEvalMetrics(e) {
   const speculativeDecoding = e.speculative_decoding || e.llm?.speculative_decoding || 'off';
   const harnessName = typeof e.harness === 'string' ? e.harness : (e.harness?.name || 'N/A');
   const reasoning = e.reasoning || e.harness?.reasoning || e.harness?.reasoning_effort || 'off';
+  const benchmarkStartTime = e.benchmark_start_time || e.release_date || '';
   const taskSpeed = e.task_speed !== undefined ? e.task_speed : (e.summary_metrics?.task_speed ?? 0);
   const intelligenceDensity = e.intelligence_density !== undefined ? e.intelligence_density : (e.summary_metrics?.intelligence_density ?? 0);
 
@@ -80,6 +81,7 @@ function extractEvalMetrics(e) {
     company,
     quant,
     kvQuant,
+    benchmarkStartTime,
     llmServer,
     speculativeDecoding,
     reasoning,

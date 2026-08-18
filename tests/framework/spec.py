@@ -5,6 +5,8 @@ spec.py - Minimal, declarative data structures for defining multi-step agent eva
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
+__all__ = ["Step", "Test"]
+
 
 @dataclass
 class Step:
@@ -12,6 +14,8 @@ class Step:
     prompt: str
     checks: list[Any] = field(default_factory=list)
     name: str = ""
+    point: int | float = 1
+
 
 
 @dataclass

@@ -16,7 +16,15 @@ tests/
 
 results/
 - The output of the tests, subfolders are named by modelname+harnessname+date, aka eval_name
+- results/{eval_name}/results.json contain the benchmark results (same as the benchmark schema)
+- should also include the full trace from the agent, including evaluations results.
+- also capture the final artifacts (files it generated)
 
 LLM Host: ssh mike@spark, started with launch-model.py
 Runner: run on this local machine (macbook pro, but ensure it's isolated via docker sandbox
 cli: defined in the 
+
+
+To run tests:
+python3 eval/run_harness.py qwen/Qwen3.6-27B-FP8 --test test0
+python3 eval/run_harness.py qwen/Qwen3.6-27B-FP8 --test all

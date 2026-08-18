@@ -58,6 +58,8 @@
               "properties": {
                 "name": { "type": "string", "description": "Display name of the benchmark test suite (e.g. SWE-bench Lite, LiveCodeBench)." },
                 "run_completion": { "type": "number", "minimum": 0, "maximum": 100, "description": "Task completion rate percentage for the specific test run." },
+                "earned_score": { "type": "number", "minimum": 0, "description": "Points earned by the agent." },
+                "max_score": { "type": "number", "minimum": 0, "description": "Maximum possible points for the test." },
                 "run_time_sec": { "type": "number", "minimum": 0, "description": "Test execution wall-clock time in seconds." },
                 "run_memory_gb": { "type": "number", "minimum": 0, "description": "Peak or mean memory footprint during test run in GB." },
                 "tokens_in": { "type": "integer", "minimum": 0 },
@@ -68,6 +70,7 @@
             }
           }
         ]
+
       }
     }
   }

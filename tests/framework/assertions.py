@@ -4,20 +4,25 @@ assertions.py - Concise assertion primitives for evaluating agent actions in git
 
 from dataclasses import dataclass
 from enum import Enum
-import html.parser
 import os
 import re
 import subprocess
 from typing import Any, Callable, Optional
 
 
-# Git file change status constants
-ADD = "A"
-MODIFY = "M"
-DELETE = "D"
-GIT_FILE_ADD = ADD
-GIT_FILE_UPDATE = MODIFY
-GIT_FILE_REMOVE = DELETE
+__all__ = [
+    "CheckResult",
+    "BaseAssertion",
+    "GitChangeAssert",
+    "LangDetectAssert",
+    "FilesIdenticalAssert",
+    "CustomAssert",
+    "git_changes",
+    "lang_detect",
+    "gibberish_detect",
+    "files_identical",
+    "custom_check",
+]
 
 
 @dataclass
@@ -29,27 +34,32 @@ class CheckResult:
 
 class BaseAssertion:
     """Base class for all step assertions."""
+
     def evaluate(self, workspace_dir: str) -> CheckResult:
         raise NotImplementedError
 
 
 class GitChangeAssert(BaseAssertion):
     """Asserts that a file underwent a specific git change (add, modify, delete) with optional line bounds."""
+
     def __init__(
         self,
         filepath: str,
-        status: str = ADD,
+        status: str = "A",
         lines: Optional[tuple[int, int] | int] = None,
     ):
         self.filepath = filepath
-        self.status = status
+        self.status = status.strip().upper() if status else "A"
         self.lines = lines
 
     def evaluate(self, workspace_dir: str) -> CheckResult:
         full_path = os.path.join(workspace_dir, self.filepath)
 
+        # Normalize status code (support "A", "ADD", "M", "MODIFY", "D", "DELETE")
+        is_delete = self.status in ("D", "DELETE")
+
         # 1. Check file existence according to status
-        if self.status == DELETE:
+        if is_delete:
             if os.path.exists(full_path):
                 return CheckResult(False, f"Expected file '{self.filepath}' to be deleted, but it exists.")
         else:
@@ -85,6 +95,7 @@ class GitChangeAssert(BaseAssertion):
 
 class LangDetectAssert(BaseAssertion):
     """Asserts that a file's content matches the expected natural language."""
+
     def __init__(self, filepath: str, lang: str = "en", no_gibberish: bool = True):
         self.filepath = filepath
         self.lang = lang.lower()
@@ -111,6 +122,7 @@ class LangDetectAssert(BaseAssertion):
         detected_lang = None
         try:
             import langdetect
+
             detected_lang = langdetect.detect(content)
         except Exception:
             # Fallback: check CJK unicode for chinese, latin for english
@@ -137,67 +149,9 @@ class LangDetectAssert(BaseAssertion):
         return CheckResult(True, f"Language '{self.lang}' confirmed for '{self.filepath}'.")
 
 
-class SimpleHtmlValidator(html.parser.HTMLParser):
-    def __init__(self):
-        super().__init__()
-        self.external_resources: list[str] = []
-        self.tags_stack: list[str] = []
-        self.void_tags = {"meta", "link", "img", "br", "hr", "input", "source", "area", "base", "col"}
-        self.errors: list[str] = []
-
-    def handle_starttag(self, tag: str, attrs: list[tuple[str, Optional[str]]]):
-        if tag not in self.void_tags:
-            self.tags_stack.append(tag)
-
-        attrs_dict = dict(attrs)
-        # Check external urls
-        for key in ["src", "href"]:
-            val = attrs_dict.get(key, "")
-            if val and (val.startswith("http://") or val.startswith("https://") or val.startswith("//")):
-                self.external_resources.append(f"<{tag} {key}='{val}'>")
-
-    def handle_endtag(self, tag: str):
-        if tag in self.void_tags:
-            return
-        if self.tags_stack and self.tags_stack[-1] == tag:
-            self.tags_stack.pop()
-
-
-class HtmlValidAssert(BaseAssertion):
-    """Asserts that an HTML file is valid and optionally self-contained (no external URLs)."""
-    def __init__(self, filepath: str, standalone: bool = True):
-        self.filepath = filepath
-        self.standalone = standalone
-
-    def evaluate(self, workspace_dir: str) -> CheckResult:
-        full_path = os.path.join(workspace_dir, self.filepath)
-        if not os.path.exists(full_path):
-            return CheckResult(False, f"HTML file '{self.filepath}' not found.")
-
-        with open(full_path, "r", encoding="utf-8", errors="ignore") as f:
-            content = f.read().strip()
-
-        if "<html" not in content.lower() and "<!doctype" not in content.lower():
-            return CheckResult(False, f"File '{self.filepath}' does not appear to be an HTML document.")
-
-        parser = SimpleHtmlValidator()
-        try:
-            parser.feed(content)
-        except Exception as e:
-            return CheckResult(False, f"HTML parsing error in '{self.filepath}': {e}")
-
-        if self.standalone and parser.external_resources:
-            return CheckResult(
-                False,
-                f"HTML file '{self.filepath}' contains external resources: {parser.external_resources[:3]}",
-                {"external_resources": parser.external_resources},
-            )
-
-        return CheckResult(True, f"HTML validated successfully for '{self.filepath}'.")
-
-
 class FilesIdenticalAssert(BaseAssertion):
     """Asserts that two files in the workspace have identical contents."""
+
     def __init__(self, file1: str, file2: str):
         self.file1 = file1
         self.file2 = file2
@@ -223,6 +177,7 @@ class FilesIdenticalAssert(BaseAssertion):
 
 class CustomAssert(BaseAssertion):
     """Wraps a custom python callable assertion."""
+
     def __init__(self, func: Callable[[str], bool | tuple[bool, str] | None]):
         self.func = func
 
@@ -244,7 +199,7 @@ class CustomAssert(BaseAssertion):
 
 
 # Concise factory functions for test definitions
-def git_changes(filepath: str, status: str = ADD, lines: Optional[tuple[int, int] | int] = None) -> GitChangeAssert:
+def git_changes(filepath: str, status: str = "A", lines: Optional[tuple[int, int] | int] = None) -> GitChangeAssert:
     return GitChangeAssert(filepath=filepath, status=status, lines=lines)
 
 
@@ -256,13 +211,10 @@ def gibberish_detect(filepath: str) -> LangDetectAssert:
     return LangDetectAssert(filepath=filepath, no_gibberish=True)
 
 
-def html_valid(filepath: str, standalone: bool = True) -> HtmlValidAssert:
-    return HtmlValidAssert(filepath=filepath, standalone=standalone)
-
-
 def files_identical(file1: str, file2: str) -> FilesIdenticalAssert:
     return FilesIdenticalAssert(file1=file1, file2=file2)
 
 
 def custom_check(func: Callable[[str], Any]) -> CustomAssert:
     return CustomAssert(func=func)
+

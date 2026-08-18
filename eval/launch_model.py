@@ -267,14 +267,14 @@ def run_sanity_test(model_name: str, base_url: str = API_BASE_URL) -> bool:
         return False
 
 
-def run_evaluation_harness(model_name: str, metadata: dict[str, Any]) -> bool:
+def run_evaluation_harness(model_name: str, metadata: dict[str, Any], test_name: str = "test0") -> bool:
     """Execute evaluation harness via run_harness.py."""
-    print(f"\n--> Executing Evaluation Harness for {model_name}...")
+    print(f"\n--> Executing Evaluation Harness for {model_name} (test: {test_name})...")
     print(f"    Speculative Decoding: {metadata.get('speculative_decoding') or 'OFF'}")
     print(f"    KV Cache Quantization: {metadata.get('kv_quantization') or 'OFF'}")
 
     harness_script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "run_harness.py")
-    cmd = [sys.executable, harness_script, model_name]
+    cmd = [sys.executable, harness_script, model_name, "--test", test_name]
     res = subprocess.run(cmd)
     if res.returncode != 0:
         print(f"✗ Evaluation harness failed with exit code {res.returncode}", file=sys.stderr)
@@ -284,7 +284,13 @@ def run_evaluation_harness(model_name: str, metadata: dict[str, Any]) -> bool:
 
 
 def run_model_pipeline(
-    model_name: str, model_config: dict[str, Any], host: str = REMOTE_HOST, base_url: str = API_BASE_URL, fast: bool = False, verbose: bool = False
+    model_name: str,
+    model_config: dict[str, Any],
+    host: str = REMOTE_HOST,
+    base_url: str = API_BASE_URL,
+    fast: bool = False,
+    verbose: bool = False,
+    test_name: str = "test0",
 ) -> bool:
     """Run full lifecycle for a single model: launch -> wait -> warmup test -> run harness -> stop."""
     vllm_cmd = build_vllm_command(model_config)
@@ -303,9 +309,7 @@ def run_model_pipeline(
             print(f"--> Fast mode: server is already UP with active model '{model_name}'. Skipping launch.")
             need_launch = False
         elif active_models:
-            print(
-                f"--> Fast mode: server is UP with a different model {active_models}. Re-launching with '{model_name}'..."
-            )
+            print(f"--> Fast mode: server is UP with a different model {active_models}. Re-launching with '{model_name}'...")
             need_launch = True
         else:
             print(f"--> Fast mode: server is down. Auto-launching '{model_name}'...")
@@ -330,7 +334,7 @@ def run_model_pipeline(
             return False
 
         # Run evaluation harness
-        harness_ok = run_evaluation_harness(model_name, metadata)
+        harness_ok = run_evaluation_harness(model_name, metadata, test_name=test_name)
         if not harness_ok:
             return False
 
@@ -379,6 +383,7 @@ def main():
 
     parser = argparse.ArgumentParser(description=help_desc, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("model", help="Name of the model to evaluate (e.g. qwen/Qwen3.6-27B-FP8)")
+    parser.add_argument("--test", default="test0", help="Test to run (default: test0)")
     parser.add_argument("--fast", action="store_true", help="Fast mode: skip launch and teardown")
     parser.add_argument("--v", dest="verbose", action="store_true", help="Verbose mode")
 
@@ -386,7 +391,7 @@ def main():
 
     selected_model = select_model(args.model, models)
     model_config = models[selected_model]
-    ok = run_model_pipeline(selected_model, model_config, fast=args.fast, verbose=args.verbose)
+    ok = run_model_pipeline(selected_model, model_config, fast=args.fast, verbose=args.verbose, test_name=args.test)
 
     sys.exit(0 if ok else 1)
 

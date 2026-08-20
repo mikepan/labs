@@ -23,31 +23,31 @@ import argparse
 from datetime import datetime, timezone
 import importlib.util
 import json
+import logging
 import os
+from pathlib import Path
 import re
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 import uuid
 from typing import Any
 import requests
 
-# Default configuration
-DEFAULT_LLM_BASE_URL = "http://spark:8000/v1"
-SANDBOX_NAME = "eval-harness-worker"
-TEMPLATE_TAG = "eval-base-harness:latest"
-OPENCODE_PORT = 4096
-REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if REPO_ROOT not in sys.path:
-    sys.path.insert(0, REPO_ROOT)
-if hasattr(sys.stdout, "reconfigure"):
-    sys.stdout.reconfigure(line_buffering=True)
+from config import *
+from common import setup_logger
 
-MODELS_FILE = os.path.join(REPO_ROOT, "eval", "models.json")
-HARNESSES_FILE = os.path.join(REPO_ROOT, "eval", "harnesses.json")
-BENCHMARK_FILE = os.path.join(REPO_ROOT, "site", "data", "benchmark-data.json")
-RESULTS_DIR = os.path.join(REPO_ROOT, "results")
+logger = setup_logger("run_harness")
+
+# Default aliases
+SANDBOX_NAME = DEFAULT_WORKER_SANDBOX_NAME
+TEMPLATE_TAG = DEFAULT_TEMPLATE_TAG
+OPENCODE_PORT = DEFAULT_OPENCODE_PORT
+MODELS_FILE = MODELS_CONFIG_FILE
+HARNESSES_FILE = HARNESSES_CONFIG_FILE
+BENCHMARK_FILE = BENCHMARK_DATA_FILE
 
 
 # =====================================================================
@@ -57,7 +57,7 @@ RESULTS_DIR = os.path.join(REPO_ROOT, "results")
 def ensure_sandbox(name: str = SANDBOX_NAME, template: str = TEMPLATE_TAG, workspace: str = REPO_ROOT) -> None:
     """Ensure a clean ephemeral sandbox container is created from the base template."""
     subprocess.run(["sbx", "rm", "-f", name], capture_output=True, text=True)
-    print(f"--> Provisioning isolated sandbox '{name}' from template '{template}'...")
+    logger.info("Provisioning isolated sandbox '%s' from template '%s'...", name, template)
     create_cmd = [
         "sbx", "create",
         "--name", name,
@@ -67,14 +67,14 @@ def ensure_sandbox(name: str = SANDBOX_NAME, template: str = TEMPLATE_TAG, works
     ]
     res = subprocess.run(create_cmd, capture_output=True, text=True)
     if res.returncode != 0:
-        print(f"Error creating sandbox:\n{res.stderr}\n{res.stdout}", file=sys.stderr)
+        logger.error("Error creating sandbox:\n%s\n%s", res.stderr, res.stdout)
         sys.exit(1)
-    print(f"✓ Isolated sandbox '{name}' is ready.")
+    logger.info("✓ Isolated sandbox '%s' is ready.", name)
 
 
 def remove_sandbox(name: str = SANDBOX_NAME) -> None:
     """Clean up and remove the sandbox container."""
-    print(f"--> Cleaning up sandbox '{name}'...")
+    logger.info("Cleaning up sandbox '%s'...", name)
     subprocess.run(["sbx", "rm", "-f", name], capture_output=True, text=True)
 
 
@@ -95,8 +95,8 @@ def get_active_api_model(base_url: str = DEFAULT_LLM_BASE_URL) -> str | None:
             models_list = data.get("data", [])
             if models_list and "id" in models_list[0]:
                 return models_list[0]["id"]
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("Failed to query active API model: %s", e)
     return None
 
 
@@ -107,7 +107,7 @@ def configure_opencode_in_sandbox(
 ) -> str:
     """Write opencode.json configuration inside the sandbox container using the active API model ID."""
     active_api_model = get_active_api_model(llm_base_url) or model_name
-    print(f"--> Configured OpenCode provider with active API model ID: '{active_api_model}' (config alias: '{model_name}')")
+    logger.info("Configured OpenCode provider with active API model ID: '%s' (config alias: '%s')", active_api_model, model_name)
 
     models_config = {
         active_api_model: {
@@ -151,14 +151,13 @@ def configure_opencode_in_sandbox(
     return active_api_model
 
 
-
 def start_opencode_server_in_workspace(
     sandbox_name: str,
     work_dir: str,
     port: int = OPENCODE_PORT,
 ) -> None:
     """Start OpenCode server anchored in a specific working directory."""
-    print(f"--> Starting OpenCode server inside workspace {work_dir} on port {port}...")
+    logger.info("Starting OpenCode server inside workspace %s on port %d...", work_dir, port)
     run_server_cmd = (
         f"killall opencode 2>/dev/null || true; "
         f"export PATH=$HOME/.opencode/bin:$HOME/.local/bin:$PATH; "
@@ -181,11 +180,11 @@ except Exception:
     for _ in range(30):
         res = subprocess.run(["sbx", "exec", sandbox_name, "python3", "-c", check_script], capture_output=True, text=True)
         if "OK" in res.stdout:
-            print(f"✓ OpenCode server responsive inside sandbox at http://127.0.0.1:{port}")
+            logger.info("✓ OpenCode server responsive inside sandbox at http://127.0.0.1:%d", port)
             return
         time.sleep(0.5)
 
-    print("Warning: OpenCode server took longer than expected to respond.", file=sys.stderr)
+    logger.warning("OpenCode server took longer than expected to respond.")
 
 
 def create_session_in_sandbox(sandbox_name: str, port: int = OPENCODE_PORT) -> str:
@@ -303,7 +302,6 @@ def get_server_log_in_sandbox(
     return res.stdout if res.returncode == 0 else ""
 
 
-
 # =====================================================================
 # Test Loading & Evaluation Execution
 # =====================================================================
@@ -394,6 +392,7 @@ def run_test_suite_on_agent(
     sandbox_name: str = SANDBOX_NAME,
 ) -> dict[str, Any]:
     """Execute all test specs sequentially against OpenCode inside the sandbox."""
+    stage_dir = tempfile.mkdtemp(prefix="eval_artifacts_")
     suite_trace = {
         "model": model_name,
         "start_time": datetime.now(timezone.utc).isoformat(),
@@ -403,9 +402,7 @@ def run_test_suite_on_agent(
 
     for test_path, test_obj in test_specs:
         test_id = test_obj.name
-        print(f"\n{'=' * 70}")
-        print(f"RUNNING TEST: {test_id} ({len(test_obj.steps)} steps)")
-        print(f"{'=' * 70}")
+        logger.info("RUNNING TEST: %s (%d steps)", test_id, len(test_obj.steps))
 
         test_ws_in_sandbox = f"/tmp/eval_{test_id}"
         # Clean and setup test workspace in sandbox
@@ -413,12 +410,12 @@ def run_test_suite_on_agent(
         for cmd in test_obj.setup:
             exec_in_sandbox(sandbox_name, f"cd {test_ws_in_sandbox} && {cmd}")
 
-        print(f"--> Initialized workspace: {test_ws_in_sandbox}")
+        logger.debug("Initialized workspace: %s", test_ws_in_sandbox)
 
         # Start OpenCode server in workspace
         start_opencode_server_in_workspace(sandbox_name, test_ws_in_sandbox)
         session_id = create_session_in_sandbox(sandbox_name)
-        print(f"--> OpenCode session created: {session_id}")
+        logger.info("OpenCode session created: %s", session_id)
 
         test_start_time = time.time()
         step_traces = []
@@ -431,8 +428,8 @@ def run_test_suite_on_agent(
         for idx, step in enumerate(test_obj.steps):
             step_name = step.name or f"Step {idx + 1}"
             step_point = getattr(step, "point", 1)
-            print(f"\n--- [Step {idx + 1}/{len(test_obj.steps)}] {step_name} (point={step_point}) ---")
-            print(f"Prompt: {step.prompt.strip()[:100]}...")
+            logger.info("--- [Step %d/%d] %s (point=%d) ---", idx + 1, len(test_obj.steps), step_name, step_point)
+            logger.debug("Prompt: %s...", step.prompt.strip()[:100])
 
             # Check messages count before prompt
             msgs_before = get_session_messages_in_sandbox(sandbox_name, session_id)
@@ -482,16 +479,16 @@ def run_test_suite_on_agent(
                         total_tokens_in += toks.get("input", 0)
                         total_tokens_out += toks.get("output", 0)
 
-            # Print reasoning & tool calls to console
+            # Log reasoning & tool calls
             if turn_reasoning:
-                print(f"  [Reasoning]: {turn_reasoning[-1].strip()[:140]}...")
+                logger.debug("[Reasoning]: %s...", turn_reasoning[-1].strip()[:140])
             for tc in turn_tool_calls:
                 inp_summary = str(tc.get("input", {}))
                 if len(inp_summary) > 80:
                     inp_summary = inp_summary[:77] + "..."
-                print(f"  [Tool Call]: {tc.get('tool')} -> {inp_summary}")
+                logger.info("  [Tool Call]: %s -> %s", tc.get("tool"), inp_summary)
             if turn_text:
-                print(f"  [Response]: {turn_text[-1].strip()[:140]}...")
+                logger.debug("[Response]: %s...", turn_text[-1].strip()[:140])
 
             # Run step assertions in sandbox
             eval_res = evaluate_step_in_sandbox(
@@ -507,12 +504,12 @@ def run_test_suite_on_agent(
 
             if passed:
                 passed_steps += 1
-                print(f"  ✓ Step {idx + 1} PASSED (+{step_score}/{step_point} pts) ({step_elapsed}s)")
+                logger.info("  ✓ Step %d PASSED (+%d/%d pts) (%.2fs)", idx + 1, step_score, step_point, step_elapsed)
             else:
-                print(f"  ✗ Step {idx + 1} FAILED (0/{step_point} pts) ({step_elapsed}s)")
+                logger.warning("  ✗ Step %d FAILED (0/%d pts) (%.2fs)", idx + 1, step_point, step_elapsed)
                 for cr in eval_res.get("check_results", []):
                     if not cr.get("passed"):
-                        print(f"    - Failure: {cr.get('message')}")
+                        logger.warning("    - Failure: %s", cr.get("message"))
 
             # Record step trace
             step_traces.append({
@@ -532,6 +529,12 @@ def run_test_suite_on_agent(
 
         test_duration = round(time.time() - test_start_time, 2)
         trace_id = str(uuid.uuid4())
+        
+        # Determine context length dynamically to compute true context_used_pct
+        max_ctx = get_model_context_length(base_url=DEFAULT_LLM_BASE_URL)
+        total_tokens = total_tokens_in + total_tokens_out
+        context_used_pct = round((total_tokens / max_ctx) * 100.0, 2) if max_ctx > 0 else 0.0
+
         test_results_summary[test_id] = {
             "name": test_obj.description or test_id,
             "earned_score": earned_score,
@@ -539,12 +542,12 @@ def run_test_suite_on_agent(
             "run_time_sec": test_duration,
             "tokens_in": total_tokens_in,
             "tokens_out": total_tokens_out,
-            "context_used_pct": 5.0,
+            "context_used_pct": context_used_pct,
             "trace_id": trace_id,
         }
 
-        # Extract generated artifacts from sandbox workspace to local staging dir
-        local_artifacts_stage = os.path.join(REPO_ROOT, "scratch", "artifacts_stage", test_id)
+        # Extract generated artifacts from sandbox workspace to temporary staging directory
+        local_artifacts_stage = os.path.join(stage_dir, test_id)
         os.makedirs(local_artifacts_stage, exist_ok=True)
         tar_cmd = f"cd {test_ws_in_sandbox} && tar --exclude='.git' -cf - ."
         res = subprocess.run(["sbx", "exec", sandbox_name, "bash", "-c", tar_cmd], capture_output=True)
@@ -552,10 +555,9 @@ def run_test_suite_on_agent(
             subprocess.run(["tar", "-xf", "-", "-C", local_artifacts_stage], input=res.stdout, capture_output=True)
 
         # Extract opencode_server.log from sandbox to staging dir
-        log_stage_root = os.path.join(REPO_ROOT, "scratch", "artifacts_stage")
         res_log = subprocess.run(["sbx", "exec", sandbox_name, "cat", "/tmp/opencode_server.log"], capture_output=True, text=True)
         if res_log.returncode == 0 and res_log.stdout:
-            with open(os.path.join(log_stage_root, "opencode_server.log"), "w", encoding="utf-8") as f:
+            with open(os.path.join(stage_dir, "opencode_server.log"), "w", encoding="utf-8") as f:
                 f.write(res_log.stdout)
 
         session_info = get_session_info_in_sandbox(sandbox_name, session_id)
@@ -576,13 +578,13 @@ def run_test_suite_on_agent(
             "all_session_messages": all_session_messages,
         }
 
-        print(f"\n✓ Test '{test_id}' complete: score {earned_score}/{max_score} ({completion_rate}%) in {test_duration}s")
-
+        logger.info("✓ Test '%s' complete: score %d/%d (%.1f%%) in %.2fs", test_id, earned_score, max_score, completion_rate, test_duration)
 
     suite_trace["end_time"] = datetime.now(timezone.utc).isoformat()
     return {
         "suite_trace": suite_trace,
         "test_results_summary": test_results_summary,
+        "stage_dir": stage_dir,
     }
 
 
@@ -600,18 +602,18 @@ def get_model_context_length(base_url: str = DEFAULT_LLM_BASE_URL) -> int:
             models_list = data.get("data", [])
             if models_list and "max_model_len" in models_list[0] and models_list[0]["max_model_len"]:
                 return int(models_list[0]["max_model_len"])
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("Failed to get context length from API: %s", e)
 
     return 0
 
 
-def calculate_model_memory_gb(host: str = "mike@spark") -> float:
+def calculate_model_memory_gb(host: str = REMOTE_HOST) -> float:
     """Dynamically parse actual memory metrics from vLLM engine startup logs on remote host:
     Formula: Consumed memory (weights + non-torch) + Peak activation - CUDA Graph memory + 1 full KV context
     """
     try:
-        cmd = ["ssh", host, "docker logs vllm_node 2>&1"]
+        cmd = ["ssh", host, "docker logs --tail 300 vllm_node 2>&1"]
         res = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
         logs = res.stdout
 
@@ -635,10 +637,10 @@ def calculate_model_memory_gb(host: str = "mike@spark") -> float:
             kv_1_context = (kv_total / concurrency) if concurrency > 0 else 0.0
             # Consumed + Peak activation - CUDA Graph + 1 full KV context
             total_memory_gb = round(consumed + peak_act - abs(cudagraph) + kv_1_context, 1)
-            print(f"--> Dynamic memory parsed from vLLM logs: consumed={consumed}G, peak_act={peak_act}G, cudagraph={cudagraph}G, kv_1ctx={kv_1_context:.2f}G => {total_memory_gb} GB")
+            logger.info("Dynamic memory parsed from vLLM logs: consumed=%.2fG, peak_act=%.2fG, cudagraph=%.2fG, kv_1ctx=%.2fG => %.1f GB", consumed, peak_act, cudagraph, kv_1_context, total_memory_gb)
             return total_memory_gb
     except Exception as e:
-        print(f"Warning: Could not parse dynamic memory from vLLM log: {e}", file=sys.stderr)
+        logger.warning("Could not parse dynamic memory from vLLM log: %s", e)
 
     return 0.0
 
@@ -715,9 +717,9 @@ def save_evaluation_results(
     suite_trace = evaluation_output["suite_trace"]
     test_results_summary = evaluation_output["test_results_summary"]
 
-    # 1. Copy artifacts from staging to results/{eval_name}/
-    stage_root = os.path.join(REPO_ROOT, "scratch", "artifacts_stage")
-    if os.path.exists(stage_root):
+    # 1. Copy artifacts from temporary staging directory to results/{eval_name}/
+    stage_root = evaluation_output.get("stage_dir")
+    if stage_root and os.path.exists(stage_root):
         for item in os.listdir(stage_root):
             src = os.path.join(stage_root, item)
             if item == "opencode_server.log":
@@ -752,7 +754,7 @@ def save_evaluation_results(
     model_mem = meta["memory_gb"]
     intel_density = round(avg_completion / model_mem, 3) if model_mem > 0 else 0.0
 
-    # 4. Construct benchmark row adhering to benchmark-data.schema.json (16 columns)
+    # 4. Construct benchmark row adhering to benchmark-data.schema.json (17 columns)
     benchmark_row = [
         meta["display_name"],
         meta["company"],
@@ -788,32 +790,49 @@ def save_evaluation_results(
         json.dump(results_record, f, indent=2)
 
     # 6. Update site/data/benchmark-data.json
-    if os.path.exists(BENCHMARK_FILE):
-        try:
+    try:
+        os.makedirs(os.path.dirname(BENCHMARK_FILE), exist_ok=True)
+        if os.path.exists(BENCHMARK_FILE):
             with open(BENCHMARK_FILE, "r", encoding="utf-8") as f:
                 bench_data = json.load(f)
+        else:
+            bench_data = {
+                "$schema": "./benchmark-data.schema.json",
+                "columns": [
+                    "name",
+                    "company",
+                    "parent_model",
+                    "kv_quant",
+                    "context_length",
+                    "memory_gb",
+                    "benchmark_start_time",
+                    "llm_server",
+                    "speculative_decoding",
+                    "harness",
+                    "harness_version",
+                    "reasoning",
+                    "launch_config",
+                    "intelligence",
+                    "task_speed",
+                    "intelligence_density",
+                    "test_results"
+                ],
+                "rows": []
+            }
 
-            # Prepend newest benchmark row to rows
-            rows = bench_data.get("rows", [])
-            rows.insert(0, benchmark_row)
-            bench_data["rows"] = rows
+        # Prepend newest benchmark row to rows
+        rows = bench_data.get("rows", [])
+        rows.insert(0, benchmark_row)
+        bench_data["rows"] = rows
 
-            with open(BENCHMARK_FILE, "w", encoding="utf-8") as f:
-                json.dump(bench_data, f, indent=2)
-                f.write("\n")
-            print(f"✓ Updated benchmark dataset: {BENCHMARK_FILE}")
-        except Exception as e:
-            print(f"Warning: Could not update {BENCHMARK_FILE}: {e}", file=sys.stderr)
+        with open(BENCHMARK_FILE, "w", encoding="utf-8") as f:
+            json.dump(bench_data, f, indent=2)
+            f.write("\n")
+        logger.info("✓ Updated benchmark dataset: %s", BENCHMARK_FILE)
+    except Exception as e:
+        logger.warning("Could not update %s: %s", BENCHMARK_FILE, e)
 
-    print(f"\n======================================================================")
-    print(f"EVALUATION RESULTS SAVED")
-    print(f"Directory: {eval_dir}")
-    print(f"  - results.json")
-    print(f"  - full_trace.json")
-    print(f"  - opencode_server.log")
-    print(f"  - artifacts/ ({len(os.listdir(artifacts_dir))} item(s))")
-    print(f"======================================================================\n")
-
+    logger.info("EVALUATION RESULTS SAVED to: %s", eval_dir)
     return eval_dir
 
 
@@ -827,10 +846,14 @@ def main():
     parser.add_argument("--test", default="test0", help="Specific test to run (e.g. 'test0' or 'all')")
     parser.add_argument("--harness", default="opencode", help="Harness name (default: opencode)")
     parser.add_argument("--base-url", default=DEFAULT_LLM_BASE_URL, help=f"LLM base URL (default: {DEFAULT_LLM_BASE_URL})")
+    parser.add_argument("--v", dest="verbose", action="store_true", help="Verbose debug logging")
     args = parser.parse_args()
 
+    if args.verbose:
+        logger.setLevel(logging.DEBUG)
+
     # Determine harness version from harnesses.json
-    harness_version = "1.18.18"
+    harness_version = "unknown"
     if os.path.exists(HARNESSES_FILE):
         try:
             with open(HARNESSES_FILE, "r", encoding="utf-8") as f:
@@ -838,8 +861,8 @@ def main():
                 for k, v in h_info.items():
                     if args.harness.lower() in k.lower():
                         harness_version = v.get("version", harness_version)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Failed to read harness version from %s: %s", HARNESSES_FILE, e)
 
     # Discover tests
     test_specs = []
@@ -853,10 +876,7 @@ def main():
         test_file = os.path.join(REPO_ROOT, "tests", args.test, "run.py")
         test_specs.append((test_file, load_test_spec(test_file)))
 
-    print(f"======================================================================")
-    print(f"RUNNING {args.harness.upper()} HARNESS FOR MODEL: {args.model}")
-    print(f"Tests to execute: {[t[1].name for t in test_specs]}")
-    print(f"======================================================================")
+    logger.info("RUNNING %s HARNESS FOR MODEL: %s (Tests: %s)", args.harness.upper(), args.model, [t[1].name for t in test_specs])
 
     # Provision sandbox
     ensure_sandbox()
@@ -880,7 +900,6 @@ def main():
         )
     finally:
         remove_sandbox()
-
 
 
 if __name__ == "__main__":

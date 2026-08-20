@@ -8,24 +8,25 @@ Usage:
 
 import argparse
 import json
+import logging
 import os
+from pathlib import Path
 import subprocess
 import sys
 import time
 import urllib.error
 import urllib.request
+from config import *
+from common import setup_logger
 from typing import Any
 
-REMOTE_HOST = "mike@spark"
-REMOTE_VLLM_DIR = "~/apps/spark-vllm-docker"
-API_BASE_URL = "http://spark:8000"
-CONFIG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models.json")
+logger = setup_logger("launch_model")
 
 
-def load_models(config_path: str = CONFIG_FILE) -> dict[str, Any]:
+def load_models(config_path: str = MODELS_CONFIG_FILE) -> dict[str, Any]:
     """Load model definitions from JSON file."""
     if not os.path.exists(config_path):
-        print(f"Error: Config file not found at {config_path}", file=sys.stderr)
+        logger.error("Config file not found at %s", config_path)
         sys.exit(1)
     with open(config_path, "r", encoding="utf-8") as f:
         return json.load(f)
@@ -52,17 +53,18 @@ def parse_model_config(cfg: dict[str, Any]) -> tuple[str, str]:
 
 def run_remote(cmd: str, host: str = REMOTE_HOST) -> subprocess.CompletedProcess:
     """Execute a command on the remote host via SSH."""
+    logger.debug("Executing remote command on %s: %s", host, cmd)
     return subprocess.run(["ssh", host, cmd], capture_output=True, text=True)
 
 
 def stop_model(host: str = REMOTE_HOST) -> bool:
     """Stop the running model container."""
-    print(f"--> Stopping model container on {host}...")
+    logger.info("Stopping running model container on %s...", host)
     res = run_remote(f"cd {REMOTE_VLLM_DIR} && ./launch-cluster.sh --solo stop", host=host)
-    if res.stdout:
-        print(res.stdout.strip())
+    if res.stdout and res.stdout.strip():
+        logger.debug("[stop_model] %s", res.stdout.strip())
     if res.stderr and res.returncode != 0:
-        print(f"Warning: {res.stderr.strip()}", file=sys.stderr)
+        logger.info("[stop_model warning] %s", res.stderr.strip())
     return res.returncode == 0
 
 
@@ -70,12 +72,12 @@ def launch_model(model_name: str, vllm_cmd: str, host: str = REMOTE_HOST) -> boo
     """Stop any running instance and start the model container in daemon mode."""
     stop_model(host=host)
     single_line_cmd = " ".join(vllm_cmd.split())
-    print(f"\n--> Launching '{model_name}' on {host}...\n    Command: {single_line_cmd}")
+    logger.info("Launching '%s' on %s with command: %s", model_name, host, single_line_cmd)
     res = run_remote(f"cd {REMOTE_VLLM_DIR} && ./launch-cluster.sh -d --solo exec {single_line_cmd}", host=host)
-    if res.stdout:
-        print(res.stdout.strip())
+    if res.stdout and res.stdout.strip():
+        logger.debug("[launch_model] %s", res.stdout.strip())
     if res.stderr and res.returncode != 0:
-        print(f"Error launching model: {res.stderr.strip()}", file=sys.stderr)
+        logger.error("Error launching model %s: %s", model_name, res.stderr.strip())
         return False
     return res.returncode == 0
 
@@ -90,37 +92,37 @@ def is_server_ready(expected_weight: str | None = None, base_url: str = API_BASE
             if expected_weight:
                 data = json.loads(resp.read().decode("utf-8"))
                 loaded_ids = [item.get("id") for item in data.get("data", [])]
+                logger.debug("Loaded model IDs on server: %s (looking for '%s')", loaded_ids, expected_weight)
                 return expected_weight in loaded_ids
             return True
-    except Exception:
+    except Exception as e:
         return False
 
 
 def wait_for_server_ready(expected_weight: str | None = None, base_url: str = API_BASE_URL, timeout_seconds: int = 600, verbose: bool = False, host: str = REMOTE_HOST) -> bool:
     """Poll endpoint until the vLLM server is responsive with expected_model."""
-    print(f"--> Waiting for vLLM server at {base_url} (timeout: {timeout_seconds}s)...")
+    logger.info("Waiting for vLLM server at %s (timeout: %ds)...", base_url, timeout_seconds)
     start_time = time.time()
     log_proc = None
 
     if verbose:
-        print(f"--> [VERBOSE] Streaming live logs from {host}:vllm_node...")
+        logger.info("Streaming live logs from %s:vllm_node...", host)
         try:
             log_proc = subprocess.Popen(["ssh", host, "docker logs -f vllm_node"], stdout=sys.stdout, stderr=sys.stderr, text=True)
         except Exception as e:
-            print(f"Warning: Could not stream logs: {e}", file=sys.stderr)
+            logger.warning("Could not stream logs: %s", e)
 
     try:
         while time.time() - start_time < timeout_seconds:
             if is_server_ready(expected_weight=expected_weight, base_url=base_url):
                 elapsed = round(time.time() - start_time, 1)
-                print(f"\n--> Server is UP and healthy after {elapsed}s!")
+                logger.info("Server is UP and healthy after %.1fs!", elapsed)
                 return True
             time.sleep(3 if verbose else 10)
             if not verbose:
-                sys.stdout.write(".")
-                sys.stdout.flush()
+                logger.debug("Waiting for server...")
 
-        print(f"\nError: Timed out waiting for server at {base_url} after {timeout_seconds}s.", file=sys.stderr)
+        logger.error("Timed out waiting for server at %s after %ds.", base_url, timeout_seconds)
         return False
     finally:
         if log_proc:
@@ -130,7 +132,7 @@ def wait_for_server_ready(expected_weight: str | None = None, base_url: str = AP
 def run_sanity_test(model_id: str, base_url: str = API_BASE_URL) -> bool:
     """Send a test query to verify basic generation and reasoning output."""
     prompt = "What is the capital of Japan? Answer with the city name only."
-    print(f"\n--> Running Sanity Test on {model_id}...\n    Prompt: \"{prompt}\"")
+    logger.debug("Running Sanity Test on %s with prompt: \"%s\"", model_id, prompt)
 
     payload = json.dumps({
         "model": model_id,
@@ -147,17 +149,17 @@ def run_sanity_test(model_id: str, base_url: str = API_BASE_URL) -> bool:
             reasoning = (msg.get("reasoning_content") or "").strip()
             answer = content or reasoning
 
-            print(f'    Response: "{answer}"')
+            logger.debug("Sanity test response: \"%s\"", answer)
             if reasoning and content:
-                print(f"    (Reasoning tokens: {len(reasoning.split())} words)")
+                logger.debug("Reasoning tokens: %d words", len(reasoning.split()))
 
             if "tokyo" in answer.lower():
-                print("    ✓ Sanity test PASSED!")
+                logger.info("✓ Sanity test PASSED!")
                 return True
-            print(f"    ✗ Sanity test FAILED: Expected 'Tokyo', got '{answer}'", file=sys.stderr)
+            logger.error("✗ Sanity test FAILED: Expected 'Tokyo', got '%s'", answer)
             return False
     except Exception as e:
-        print(f"    ✗ Sanity test FAILED with error: {e}", file=sys.stderr)
+        logger.error("✗ Sanity test FAILED with error: %s", e)
         return False
 
 
@@ -171,12 +173,12 @@ def run_model_pipeline(
     test_name: str = "all",
 ) -> bool:
     """Run full lifecycle: launch -> wait -> sanity test -> harness -> stop."""
-    print(f"\n{'=' * 70}\nSTARTING PIPELINE FOR: {model_name} {'[FAST DEV MODE]' if fast else ''}\n{'=' * 70}")
+    logger.info("STARTING PIPELINE FOR: %s", model_name)
 
     weight_name, vllm_cmd = parse_model_config(model_config)
     need_launch = True
     if fast and is_server_ready(expected_weight=weight_name, base_url=base_url):
-        print(f"--> Fast mode: server is already UP with '{weight_name}'. Skipping launch.")
+        logger.info("Fast mode: '%s' is already UP. Skipping launch.", weight_name)
         need_launch = False
 
     success = False
@@ -190,11 +192,11 @@ def run_model_pipeline(
         if not run_sanity_test(weight_name, base_url=base_url):
             return False
 
-        print(f"\n--> Executing Evaluation Harness for {model_name} (test: {test_name})...")
-        harness_script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "run_harness.py")
-        res = subprocess.run([sys.executable, harness_script, model_name, "--test", test_name, "--base-url", f"{base_url}/v1"])
+        logger.info("Executing Evaluation Harness for %s (test: %s)...", model_name, test_name)
+        harness_script = REPO_ROOT / "eval" / "run_harness.py"
+        res = subprocess.run([sys.executable, str(harness_script), model_name, "--test", test_name, "--base-url", f"{base_url}/v1"])
         if res.returncode != 0:
-            print(f"✗ Evaluation harness failed with exit code {res.returncode}", file=sys.stderr)
+            logger.error("Evaluation harness failed with exit code %d", res.returncode)
             return False
 
         success = True
@@ -202,9 +204,10 @@ def run_model_pipeline(
         if not fast:
             stop_model(host=host)
         else:
-            print("--> Fast mode enabled: leaving vLLM server running.")
+            logger.info("Fast mode enabled: leaving vLLM server running.")
 
-    print(f"{'=' * 70}\nFINISHED PIPELINE FOR: {model_name} (Status: {'SUCCESS' if success else 'FAILED'})\n{'=' * 70}\n")
+    status_str = "SUCCESS" if success else "FAILED"
+    logger.info("FINISHED PIPELINE FOR: %s (Status: %s)", model_name, status_str)
     return success
 
 
@@ -217,12 +220,16 @@ def main():
     parser.add_argument("--v", dest="verbose", action="store_true", help="Verbose log streaming")
 
     args = parser.parse_args()
+    if args.verbose:
+        logger.setLevel(logging.DEBUG)
+
     target_models = [args.model] if args.model else list(models.keys())
+    logger.info("Running '%s' test(s) on %d model(s)...", args.test, len(target_models))
 
     for model_name in target_models:
         ok = run_model_pipeline(model_name, models[model_name], fast=args.fast, verbose=args.verbose, test_name=args.test)
         if not ok:
-            print(f"Pipeline stopped on failure for model: {model_name}", file=sys.stderr)
+            logger.error("Pipeline stopped on failure for model: %s", model_name)
             sys.exit(1)
 
     sys.exit(0)

@@ -11,28 +11,34 @@ Usage:
 """
 
 import json
+import logging
 import os
+from pathlib import Path
 import subprocess
 import sys
 from typing import Any
 
-CONFIG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "harnesses.json")
-DEFAULT_SANDBOX_NAME = "eval-harness-builder"
-DEFAULT_TEMPLATE_TAG = "eval-base-harness:latest"
-WORKSPACE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+from config import *
+from common import setup_logger
+
+logger = setup_logger("create_harness")
+
+CONFIG_FILE = HARNESSES_CONFIG_FILE
+DEFAULT_SANDBOX_NAME = DEFAULT_BUILDER_SANDBOX_NAME
+WORKSPACE_DIR = REPO_ROOT
 
 
 def ensure_sbx_policy() -> None:
     """Ensure global network policy is initialized in sbx."""
     res = subprocess.run(["sbx", "policy", "init", "allow-all"], capture_output=True, text=True)
     if res.returncode == 0 and res.stdout.strip():
-        print(f"--> [sbx policy] {res.stdout.strip()}")
+        logger.debug("[sbx policy] %s", res.stdout.strip())
 
 
 def load_harness_config(config_path: str = CONFIG_FILE) -> dict[str, Any]:
     """Load harnesses configuration from JSON."""
     if not os.path.exists(config_path):
-        print(f"Error: Config file not found at {config_path}", file=sys.stderr)
+        logger.error("Config file not found at %s", config_path)
         sys.exit(1)
 
     with open(config_path, "r", encoding="utf-8") as f:
@@ -44,7 +50,7 @@ def save_harness_config(config: dict[str, Any], config_path: str = CONFIG_FILE) 
     with open(config_path, "w", encoding="utf-8") as f:
         json.dump(config, f, indent=4)
         f.write("\n")
-    print(f"--> Updated {config_path} with detected harness versions.")
+    logger.info("Updated %s with detected harness versions.", config_path)
 
 
 def sandbox_exists(name: str) -> bool:
@@ -56,7 +62,7 @@ def sandbox_exists(name: str) -> bool:
 def remove_sandbox(name: str) -> None:
     """Remove sandbox if it exists."""
     if sandbox_exists(name):
-        print(f"--> Removing existing sandbox '{name}'...")
+        logger.info("Removing existing sandbox '%s'...", name)
         subprocess.run(["sbx", "rm", "-f", name], capture_output=True, text=True)
 
 
@@ -79,9 +85,7 @@ def install_harness(
 ) -> str | None:
     """Install a specific harness in the sandbox and return its detected version."""
     norm_name = harness_name.lower().strip()
-    print(f"\n======================================================================")
-    print(f"INSTALLING HARNESS: {harness_name}")
-    print(f"======================================================================")
+    logger.info("Installing harness: %s", harness_name)
 
     # Determine installation and version check commands
     install_cmd = harness_info.get("install_cmd")
@@ -98,44 +102,42 @@ def install_harness(
             )
             version_cmd = "export PATH=$HOME/.opencode/bin:$HOME/.local/bin:$PATH; opencode --version"
         else:
-            print(f"Warning: Unknown harness '{harness_name}' with no install_cmd specified. Skipping.", file=sys.stderr)
+            logger.warning("Unknown harness '%s' with no install_cmd specified. Skipping.", harness_name)
             return None
 
     if not version_cmd:
         version_cmd = f"{norm_name} --version"
 
-    print(f"--> Executing install command:")
-    print(f"    {install_cmd}")
+    logger.debug("Executing install command: %s", install_cmd)
     code, stdout, stderr = exec_in_sandbox(sandbox_name, install_cmd)
     if code != 0:
-        print(f"Error installing {harness_name} (code {code}):\n{stderr}\n{stdout}", file=sys.stderr)
+        logger.error("Error installing %s (code %d):\n%s\n%s", harness_name, code, stderr, stdout)
         return None
 
     if stdout:
-        print(stdout)
+        logger.debug("[install output] %s", stdout)
 
     # Check version
-    print(f"\n--> Checking version via: {version_cmd}")
+    logger.debug("Checking version via: %s", version_cmd)
     code, v_stdout, v_stderr = exec_in_sandbox(sandbox_name, version_cmd)
     if code == 0 and v_stdout:
-        # Extract version output (e.g. "0.84.2" or "1.18.18")
         version_str = v_stdout.splitlines()[-1].strip()
-        print(f"✓ {harness_name} successfully installed! Detected version: {version_str}")
+        logger.info("✓ %s successfully installed! Detected version: %s", harness_name, version_str)
         return version_str
     else:
-        print(f"Warning: Could not determine version for {harness_name}: {v_stderr} {v_stdout}", file=sys.stderr)
+        logger.warning("Could not determine version for %s: %s %s", harness_name, v_stderr, v_stdout)
         return None
 
 
 def save_as_template(sandbox_name: str, template_tag: str) -> bool:
     """Snapshot the sandbox image and save it as a reusable template."""
-    print(f"\n--> Stopping sandbox '{sandbox_name}' before snapshotting...")
+    logger.info("Stopping sandbox '%s' before snapshotting...", sandbox_name)
     stop_sandbox(sandbox_name)
 
-    print(f"--> Saving sandbox '{sandbox_name}' snapshot to template tag '{template_tag}'...")
+    logger.info("Saving sandbox '%s' snapshot to template tag '%s'...", sandbox_name, template_tag)
     res = subprocess.run(["sbx", "template", "save", sandbox_name, template_tag], capture_output=True, text=True)
     if res.returncode == 0:
-        print(f"✓ Successfully saved template: {template_tag}")
+        logger.info("✓ Successfully saved template: %s", template_tag)
         return True
     else:
         # Try with y input if prompted
@@ -146,17 +148,15 @@ def save_as_template(sandbox_name: str, template_tag: str) -> bool:
             text=True,
         )
         if res.returncode == 0:
-            print(f"✓ Successfully saved template: {template_tag}")
+            logger.info("✓ Successfully saved template: %s", template_tag)
             return True
-        print(f"Warning: Failed to save template '{template_tag}': {res.stderr}\n{res.stdout}", file=sys.stderr)
+        logger.warning("Failed to save template '%s': %s\n%s", template_tag, res.stderr, res.stdout)
         return False
 
 
 def install_evaluation_dependencies(sandbox_name: str) -> None:
     """Install core evaluation dependencies (git, python3, pip, langdetect, html5lib, etc.) in the sandbox."""
-    print(f"\n======================================================================")
-    print(f"INSTALLING BASE EVALUATION DEPENDENCIES (git, python, langdetect, etc.)")
-    print(f"======================================================================")
+    logger.info("Installing base evaluation dependencies (git, python, langdetect, etc.)...")
 
     # Shell script to install system tools & Python evaluation packages
     setup_script = """
@@ -176,42 +176,42 @@ def install_evaluation_dependencies(sandbox_name: str) -> None:
 
     code, stdout, stderr = exec_in_sandbox(sandbox_name, setup_script)
     if code != 0:
-        print(f"Warning: Issue installing base eval packages (code {code}):\n{stderr}\n{stdout}", file=sys.stderr)
+        logger.warning("Issue installing base eval packages (code %d):\n%s\n%s", code, stderr, stdout)
     else:
-        print("✓ System evaluation tools and Python packages installed.")
+        logger.info("✓ System evaluation tools and Python packages installed.")
 
     # Validation check
     val_cmd = 'git --version && python3 --version && python3 -c "import langdetect, html5lib; print(\'✓ Evaluation Python modules validated (langdetect, html5lib).\')"'
     code, v_out, _ = exec_in_sandbox(sandbox_name, val_cmd)
     if code == 0 and v_out:
         for line in v_out.splitlines():
-            print(f"  {line}")
+            logger.debug("Validation: %s", line)
     else:
-        print(f"  Note: Validation output: {v_out}")
+        logger.debug("Validation output: %s", v_out)
 
 
 def main():
     ensure_sbx_policy()
 
     harnesses = load_harness_config(CONFIG_FILE)
-    print(f"--> Loaded {len(harnesses)} harness(es) from {CONFIG_FILE}:")
+    logger.info("Loaded %d harness(es) from %s:", len(harnesses), CONFIG_FILE)
     for h in harnesses:
-        print(f"    - {h}")
+        logger.info("  - %s", h)
 
     # Remove any existing builder sandbox
     remove_sandbox(DEFAULT_SANDBOX_NAME)
 
     # Create fresh sandbox
-    print(f"\n--> Creating sandbox '{DEFAULT_SANDBOX_NAME}' with workspace: {WORKSPACE_DIR}...")
+    logger.info("Creating sandbox '%s' with workspace: %s...", DEFAULT_SANDBOX_NAME, WORKSPACE_DIR)
     create_res = subprocess.run(
         ["sbx", "create", "--name", DEFAULT_SANDBOX_NAME, "shell", WORKSPACE_DIR],
         capture_output=True,
         text=True,
     )
     if create_res.returncode != 0:
-        print(f"Error creating sandbox:\n{create_res.stderr}\n{create_res.stdout}", file=sys.stderr)
+        logger.error("Error creating sandbox:\n%s\n%s", create_res.stderr, create_res.stdout)
         sys.exit(1)
-    print(f"✓ Sandbox '{DEFAULT_SANDBOX_NAME}' created.")
+    logger.info("✓ Sandbox '%s' created.", DEFAULT_SANDBOX_NAME)
 
     # 1. Install base evaluation dependencies
     install_evaluation_dependencies(DEFAULT_SANDBOX_NAME)
@@ -234,10 +234,7 @@ def main():
     # Always cleanup builder container
     remove_sandbox(DEFAULT_SANDBOX_NAME)
 
-    print("\n======================================================================")
-    print("HARNESS CONFIGURATION COMPLETE")
-    print(f"Base template ready: {DEFAULT_TEMPLATE_TAG}")
-    print("======================================================================\n")
+    logger.info("HARNESS CONFIGURATION COMPLETE. Base template ready: %s", DEFAULT_TEMPLATE_TAG)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,31 @@
+"""
+eval.config - Centralized configurations, path definitions, and environment defaults.
+"""
+
+from pathlib import Path
+import sys
+
+# Repository Root Directory (Path object)
+REPO_ROOT = Path(__file__).resolve().parent.parent
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+# Cluster & Remote Host Configuration
+REMOTE_HOST = "mike@spark"
+REMOTE_VLLM_DIR = "~/apps/spark-vllm-docker"
+API_BASE_URL = "http://spark:8000"
+DEFAULT_LLM_BASE_URL = f"{API_BASE_URL}/v1"
+
+# Docker Sandbox & Harness Defaults
+DEFAULT_BUILDER_SANDBOX_NAME = "eval-harness-builder"
+DEFAULT_WORKER_SANDBOX_NAME = "eval-harness-worker"
+DEFAULT_TEMPLATE_TAG = "eval-base-harness:latest"
+DEFAULT_OPENCODE_PORT = 4096
+
+# Data & Config Paths (Path objects)
+MODELS_CONFIG_FILE = REPO_ROOT / "eval" / "models.json"
+HARNESSES_CONFIG_FILE = REPO_ROOT / "eval" / "harnesses.json"
+BENCHMARK_DATA_FILE = REPO_ROOT / "site" / "data" / "benchmark-data.json"
+BENCHMARK_SCHEMA_FILE = REPO_ROOT / "site" / "data" / "benchmark-data.schema.json"
+RESULTS_DIR = REPO_ROOT / "results"
+TESTS_DIR = REPO_ROOT / "tests"

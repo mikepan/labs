@@ -85,16 +85,48 @@ def exec_in_sandbox(sandbox_name: str, cmd_str: str) -> tuple[int, str, str]:
     return res.returncode, res.stdout.strip(), res.stderr.strip()
 
 
-# =====================================================================
-# OpenCode Harness Setup & API Client
-# =====================================================================
+def get_active_api_model(base_url: str = DEFAULT_LLM_BASE_URL) -> str | None:
+    """Query /v1/models on LLM server and return the first active model ID."""
+    try:
+        url = f"{base_url}/models" if not base_url.endswith("/models") else base_url
+        res = requests.get(url, timeout=3)
+        if res.status_code == 200:
+            data = res.json()
+            models_list = data.get("data", [])
+            if models_list and "id" in models_list[0]:
+                return models_list[0]["id"]
+    except Exception:
+        pass
+    return None
+
 
 def configure_opencode_in_sandbox(
     model_name: str,
     sandbox_name: str = SANDBOX_NAME,
     llm_base_url: str = DEFAULT_LLM_BASE_URL,
-) -> None:
-    """Write opencode.json configuration inside the sandbox container."""
+) -> str:
+    """Write opencode.json configuration inside the sandbox container using the active API model ID."""
+    active_api_model = get_active_api_model(llm_base_url) or model_name
+    print(f"--> Configured OpenCode provider with active API model ID: '{active_api_model}' (config alias: '{model_name}')")
+
+    models_config = {
+        active_api_model: {
+            "name": active_api_model,
+            "modalities": {
+                "input": ["text", "image"],
+                "output": ["text"],
+            },
+        }
+    }
+    if active_api_model != model_name:
+        models_config[model_name] = {
+            "name": active_api_model,
+            "modalities": {
+                "input": ["text", "image"],
+                "output": ["text"],
+            },
+        }
+
     config_data = {
         "$schema": "https://opencode.ai/config.json",
         "share": "disabled",
@@ -109,21 +141,15 @@ def configure_opencode_in_sandbox(
                     "baseURL": llm_base_url,
                     "apiKey": "dummy",
                 },
-                "models": {
-                    model_name: {
-                        "name": model_name,
-                        "modalities": {
-                            "input": ["text", "image"],
-                            "output": ["text"],
-                        },
-                    },
-                },
+                "models": models_config,
             },
         },
     }
     config_json = json.dumps(config_data, indent=2)
     setup_cmd = f"mkdir -p ~/.config/opencode && cat << 'EOF' > ~/.config/opencode/opencode.json\n{config_json}\nEOF"
     exec_in_sandbox(sandbox_name, setup_cmd)
+    return active_api_model
+
 
 
 def start_opencode_server_in_workspace(
@@ -505,16 +531,12 @@ def run_test_suite_on_agent(
             })
 
         test_duration = round(time.time() - test_start_time, 2)
-        completion_rate = round((earned_score / max_score) * 100.0, 1) if max_score > 0 else 100.0
-
         trace_id = str(uuid.uuid4())
         test_results_summary[test_id] = {
             "name": test_obj.description or test_id,
-            "run_completion": completion_rate,
             "earned_score": earned_score,
             "max_score": max_score,
             "run_time_sec": test_duration,
-            "run_memory_gb": 28.0,
             "tokens_in": total_tokens_in,
             "tokens_out": total_tokens_out,
             "context_used_pct": 5.0,
@@ -539,6 +561,7 @@ def run_test_suite_on_agent(
         session_info = get_session_info_in_sandbox(sandbox_name, session_id)
         all_session_messages = get_session_messages_in_sandbox(sandbox_name, session_id)
 
+        completion_rate = round((earned_score / max_score) * 100.0, 1) if max_score > 0 else 100.0
         suite_trace["tests"][test_id] = {
             "trace_id": trace_id,
             "completion_rate": completion_rate,
@@ -563,13 +586,72 @@ def run_test_suite_on_agent(
     }
 
 
-
 # =====================================================================
 # Benchmark Row Construction & Storage
 # =====================================================================
 
-def get_model_metadata(model_name: str) -> dict[str, Any]:
-    """Retrieve metadata from models.json or generate standard defaults."""
+def get_model_context_length(base_url: str = DEFAULT_LLM_BASE_URL) -> int:
+    """Retrieve actual max context length directly from vLLM /v1/models endpoint."""
+    try:
+        url = f"{base_url}/models" if not base_url.endswith("/models") else base_url
+        res = requests.get(url, timeout=3)
+        if res.status_code == 200:
+            data = res.json()
+            models_list = data.get("data", [])
+            if models_list and "max_model_len" in models_list[0] and models_list[0]["max_model_len"]:
+                return int(models_list[0]["max_model_len"])
+    except Exception:
+        pass
+
+    return 0
+
+
+def calculate_model_memory_gb(host: str = "mike@spark") -> float:
+    """Dynamically parse actual memory metrics from vLLM engine startup logs on remote host:
+    Formula: Consumed memory (weights + non-torch) + Peak activation - CUDA Graph memory + 1 full KV context
+    """
+    try:
+        cmd = ["ssh", host, "docker logs vllm_node 2>&1"]
+        res = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+        logs = res.stdout
+
+        # Extract: Consumed memory, Peak activation, and CUDAGraph memory
+        m_usage = re.search(
+            r"Actual usage is ([\d\.]+) GiB for consumed memory.*?([\d\.]+) GiB for peak activation.*?([-\d\.]+) GiB for CUDAGraph memory",
+            logs,
+        )
+        # Extract: Total KV cache memory allocated
+        m_kv = re.search(r"Current kv cache memory in use is ([\d\.]+) GiB", logs) or re.search(r"Available KV cache memory:\s*([\d\.]+) GiB", logs)
+        # Extract: Concurrency factor for 1 full context
+        m_conc = re.search(r"Maximum concurrency for [0-9,]+ tokens per request:\s*([\d\.]+)x", logs)
+
+        if m_usage and m_kv and m_conc:
+            consumed = float(m_usage.group(1))
+            peak_act = float(m_usage.group(2))
+            cudagraph = float(m_usage.group(3))
+            kv_total = float(m_kv.group(1))
+            concurrency = float(m_conc.group(1))
+
+            kv_1_context = (kv_total / concurrency) if concurrency > 0 else 0.0
+            # Consumed + Peak activation - CUDA Graph + 1 full KV context
+            total_memory_gb = round(consumed + peak_act - abs(cudagraph) + kv_1_context, 1)
+            print(f"--> Dynamic memory parsed from vLLM logs: consumed={consumed}G, peak_act={peak_act}G, cudagraph={cudagraph}G, kv_1ctx={kv_1_context:.2f}G => {total_memory_gb} GB")
+            return total_memory_gb
+    except Exception as e:
+        print(f"Warning: Could not parse dynamic memory from vLLM log: {e}", file=sys.stderr)
+
+    return 0.0
+
+
+def get_model_metadata(model_name: str, base_url: str = DEFAULT_LLM_BASE_URL) -> dict[str, Any]:
+    """Retrieve metadata from models.json and dynamic server endpoints."""
+    launch_cfg = "vllm serve"
+    spec_type = "off"
+    kv_type = "FP16"
+    reasoning_effort = "off"
+    company = "Community"
+    base_model = model_name
+
     if os.path.exists(MODELS_FILE):
         with open(MODELS_FILE, "r", encoding="utf-8") as f:
             models = json.load(f)
@@ -578,47 +660,39 @@ def get_model_metadata(model_name: str) -> dict[str, Any]:
                 spec_arg = cfg.get("model-arg-speculative", "")
                 kv_arg = cfg.get("model-arg-kv-quant", "")
                 launch_cfg = cfg.get("model-arg", "")
+                reasoning_effort = cfg.get("reasoning_effort", "off")
 
-                spec_type = "off"
+                # Parse base model path from 'vllm serve <base_model>'
+                m_serve = re.search(r"vllm\s+serve\s+([^\s]+)", launch_cfg)
+                if m_serve:
+                    full_model_path = m_serve.group(1)
+                    if "/" in full_model_path:
+                        company, base_model = full_model_path.split("/", 1)
+                    else:
+                        base_model = full_model_path
+
                 if spec_arg:
                     m = re.search(r'"method":\s*"([^"]+)"', spec_arg)
                     spec_type = m.group(1) if m else "on"
 
-                kv_type = "FP16"
                 if kv_arg:
                     m = re.search(r"--kv-cache-dtype\s+(\S+)", kv_arg)
                     kv_type = m.group(1).upper() if m else kv_arg
 
-                quant = "FP8" if "FP8" in model_name or "NVFP4" in model_name else "Q4_K_M"
-                if "NVFP4" in model_name:
-                    quant = "NVFP4"
-
-                return {
-                    "display_name": "Qwen3.6 27B FP8" if "27B" in model_name else model_name,
-                    "company": "Qwen" if "qwen" in model_name.lower() else "Nvidia",
-                    "parent_model": model_name,
-                    "model_quant": quant,
-                    "kv_quant": kv_type,
-                    "param_size_b": 27 if "27B" in model_name else 35,
-                    "model_size_gb": 28.0,
-                    "context_length": 32768,
-                    "release_date": "2026-02-05",
-                    "speculative_decoding": spec_type,
-                    "launch_config": launch_cfg,
-                }
+    # Determine real context length directly from vLLM server
+    context_length = get_model_context_length(base_url=base_url)
+    memory_gb = calculate_model_memory_gb()
 
     return {
         "display_name": model_name,
-        "company": "Community",
-        "parent_model": model_name,
-        "model_quant": "FP8",
-        "kv_quant": "FP8",
-        "param_size_b": 27,
-        "model_size_gb": 28.0,
-        "context_length": 32768,
-        "release_date": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
-        "speculative_decoding": "off",
-        "launch_config": "vllm serve",
+        "company": company,
+        "base_model": base_model,
+        "kv_quant": kv_type,
+        "context_length": context_length,
+        "memory_gb": memory_gb,
+        "speculative_decoding": spec_type,
+        "reasoning": reasoning_effort,
+        "launch_config": launch_cfg,
     }
 
 
@@ -627,6 +701,7 @@ def save_evaluation_results(
     harness_name: str,
     harness_version: str,
     evaluation_output: dict[str, Any],
+    base_url: str = DEFAULT_LLM_BASE_URL,
 ) -> str:
     """Save full results, trace, artifacts and update benchmark-data.json."""
     timestamp_str = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H-%M-%SZ")
@@ -661,35 +736,36 @@ def save_evaluation_results(
         json.dump(suite_trace, f, indent=2)
 
     # 3. Calculate aggregate scores
-    meta = get_model_metadata(model_name)
+    meta = get_model_metadata(model_name, base_url=base_url)
     total_completion = 0.0
     total_time = 0.0
     num_tests = len(test_results_summary)
     for t_data in test_results_summary.values():
-        total_completion += t_data.get("run_completion", 0.0)
+        e_score = t_data.get("earned_score", 0.0)
+        m_score = t_data.get("max_score", 1.0)
+        comp = (e_score / m_score * 100.0) if m_score > 0 else 100.0
+        total_completion += comp
         total_time += t_data.get("run_time_sec", 1.0)
 
     avg_completion = round(total_completion / num_tests, 1) if num_tests > 0 else 0.0
     task_speed = round((num_tests / (total_time / 3600.0)), 1) if total_time > 0 else 1.0
-    intel_density = round(avg_completion / meta["model_size_gb"], 3) if meta["model_size_gb"] > 0 else 0.0
+    model_mem = meta["memory_gb"]
+    intel_density = round(avg_completion / model_mem, 3) if model_mem > 0 else 0.0
 
-    # 4. Construct benchmark row
+    # 4. Construct benchmark row adhering to benchmark-data.schema.json (16 columns)
     benchmark_row = [
         meta["display_name"],
         meta["company"],
-        meta["parent_model"],
-        meta["model_quant"],
+        meta["base_model"],
         meta["kv_quant"],
-        meta["param_size_b"],
-        meta["model_size_gb"],
         meta["context_length"],
-        meta["release_date"],
+        meta["memory_gb"],
         suite_trace["start_time"],
         "vLLM",
         meta["speculative_decoding"],
         harness_name,
         harness_version,
-        "high",
+        meta["reasoning"],
         meta["launch_config"],
         avg_completion,
         task_speed,
@@ -785,24 +861,26 @@ def main():
     # Provision sandbox
     ensure_sandbox()
     try:
-        configure_opencode_in_sandbox(args.model, llm_base_url=args.base_url)
+        active_api_model = configure_opencode_in_sandbox(args.model, llm_base_url=args.base_url)
 
-        # Run test suite
+        # Run test suite using the active model ID on the provider
         evaluation_output = run_test_suite_on_agent(
-            model_name=args.model,
+            model_name=active_api_model,
             test_specs=test_specs,
             sandbox_name=SANDBOX_NAME,
         )
 
-        # Save results, trace, artifacts and update benchmark-data.json
+        # Save results, trace, artifacts and update benchmark-data.json with the model config key
         save_evaluation_results(
             model_name=args.model,
             harness_name=args.harness,
             harness_version=harness_version,
             evaluation_output=evaluation_output,
+            base_url=args.base_url,
         )
     finally:
         remove_sandbox()
+
 
 
 if __name__ == "__main__":

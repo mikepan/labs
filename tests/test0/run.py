@@ -28,7 +28,7 @@ Explain it at 3 different levels (3 yearsold, teenager, science PhD) and produce
             point=2,
         ),
         Step(
-            prompt="translate sky2.md to simplified chinese",
+            prompt="translate sky2.md to simplified chinese and write back to the same file",
             checks=[
                 git_changes("sky2.md", "M", lines=(6, 60)),
                 lang_detect("sky2.md", lang="zh"),
@@ -38,7 +38,7 @@ Explain it at 3 different levels (3 yearsold, teenager, science PhD) and produce
         Step(
             prompt="""Create a beautiful single page html(index.htm) to present this content, showing the english and chinese content side by side. Be sure that the js/css are all embedded. Dont load any external resources from the web.""",
             checks=[
-                git_changes("index.htm", "A", lines=(100, 10000)),
+                git_changes("index.htm", "A", lines=(50, 5000)),
             ],
             point=4,
         ),

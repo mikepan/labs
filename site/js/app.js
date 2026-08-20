@@ -36,7 +36,12 @@ function extractEvalMetrics(e) {
   const testsObj = e.test_results || {};
   const tests = Array.isArray(testsObj) ? testsObj : Object.values(testsObj);
 
-  const sumCompletion = tests.reduce((acc, t) => acc + (t.run_completion || 0), 0);
+  const sumCompletion = tests.reduce((acc, t) => {
+    if (t.earned_score !== undefined && t.max_score) {
+      return acc + (t.earned_score / t.max_score * 100.0);
+    }
+    return acc + (t.run_completion || 0);
+  }, 0);
   const intelligence = e.intelligence !== undefined
     ? e.intelligence
     : (e.summary_metrics?.intelligence !== undefined
@@ -49,23 +54,24 @@ function extractEvalMetrics(e) {
     ? Math.round(tests.reduce((acc, t) => acc + (t.run_time_sec || t.completion_time_sec || 0), 0) / tests.length)
     : 0;
 
-  const runMemGb = tests.length > 0
-    ? (tests.reduce((acc, t) => acc + (t.run_memory_gb || 0), 0) / tests.length)
-    : (e.model_size_gb || e.llm?.model_size_gb || 0);
-
-  const paramSizeB = e.param_size_b !== undefined
-    ? e.param_size_b
-    : (e.llm?.param_size_b !== undefined ? e.llm.param_size_b : (parseInt(e.param_size || e.llm?.param_size, 10) || 0));
+  const runMemGb = e.memory_gb !== undefined
+    ? Number(e.memory_gb)
+    : (tests.length > 0 && tests[0].run_memory_gb !== undefined
+      ? tests[0].run_memory_gb
+      : (e.model_size_gb || e.llm?.model_size_gb || 28.0));
 
   const modelName = e.name || e.llm?.name || 'Unknown Model';
   const company = e.company || e.llm?.company || '';
-  const quant = e.model_quant || e.llm?.model_quant || e.quant || 'FP16';
+  const parentModel = e.parent_model || e.base_model || modelName;
   const kvQuant = e.kv_quant || e.llm?.kv_quant || 'FP16';
-  const llmServer = e.llm_server || e.llm?.llm_server || e.server || 'N/A';
+  const contextLength = e.context_length || 262144;
+  const llmServer = e.llm_server || e.llm?.llm_server || e.server || 'vLLM';
   const speculativeDecoding = e.speculative_decoding || e.llm?.speculative_decoding || 'off';
   const harnessName = typeof e.harness === 'string' ? e.harness : (e.harness?.name || 'N/A');
+  const harnessVersion = e.harness_version || '1.18.18';
   const reasoning = e.reasoning || e.harness?.reasoning || e.harness?.reasoning_effort || 'off';
   const benchmarkStartTime = e.benchmark_start_time || e.release_date || '';
+  const launchConfig = e.launch_config || '';
   const taskSpeed = e.task_speed !== undefined ? e.task_speed : (e.summary_metrics?.task_speed ?? 0);
   const intelligenceDensity = e.intelligence_density !== undefined ? e.intelligence_density : (e.summary_metrics?.intelligence_density ?? 0);
 
@@ -75,17 +81,19 @@ function extractEvalMetrics(e) {
     intelligence,
     timeSec,
     runMemGb,
-    paramSizeB,
     memoryGb: Math.round(runMemGb),
     modelName,
     company,
-    quant,
+    parentModel,
     kvQuant,
+    contextLength,
     benchmarkStartTime,
     llmServer,
     speculativeDecoding,
     reasoning,
     harnessName,
+    harnessVersion,
+    launchConfig,
     taskSpeed,
     intelligenceDensity
   };
@@ -112,8 +120,9 @@ function initDashboard(data) {
     return {
       name: m.modelName,
       family: m.company,
-      param_size_b: m.paramSizeB,
-      quant: m.quant,
+      parent_model: m.parentModel,
+      kv_quant: m.kvQuant,
+      context_length: m.contextLength,
       memory_gb: m.memoryGb,
       intelligence: m.intelligence,
       task_speed: m.taskSpeed,
@@ -121,6 +130,7 @@ function initDashboard(data) {
       llm_server: m.llmServer,
       speculative_decoding: m.speculativeDecoding,
       harness_name: m.harnessName,
+      harness_version: m.harnessVersion,
       reasoning: m.reasoning,
       test_results: e.test_results
     };
@@ -170,7 +180,7 @@ function handleFetchError(error) {
   if (tbody) {
     tbody.innerHTML = `
       <tr class="table-error-row">
-        <td colspan="8">
+        <td colspan="7">
           <div class="data-error-state" style="min-height: auto; padding: 2rem 1rem;">
             <h4 class="data-error-title">Leaderboard Data Unavailable</h4>
           </div>
@@ -205,7 +215,7 @@ function renderModelSpeedChart(evaluations) {
   const normalized = evaluations.map(e => extractEvalMetrics(e));
   const sorted = normalized.sort((a, b) => (b.taskSpeed || 0) - (a.taskSpeed || 0)).slice(0, 10);
 
-  const modelLabels = sorted.map(m => `${m.modelName} (${m.quant})`);
+  const modelLabels = sorted.map(m => m.modelName);
   const speedValues = sorted.map(m => Number(m.taskSpeed || 0).toFixed(1));
 
   const option = {
@@ -284,7 +294,7 @@ function renderModelDensityChart(evaluations) {
   const normalized = evaluations.map(e => extractEvalMetrics(e));
   const sorted = normalized.sort((a, b) => (b.intelligenceDensity || 0) - (a.intelligenceDensity || 0)).slice(0, 10);
 
-  const modelLabels = sorted.map(m => `${m.modelName} (${m.quant})`);
+  const modelLabels = sorted.map(m => m.modelName);
   const densityValues = sorted.map(m => Number(m.intelligenceDensity || 0).toFixed(1));
 
   const option = {
@@ -337,7 +347,7 @@ function renderModelDensityChart(evaluations) {
         itemStyle: {
           color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
             { offset: 0, color: '#059669' },
-            { offset: 1, color: '#10b981' }
+            { offset: 1, color: '#34d399' }
           ]),
           borderRadius: [6, 6, 0, 0]
         },
@@ -359,21 +369,26 @@ function renderTopScatterChart(evaluations, viewMode = 'time') {
   const chart = getOrCreateChart(chartEl);
   if (!chart) return;
 
-  // 1. Extract raw points for Pareto frontier calculation
-  const rawPoints = evaluations.map((e, idx) => {
+  // 1. Prepare raw data points
+  const rawPoints = [];
+  evaluations.forEach((e, idx) => {
     const m = extractEvalMetrics(e);
-    const xVal = viewMode === 'time' ? (m.timeSec || 200) : (m.runMemGb || 16);
-
-    return {
-      id: idx,
-      x: xVal,
-      y: m.intelligence,
-      name: m.modelName,
-      rawEval: e
-    };
+    const yVal = m.intelligence;
+    const xVal = viewMode === 'time' ? m.timeSec : m.runMemGb;
+    if (xVal !== undefined && yVal !== undefined) {
+      rawPoints.push({
+        id: idx,
+        x: xVal,
+        y: yVal,
+        name: m.modelName,
+        rawEval: e
+      });
+    }
   });
 
-  // 2. Identify Pareto Optimal points (Lower X is better, Higher Y is better)
+  if (rawPoints.length === 0) return;
+
+  // 2. Identify Pareto Frontier Points
   const paretoPoints = [];
   const dominatedPoints = [];
 
@@ -607,7 +622,7 @@ function renderLeaderboard(models) {
     const filtered = models.filter(m =>
       m.name.toLowerCase().includes(filterText) ||
       m.family.toLowerCase().includes(filterText) ||
-      m.quant.toLowerCase().includes(filterText) ||
+      (m.parent_model && m.parent_model.toLowerCase().includes(filterText)) ||
       (m.llm_server && m.llm_server.toLowerCase().includes(filterText)) ||
       (m.speculative_decoding && m.speculative_decoding.toLowerCase().includes(filterText)) ||
       m.harness_name.toLowerCase().includes(filterText) ||
@@ -642,7 +657,7 @@ function renderLeaderboard(models) {
     if (filtered.length === 0) {
       tbody.innerHTML = `
         <tr>
-          <td colspan="8" style="text-align: center; padding: 2.5rem 1rem; color: var(--text-muted);">
+          <td colspan="7" style="text-align: center; padding: 2.5rem 1rem; color: var(--text-muted);">
             🔍 No models found
           </td>
         </tr>
@@ -657,14 +672,13 @@ function renderLeaderboard(models) {
         <tr>
           <td class="model-name ${cls('name')}">
             <strong>${escapeHtml(m.name)}</strong>
-            <br/><span style="font-size:0.75rem; color:#6b7280;">${m.param_size_b ? m.param_size_b + 'B' : ''} • ${m.family}</span>
-            <div class="mobile-sub-info">${escapeHtml(m.quant)} • ${escapeHtml(m.harness_name)} • ${escapeHtml(m.reasoning)}</div>
+            <br/><span style="font-size:0.75rem; color:#6b7280;">${m.parent_model || m.family}</span>
+            <div class="mobile-sub-info">${escapeHtml(m.harness_name)} • ${escapeHtml(m.reasoning)} • ${escapeHtml(m.kv_quant)}</div>
           </td>
           <td class="${cls('task_speed')}">${Number(m.task_speed).toFixed(1)}</td>
           <td class="${cls('intelligence_density')}">${Number(m.intelligence_density).toFixed(1)}</td>
           <td class="${cls('intelligence')}">${m.intelligence}</td>
           <td class="${cls('memory_gb')}">${Math.round(m.memory_gb)} GB</td>
-          <td class="hide-mobile ${cls('quant')}"><code>${escapeHtml(m.quant)}</code></td>
           <td class="hide-mobile ${cls('harness_name')}">${escapeHtml(m.harness_name)}</td>
           <td class="hide-mobile ${cls('reasoning')}"><span style="font-family:var(--font-mono); font-size:0.85rem; font-weight:500;">${escapeHtml(m.reasoning)}</span></td>
         </tr>
@@ -680,7 +694,7 @@ function renderLeaderboard(models) {
         currentSortOrder = currentSortOrder === 'asc' ? 'desc' : 'asc';
       } else {
         currentSortKey = key;
-        currentSortOrder = ['name', 'quant', 'harness_name', 'reasoning'].includes(key) ? 'asc' : 'desc';
+        currentSortOrder = ['name', 'harness_name', 'reasoning'].includes(key) ? 'asc' : 'desc';
       }
       updateTable();
     });
@@ -722,7 +736,7 @@ function formatModelCardTooltip(evalRecord) {
   return `
     <div style="font-weight:600; color:#0f172a; font-size:0.95rem; margin-bottom:4px;">${escapeHtml(m.modelName)}</div>
     <div style="margin-bottom:10px;">
-      <span style="display:inline-block; padding:2px 8px; border-radius:10px; font-family:var(--font-mono, monospace); font-size:0.75rem; font-weight:600; background:rgba(249,115,22,0.1); color:#ea580c; border:1px solid rgba(249,115,22,0.25);">${escapeHtml(m.quant)}</span>
+      <span style="display:inline-block; padding:2px 8px; border-radius:10px; font-family:var(--font-mono, monospace); font-size:0.75rem; font-weight:600; background:rgba(249,115,22,0.1); color:#ea580c; border:1px solid rgba(249,115,22,0.25);">${escapeHtml(m.company || m.parentModel)}</span>
     </div>
 
     <div style="min-width: 210px;">

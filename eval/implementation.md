@@ -25,7 +25,7 @@ The evaluation framework benchmarks code-generation and multi-turn agent capabil
   - `full_trace.json`: Comprehensive step-by-step traces, prompt messages, reasoning blocks, tool call records, and assertion results.
   - `opencode_server.log`: Raw OpenCode server execution logs inside the sandbox.
   - `artifacts/`: Extracted workspace files and generated deliverables.
-- **`site/data/benchmark-data.json`**: Cumulative benchmark leaderboard records (16-column dataset conforming to schema) updated automatically upon completion.
+- **`site/data/benchmark-data.json`**: Cumulative benchmark leaderboard records (17-column dataset conforming to schema with model-level memory_gb) updated automatically upon completion.
 - **`site/`**: Web dashboard UI displaying leaderboard rankings, drilldown metrics, test breakdowns, and trace viewers.
 
 ---

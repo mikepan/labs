@@ -72,7 +72,8 @@ def launch_model(model_name: str, vllm_cmd: str, host: str = REMOTE_HOST) -> boo
     """Stop any running instance and start the model container in daemon mode."""
     stop_model(host=host)
     single_line_cmd = " ".join(vllm_cmd.split())
-    logger.info("Launching '%s' on %s with command: %s", model_name, host, single_line_cmd)
+    logger.info("Launching '%s'", model_name)
+    logger.debug("Command: %s", single_line_cmd)
     res = run_remote(f"cd {REMOTE_VLLM_DIR} && ./launch-cluster.sh -d --solo exec {single_line_cmd}", host=host)
     if res.stdout and res.stdout.strip():
         logger.debug("[launch_model] %s", res.stdout.strip())

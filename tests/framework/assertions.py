@@ -40,17 +40,19 @@ class BaseAssertion:
 
 
 class GitChangeAssert(BaseAssertion):
-    """Asserts that a file underwent a specific git change (add, modify, delete) with optional line bounds."""
+    """Asserts that a file underwent a specific git change (add, modify, delete) with total line bounds or diff line bounds."""
 
     def __init__(
         self,
         filepath: str,
         status: str = "A",
-        lines: Optional[tuple[int, int] | int] = None,
+        total_lines: Optional[tuple[int, int] | int] = None,
+        diff_lines: Optional[tuple[int, int] | int] = None,
     ):
         self.filepath = filepath
         self.status = status.strip().upper() if status else "A"
-        self.lines = lines
+        self.total_lines = total_lines
+        self.diff_lines = diff_lines
 
     def evaluate(self, workspace_dir: str) -> CheckResult:
         full_path = os.path.join(workspace_dir, self.filepath)
@@ -66,31 +68,58 @@ class GitChangeAssert(BaseAssertion):
             if not os.path.exists(full_path):
                 return CheckResult(False, f"Expected file '{self.filepath}' to exist, but was not found.")
 
-        # 2. Check git status
-        res = subprocess.run(
-            ["git", "status", "--porcelain", self.filepath],
-            cwd=workspace_dir,
-            capture_output=True,
-            text=True,
-        )
-        status_output = res.stdout.strip()
-
-        # 3. Check line counts via git diff / numstat or file line count
+        # 2. Check total lines count if specified
         line_count = 0
         if os.path.exists(full_path):
             with open(full_path, "r", encoding="utf-8", errors="ignore") as f:
                 line_count = len(f.readlines())
 
-        if self.lines is not None:
-            min_lines, max_lines = self.lines if isinstance(self.lines, tuple) else (self.lines, self.lines)
+        if self.total_lines is not None:
+            min_lines, max_lines = self.total_lines if isinstance(self.total_lines, tuple) else (self.total_lines, self.total_lines)
             if not (min_lines <= line_count <= max_lines):
                 return CheckResult(
                     False,
-                    f"File '{self.filepath}' line count {line_count} out of expected range [{min_lines}, {max_lines}].",
+                    f"File '{self.filepath}' total line count {line_count} out of expected range [{min_lines}, {max_lines}].",
                     {"line_count": line_count, "range": (min_lines, max_lines)},
                 )
 
-        return CheckResult(True, f"Git change verified for '{self.filepath}' ({line_count} lines).")
+        # 3. Check git diff / numstat lines changed if diff_lines specified
+        if self.diff_lines is not None:
+            res = subprocess.run(
+                ["git", "diff", "--numstat", "HEAD", "--", self.filepath],
+                cwd=workspace_dir,
+                capture_output=True,
+                text=True,
+            )
+            # If nothing in HEAD diff, try uncommitted / staged diff
+            numstat = res.stdout.strip()
+            if not numstat:
+                res_uncommitted = subprocess.run(
+                    ["git", "diff", "--numstat", "--", self.filepath],
+                    cwd=workspace_dir,
+                    capture_output=True,
+                    text=True,
+                )
+                numstat = res_uncommitted.stdout.strip()
+
+            added = 0
+            deleted = 0
+            if numstat:
+                parts = numstat.split()
+                if len(parts) >= 2:
+                    added = int(parts[0]) if parts[0].isdigit() else 0
+                    deleted = int(parts[1]) if parts[1].isdigit() else 0
+
+            changed_lines = added + deleted
+            min_diff, max_diff = self.diff_lines if isinstance(self.diff_lines, tuple) else (self.diff_lines, self.diff_lines)
+            if not (min_diff <= changed_lines <= max_diff):
+                return CheckResult(
+                    False,
+                    f"File '{self.filepath}' diff lines changed {changed_lines} (+{added}/-{deleted}) out of expected range [{min_diff}, {max_diff}].",
+                    {"changed_lines": changed_lines, "added": added, "deleted": deleted, "range": (min_diff, max_diff)},
+                )
+
+        return CheckResult(True, f"Git change verified for '{self.filepath}' (total: {line_count} lines).")
 
 
 class LangDetectAssert(BaseAssertion):
@@ -199,8 +228,18 @@ class CustomAssert(BaseAssertion):
 
 
 # Concise factory functions for test definitions
-def git_changes(filepath: str, status: str = "A", lines: Optional[tuple[int, int] | int] = None) -> GitChangeAssert:
-    return GitChangeAssert(filepath=filepath, status=status, lines=lines)
+def git_changes(
+    filepath: str,
+    status: str = "A",
+    total_lines: Optional[tuple[int, int] | int] = None,
+    diff_lines: Optional[tuple[int, int] | int] = None,
+) -> GitChangeAssert:
+    return GitChangeAssert(
+        filepath=filepath,
+        status=status,
+        total_lines=total_lines,
+        diff_lines=diff_lines,
+    )
 
 
 def lang_detect(filepath: str, lang: str = "en", no_gibberish: bool = True) -> LangDetectAssert:

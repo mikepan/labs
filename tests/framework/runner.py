@@ -40,10 +40,24 @@ class TestEvaluationResult:
 
 
 
+import os
+
 def setup_workspace(test: Test, workspace_dir: str) -> None:
-    """Execute test setup commands (e.g. git init) in the workspace directory."""
+    """Execute test setup commands (e.g. copying files) and automatically initialize git baseline."""
+    # 1. Run any test-specific setup commands (e.g. copying fixture files)
     for cmd in test.setup:
         subprocess.run(cmd, shell=True, cwd=workspace_dir, check=True, capture_output=True)
+
+    # 2. Automatically ensure git repo is initialized with clean baseline commit
+    git_dir = os.path.join(workspace_dir, ".git")
+    if not os.path.exists(git_dir):
+        subprocess.run(["git", "init"], cwd=workspace_dir, check=True, capture_output=True)
+        subprocess.run(["git", "config", "user.email", "eval@example.com"], cwd=workspace_dir, check=True, capture_output=True)
+        subprocess.run(["git", "config", "user.name", "Eval Runner"], cwd=workspace_dir, check=True, capture_output=True)
+
+    subprocess.run(["git", "add", "-A"], cwd=workspace_dir, check=False, capture_output=True)
+    subprocess.run(["git", "commit", "-m", "initial commit", "--allow-empty"], cwd=workspace_dir, check=False, capture_output=True)
+
 
 
 def commit_step_workspace(step_name: str, workspace_dir: str) -> None:

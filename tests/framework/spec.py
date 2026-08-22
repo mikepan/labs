@@ -24,11 +24,5 @@ class Test:
     name: str
     steps: list[Step] = field(default_factory=list)
     description: str = ""
-    setup: list[str] = field(
-        default_factory=lambda: [
-            "git init",
-            "git config user.email 'eval@example.com'",
-            "git config user.name 'Eval Runner'",
-            "git commit --allow-empty -m 'initial commit'",
-        ]
-    )
+    setup: list[str] = field(default_factory=list)
+

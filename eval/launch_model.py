@@ -195,7 +195,10 @@ def run_model_pipeline(
 
         logger.info("Executing Evaluation Harness for %s (test: %s)...", model_name, test_name)
         harness_script = REPO_ROOT / "eval" / "run_harness.py"
-        res = subprocess.run([sys.executable, str(harness_script), model_name, "--test", test_name, "--base-url", f"{base_url}/v1"])
+        cmd = [sys.executable, str(harness_script), model_name, "--test", test_name]
+        if verbose:
+            cmd.append("--v")
+        res = subprocess.run(cmd)
         if res.returncode != 0:
             logger.error("Evaluation harness failed with exit code %d", res.returncode)
             return False

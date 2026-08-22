@@ -2,6 +2,7 @@
 assertions.py - Concise assertion primitives for evaluating agent actions in git repositories.
 """
 
+import csv
 from dataclasses import dataclass
 from enum import Enum
 import os
@@ -256,4 +257,6 @@ def files_identical(file1: str, file2: str) -> FilesIdenticalAssert:
 
 def custom_check(func: Callable[[str], Any]) -> CustomAssert:
     return CustomAssert(func=func)
+
+
 

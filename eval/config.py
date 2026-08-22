@@ -25,7 +25,7 @@ DEFAULT_OPENCODE_PORT = 4096
 # Data & Config Paths (Path objects)
 MODELS_CONFIG_FILE = REPO_ROOT / "eval" / "models.json"
 HARNESSES_CONFIG_FILE = REPO_ROOT / "eval" / "harnesses.json"
-BENCHMARK_DATA_FILE = REPO_ROOT / "site" / "data" / "benchmark-data.json"
-BENCHMARK_SCHEMA_FILE = REPO_ROOT / "site" / "data" / "benchmark-data.schema.json"
-RESULTS_DIR = REPO_ROOT / "results"
+BENCHMARK_DATA_FILE = REPO_ROOT / "site" / "results" / "benchmark-data.json"
+BENCHMARK_SCHEMA_FILE = REPO_ROOT / "eval" / "benchmark-data.schema.json"
+RESULTS_DIR = REPO_ROOT / "site" / "results"
 TESTS_DIR = REPO_ROOT / "tests"

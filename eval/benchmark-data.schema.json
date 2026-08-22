@@ -1,0 +1,164 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "FiniBench Key-Value Benchmark Dataset Schema",
+  "type": "object",
+  "required": [
+    "evaluations"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "evaluations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "eval_id",
+          "name",
+          "company",
+          "base_model",
+          "kv_quant",
+          "context_length",
+          "memory_gb",
+          "benchmark_date",
+          "llm_server",
+          "speculative_decoding",
+          "harness",
+          "harness_version",
+          "reasoning",
+          "launch_config",
+          "intelligence",
+          "task_speed",
+          "intelligence_density",
+          "test_results"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "eval_id": {
+            "type": "string",
+            "description": "Unique UUID for the evaluation run"
+          },
+          "name": {
+            "type": "string",
+            "description": "LLM display name, from key in models.json"
+          },
+          "company": {
+            "type": "string",
+            "description": "Company / creator identifier"
+          },
+          "base_model": {
+            "type": "string",
+            "description": "Canonical base model identifier"
+          },
+          "kv_quant": {
+            "type": "string",
+            "description": "KV cache quantization level (e.g. FP8, FP16)"
+          },
+          "context_length": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Context length in tokens"
+          },
+          "memory_gb": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Model memory requirement in GB"
+          },
+          "benchmark_date": {
+            "type": "string",
+            "description": "Benchmark execution date (YYYY-MM-DD)"
+          },
+          "llm_server": {
+            "type": "string",
+            "description": "LLM inference server (e.g. vLLM)"
+          },
+          "speculative_decoding": {
+            "type": "string",
+            "description": "Speculative decoding mode (e.g. off, dflash)"
+          },
+          "harness": {
+            "type": "string",
+            "description": "Agent harness name (e.g. opencode)"
+          },
+          "harness_version": {
+            "type": "string",
+            "description": "Harness version"
+          },
+          "reasoning": {
+            "type": "string",
+            "description": "Reasoning mode (off, on, low, med, high, max)"
+          },
+          "launch_config": {
+            "type": "string",
+            "description": "CLI launch command"
+          },
+          "intelligence": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100,
+            "description": "Average task completion score percentage"
+          },
+          "task_speed": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Task throughput in tasks/hr"
+          },
+          "intelligence_density": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Intelligence score per GB"
+          },
+          "test_results": {
+            "type": "object",
+            "description": "Map of test suite execution metrics",
+            "additionalProperties": {
+              "type": "object",
+              "required": [
+                "name",
+                "earned_score",
+                "max_score",
+                "run_time_sec",
+                "tokens_in",
+                "tokens_out",
+                "context_used_pct"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "earned_score": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "max_score": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "run_time_sec": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "tokens_in": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "tokens_out": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "context_used_pct": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 100
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

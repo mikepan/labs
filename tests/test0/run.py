@@ -8,7 +8,7 @@ from tests.framework import *
 
 
 TEST = Test(
-    name="test0_multilingual_sky_doc",
+    name="multilingual_science_presentation",
     steps=[
         Step(
             prompt="""Why is the sky blue?

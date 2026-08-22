@@ -20,13 +20,12 @@ The evaluation framework benchmarks code-generation and multi-turn agent capabil
   - `harnesses.json`: Harness CLI/server configurations and version definitions.
   - `run_harness.py`: Sandbox lifecycle manager, OpenCode server driver, test suite runner, assertion evaluator, and metric exporter.
 - **`tests/`**: Benchmark test suites. Each suite defines multi-step prompts, point allocations, setup commands, and checks .
-- **`results/`**: Output directory for evaluation runs. Subfolders are structured as `results/{model_slug}_{harness}_{timestamp}/`:
-  - `results.json`: Summary benchmark metrics conforming to `benchmark-data.schema.json`.
-  - `full_trace.json`: Comprehensive step-by-step traces, prompt messages, reasoning blocks, tool call records, and assertion results.
+- **`site/results/`**: Output directory for evaluation runs. Subfolders are structured as `site/results/{eval_id}/`:
+  - `full_trace.json`: Comprehensive self-contained step-by-step traces, model metadata, reasoning streams, tool calls, and assertion results.
   - `opencode_server.log`: Raw OpenCode server execution logs inside the sandbox.
   - `artifacts/`: Extracted workspace files and generated deliverables.
-- **`site/data/benchmark-data.json`**: Cumulative benchmark leaderboard records (17-column dataset conforming to schema with model-level memory_gb) updated automatically upon completion.
-- **`site/`**: Web dashboard UI displaying leaderboard rankings, drilldown metrics, test breakdowns, and trace viewers.
+- **`site/results/benchmark-data.json`**: Cumulative benchmark leaderboard records (key-value evaluations array) updated automatically upon completion.
+- **`site/`**: Web dashboard UI displaying leaderboard rankings, drilldown metrics, test breakdowns, and chronological trace viewer.
 
 ---
 
@@ -39,7 +38,7 @@ The evaluation framework benchmarks code-generation and multi-turn agent capabil
 5. **OpenCode Server Initialization**: Writes `~/.config/opencode/opencode.json` mapped to the LLM endpoint and starts headless OpenCode server inside the test workspace (`/tmp/eval_<test_id>`).
 6. **Multi-Turn Step Execution**: Sends step prompts sequentially via OpenCode session API, capturing reasoning tokens, tool inputs/outputs, and assistant completions.
 7. **Assertion Evaluation**: Runs test-defined assertions inside the sandbox container against the workspace state to score step completions.
-8. **Persistence**: Copies generated artifacts and server logs to `results/{eval_name}/`, outputs `results.json` and `full_trace.json`, and updates `site/data/benchmark-data.json`.
+8. **Persistence**: Copies generated artifacts and server logs to `site/results/{eval_id}/`, saves `full_trace.json`, and updates `site/results/benchmark-data.json`.
 
 ---
 

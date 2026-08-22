@@ -8,7 +8,7 @@ document.addEventListener('DOMContentLoaded', () => {
     window.location.port === '8085' ||
     window.location.search.includes('dev=true');
 
-  const jsonUrl = isDev ? `./data/benchmark-data.json?t=${Date.now()}` : './data/benchmark-data.json';
+  const jsonUrl = isDev ? `./results/benchmark-data.json?t=${Date.now()}` : './results/benchmark-data.json';
   const fetchOptions = isDev ? { cache: 'no-store', headers: { 'Pragma': 'no-cache', 'Cache-Control': 'no-cache' } } : {};
 
   fetch(jsonUrl, fetchOptions)
@@ -62,7 +62,7 @@ function extractEvalMetrics(e) {
 
   const modelName = e.name || e.llm?.name || 'Unknown Model';
   const company = e.company || e.llm?.company || '';
-  const parentModel = e.parent_model || e.base_model || modelName;
+  const baseModel = e.base_model || e.parent_model || modelName;
   const kvQuant = e.kv_quant || e.llm?.kv_quant || 'FP16';
   const contextLength = e.context_length || 262144;
   const llmServer = e.llm_server || e.llm?.llm_server || e.server || 'vLLM';
@@ -70,7 +70,7 @@ function extractEvalMetrics(e) {
   const harnessName = typeof e.harness === 'string' ? e.harness : (e.harness?.name || 'N/A');
   const harnessVersion = e.harness_version || '1.18.18';
   const reasoning = e.reasoning || e.harness?.reasoning || e.harness?.reasoning_effort || 'off';
-  const benchmarkStartTime = e.benchmark_start_time || e.release_date || '';
+  const benchmarkDate = e.benchmark_date || (e.benchmark_start_time ? e.benchmark_start_time.split('T')[0] : '') || e.release_date || '';
   const launchConfig = e.launch_config || '';
   const taskSpeed = e.task_speed !== undefined ? e.task_speed : (e.summary_metrics?.task_speed ?? 0);
   const intelligenceDensity = e.intelligence_density !== undefined ? e.intelligence_density : (e.summary_metrics?.intelligence_density ?? 0);
@@ -84,10 +84,10 @@ function extractEvalMetrics(e) {
     memoryGb: Math.round(runMemGb),
     modelName,
     company,
-    parentModel,
+    baseModel,
     kvQuant,
     contextLength,
-    benchmarkStartTime,
+    benchmarkDate,
     llmServer,
     speculativeDecoding,
     reasoning,
@@ -100,30 +100,18 @@ function extractEvalMetrics(e) {
 }
 
 function initDashboard(data) {
-  let evaluations = [];
-
-  if (data.rows && data.columns) {
-    const cols = data.columns;
-    evaluations = data.rows.map(row => {
-      const obj = {};
-      cols.forEach((col, idx) => {
-        obj[col] = row[idx];
-      });
-      return obj;
-    });
-  } else if (Array.isArray(data.evaluations)) {
-    evaluations = data.evaluations;
-  }
+  const evaluations = Array.isArray(data.evaluations) ? data.evaluations : [];
 
   const models = evaluations.map(e => {
     const m = extractEvalMetrics(e);
     return {
       name: m.modelName,
       family: m.company,
-      parent_model: m.parentModel,
+      base_model: m.baseModel,
       kv_quant: m.kvQuant,
       context_length: m.contextLength,
       memory_gb: m.memoryGb,
+      benchmark_date: m.benchmarkDate,
       intelligence: m.intelligence,
       task_speed: m.taskSpeed,
       intelligence_density: m.intelligenceDensity,
@@ -283,6 +271,19 @@ function renderModelSpeedChart(evaluations) {
   };
 
   chart.setOption(option);
+
+  chart.off('click');
+  chart.on('click', function (params) {
+    const rawEval = sorted[params.dataIndex]?.raw;
+    if (rawEval) {
+      const evalId = rawEval.eval_id || rawEval.trace_id;
+      if (evalId) {
+        window.location.href = `./trace.html?eval_id=${encodeURIComponent(evalId)}`;
+      } else {
+        window.location.href = './trace.html';
+      }
+    }
+  });
 }
 
 function renderModelDensityChart(evaluations) {
@@ -362,6 +363,19 @@ function renderModelDensityChart(evaluations) {
   };
 
   chart.setOption(option);
+
+  chart.off('click');
+  chart.on('click', function (params) {
+    const rawEval = sorted[params.dataIndex]?.raw;
+    if (rawEval) {
+      const evalId = rawEval.eval_id || rawEval.trace_id;
+      if (evalId) {
+        window.location.href = `./trace.html?eval_id=${encodeURIComponent(evalId)}`;
+      } else {
+        window.location.href = './trace.html';
+      }
+    }
+  });
 }
 
 function renderTopScatterChart(evaluations, viewMode = 'time') {
@@ -605,6 +619,20 @@ function renderTopScatterChart(evaluations, viewMode = 'time') {
   };
 
   chart.setOption(option, true);
+
+  // Navigate to trace viewer on dot click
+  chart.off('click');
+  chart.on('click', function (params) {
+    if (params.data && params.data.rawEval) {
+      const raw = params.data.rawEval;
+      const evalId = raw.eval_id || raw.trace_id;
+      if (evalId) {
+        window.location.href = `./trace.html?eval_id=${encodeURIComponent(evalId)}`;
+      } else {
+        window.location.href = './trace.html';
+      }
+    }
+  });
 }
 
 function renderLeaderboard(models) {
@@ -622,7 +650,7 @@ function renderLeaderboard(models) {
     const filtered = models.filter(m =>
       m.name.toLowerCase().includes(filterText) ||
       m.family.toLowerCase().includes(filterText) ||
-      (m.parent_model && m.parent_model.toLowerCase().includes(filterText)) ||
+      (m.base_model && m.base_model.toLowerCase().includes(filterText)) ||
       (m.llm_server && m.llm_server.toLowerCase().includes(filterText)) ||
       (m.speculative_decoding && m.speculative_decoding.toLowerCase().includes(filterText)) ||
       m.harness_name.toLowerCase().includes(filterText) ||
@@ -668,16 +696,21 @@ function renderLeaderboard(models) {
     const cls = (key) => key === currentSortKey ? 'sort-active' : '';
 
     tbody.innerHTML = filtered.map(m => {
+      const evalId = m.eval_id || (m.raw && (m.raw.eval_id || m.raw.trace_id)) || m.trace_id || '';
+      const traceHref = evalId ? `./trace.html?eval_id=${encodeURIComponent(evalId)}` : './trace.html';
+
       return `
-        <tr>
+        <tr onclick="window.location.href='${traceHref}'" style="cursor: pointer;" title="Click to view detailed execution trace log">
           <td class="model-name ${cls('name')}">
-            <strong>${escapeHtml(m.name)}</strong>
-            <br/><span style="font-size:0.75rem; color:#6b7280;">${m.parent_model || m.family}</span>
+            <a href="${traceHref}" style="color:inherit; text-decoration:none; display:inline-block;" onclick="event.stopPropagation();">
+              <strong>${escapeHtml(m.name)}</strong>
+            </a>
+            <br/><span style="font-size:0.75rem; color:#6b7280;">${m.base_model || m.family}</span>
             <div class="mobile-sub-info">${escapeHtml(m.harness_name)} • ${escapeHtml(m.reasoning)} • ${escapeHtml(m.kv_quant)}</div>
           </td>
           <td class="${cls('task_speed')}">${Number(m.task_speed).toFixed(1)}</td>
           <td class="${cls('intelligence_density')}">${Number(m.intelligence_density).toFixed(1)}</td>
-          <td class="${cls('intelligence')}">${m.intelligence}</td>
+          <td class="${cls('intelligence')}">${Number(m.intelligence).toFixed(1)}%</td>
           <td class="${cls('memory_gb')}">${Math.round(m.memory_gb)} GB</td>
           <td class="hide-mobile ${cls('harness_name')}">${escapeHtml(m.harness_name)}</td>
           <td class="hide-mobile ${cls('reasoning')}"><span style="font-family:var(--font-mono); font-size:0.85rem; font-weight:500;">${escapeHtml(m.reasoning)}</span></td>

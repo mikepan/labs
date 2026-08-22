@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Evaluation Trace Log | FiniBench</title>
+  <meta name="description"
+    content="Interactive chronological evaluation trace log and chat timeline for benchmark runs." />
+  <!-- Stylesheet -->
+  <link rel="stylesheet" href="./css/style.css" />
+</head>
+
+<body class="trace-page">
+  <!-- Ambient background glow -->
+  <div class="ambient-bg" aria-hidden="true">
+    <div class="blob-1"></div>
+    <div class="blob-2"></div>
+    <div class="blob-3"></div>
+  </div>
+
+  <div class="trace-container">
+    <!-- Top Navigation Bar -->
+    <header class="trace-nav">
+      <div class="nav-left">
+        <a href="./index.html" class="back-link">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="19" y1="12" x2="5" y2="12"></line>
+            <polyline points="12 19 5 12 12 5"></polyline>
+          </svg>
+          <span>Benchmark Dashboard</span>
+        </a>
+        <div class="nav-divider"></div>
+        <span class="trace-breadcrumb">Evaluation Execution Trace</span>
+      </div>
+    </header>
+
+    <!-- Loading / Error States -->
+    <div id="loading-state" class="state-container">
+      <div class="spinner"></div>
+      <p>Loading and parsing evaluation trace live...</p>
+    </div>
+
+    <div id="error-state" class="state-container" style="display: none;">
+      <div class="error-icon">⚠️</div>
+      <h3 id="error-title">No Trace Data Found</h3>
+      <p id="error-message">Please select a benchmark run from the dashboard.</p>
+      <div class="error-actions">
+        <a href="./index.html" class="primary-btn">Return to Benchmark</a>
+      </div>
+    </div>
+
+    <!-- Main Content (Populated dynamically) -->
+    <main id="trace-content" style="display: none;">
+      <!-- Executive Summary Card (Top Full-Width) -->
+      <section id="executive-summary" class="executive-summary-card">
+        <!-- Rendered via JS -->
+      </section>
+
+      <!-- Filter / Control Toolbar -->
+      <section class="trace-toolbar">
+        <div class="toolbar-left">
+          <div class="test-selector-group" id="test-selector-wrapper">
+            <span class="toolbar-label">Test Suite:</span>
+            <div class="test-tabs" id="test-tabs-container">
+              <!-- Test pills injected here -->
+            </div>
+          </div>
+        </div>
+
+        <div class="toolbar-right">
+          <div class="filter-toggles">
+            <label class="filter-pill active" data-mode="simple">
+              <input type="radio" name="trace-mode" value="simple" checked /> Simple
+            </label>
+            <label class="filter-pill" data-mode="full">
+              <input type="radio" name="trace-mode" value="full" /> Full
+            </label>
+          </div>
+        </div>
+      </section>
+
+      <!-- Vertical Chronological Timeline with Horizontal Space Optimization -->
+      <section class="timeline-wrapper">
+        <div id="timeline-feed" class="timeline-feed">
+          <!-- Step cards rendered live by trace.js -->
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Live Parser & Controller Script -->
+  <script src="./js/trace.js"></script>
+</body>
+
+</html>

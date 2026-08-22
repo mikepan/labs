@@ -462,6 +462,9 @@ def run_test_suite_on_agent(
             turn_text = []
             turn_events = []
 
+            step_tokens_in = 0
+            step_tokens_out = 0
+
             for msg in step_messages:
                 msg_time = msg.get("info", {}).get("time", {})
                 msg_created = msg_time.get("created")
@@ -510,8 +513,20 @@ def run_test_suite_on_agent(
                         })
                     elif p_type == "step-finish":
                         toks = p.get("tokens", {})
-                        total_tokens_in += toks.get("input", 0)
-                        total_tokens_out += toks.get("output", 0)
+                        in_cnt = toks.get("input", 0)
+                        out_cnt = toks.get("output", 0)
+                        step_tokens_in += in_cnt
+                        step_tokens_out += out_cnt
+                        total_tokens_in += in_cnt
+                        total_tokens_out += out_cnt
+
+            # If no explicit text response was emitted, promote final concluding reasoning to response
+            if not turn_text and turn_reasoning:
+                for i in range(len(turn_events) - 1, -1, -1):
+                    if turn_events[i]["type"] == "reasoning":
+                        turn_events[i]["type"] = "response"
+                        turn_text.append(turn_events[i]["content"])
+                        break
 
             # Log reasoning & tool calls
             if turn_reasoning:
@@ -552,6 +567,8 @@ def run_test_suite_on_agent(
                 "max_score": step_point,
                 "start_time": step_start_iso,
                 "end_time": step_end_iso,
+                "tokens_in": step_tokens_in,
+                "tokens_out": step_tokens_out,
                 "events": turn_events,
                 "tool_calls": turn_tool_calls,
                 "reasoning_blocks": turn_reasoning,

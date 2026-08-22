@@ -123,7 +123,7 @@ TEST = Test(
     ],
     steps=[
         Step(
-            prompt="""Use Python to find the customer who spent the most amount at the store, making sure to subtract any returns they made. Produce a top-cust.csv with 2 columns - Fullname and TotalSpend. Only record the top 10 people.""",
+            prompt="""Use Python to find the customers (by ID) who spent the most amount at the store, making sure to subtract any returns they made. Produce a top-cust.csv with 2 columns - FullName and TotalSpend. Only record the top 10 people.""",
             checks=[
                 git_changes("top-cust.csv", "A", total_lines=(10, 12)),
                 check_csv(),

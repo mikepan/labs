@@ -350,25 +350,26 @@ function renderTestStepsTimeline(testData) {
     const hasReasoning = events.some(e => e.type === 'reasoning');
     const checks = (step.evaluation && step.evaluation.check_results) || [];
 
-    const tokens = getStepTokens(step);
-    const tokenDisplay = (tokens.in > 0 || tokens.out > 0)
-      ? `<span class="step-tokens">${tokens.in.toLocaleString()} in / ${tokens.out.toLocaleString()} out</span>`
+    const contextUsedPct = getStepContextUsedPct(step, testData, currentTraceData);
+    const contextDisplay = (contextUsedPct !== null && contextUsedPct !== undefined)
+      ? `<span class="step-tokens">Context Used: ${Math.round(contextUsedPct)}%</span>`
       : '';
+    const isCollapsed = currentViewMode === 'simple';
 
     return `
-      <article class="step-card ${isPassed ? 'passed' : 'failed'}" data-has-tool="${hasTools}" data-has-reasoning="${hasReasoning}" data-passed="${isPassed}">
+      <article class="step-card ${isPassed ? 'passed' : 'failed'} ${isCollapsed ? 'collapsed' : ''}" data-has-tool="${hasTools}" data-has-reasoning="${hasReasoning}" data-passed="${isPassed}">
         <!-- Step Header Bar -->
         <header class="step-header">
           <div class="step-header-left">
             <span class="step-number-tag">[Step ${idx + 1}/${steps.length}]</span>
             <span class="badge ${isPassed ? 'badge-success' : 'badge-failed'}">
-              ${isPassed ? `✓ Passed (+${scoreText})` : `✗ Failed (${scoreText})`}
+              ${isPassed ? '✓ Passed' : '✗ Failed'}
             </span>
           </div>
 
           <div class="step-header-right">
-            ${tokenDisplay}
             ${durSec ? `<span class="step-duration">⏱ ${durSec}</span>` : ''}
+            ${contextDisplay}
             <svg class="step-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <polyline points="6 9 12 15 18 9"></polyline>
             </svg>
@@ -402,16 +403,14 @@ function renderTestStepsTimeline(testData) {
                 <div class="col-content">
                   <div class="validation-summary">
                     <strong>Procedural Assertions: ${checks.filter(c => c.passed).length}/${checks.length} Passed (+${scoreText})</strong>
-                    ${currentViewMode === 'full' ? `
-                      <div class="validation-items">
-                        ${checks.map(c => `
-                          <div class="assertion-item">
-                            <span class="assertion-icon ${c.passed ? 'passed' : 'failed'}">${c.passed ? '✓' : '✗'}</span>
-                            <span class="assertion-msg">${escapeHtml(c.message || '')}</span>
-                          </div>
-                        `).join('')}
-                      </div>
-                    ` : ''}
+                    <div class="validation-items">
+                      ${checks.map(c => `
+                        <div class="assertion-item">
+                          <span class="assertion-icon ${c.passed ? 'passed' : 'failed'}">${c.passed ? '✓' : '✗'}</span>
+                          <span class="assertion-msg">${escapeHtml(c.message || '')}</span>
+                        </div>
+                      `).join('')}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -618,6 +617,58 @@ function getStepTokens(step) {
     });
   }
   return { in: tin, out: tout };
+}
+
+function getStepPeakContextTokens(step) {
+  let peakCtx = 0;
+  if (Array.isArray(step.messages)) {
+    step.messages.forEach(msg => {
+      const parts = msg.parts || [];
+      let foundInParts = false;
+      parts.forEach(p => {
+        if (p.type === 'step-finish' && p.tokens) {
+          const turnCtx = (p.tokens.input || 0) + (p.tokens.output || 0);
+          if (turnCtx > peakCtx) peakCtx = turnCtx;
+          foundInParts = true;
+        }
+      });
+      if (!foundInParts && msg.info && msg.info.tokens) {
+        const turnCtx = (msg.info.tokens.input || 0) + (msg.info.tokens.output || 0);
+        if (turnCtx > peakCtx) peakCtx = turnCtx;
+      }
+    });
+  }
+  return peakCtx;
+}
+
+function getStepContextUsedPct(step, testData, rootTraceData) {
+  // 1. If step explicitly has context_used_pct
+  if (step.context_used_pct !== undefined && step.context_used_pct !== null) {
+    return Number(step.context_used_pct);
+  }
+
+  // 2. Compute peak context window size across individual turns in this step
+  const maxContext = (rootTraceData && rootTraceData.context_length) || (testData && testData.context_length) || 262144;
+  const peakContext = getStepPeakContextTokens(step);
+
+  if (peakContext > 0 && maxContext > 0) {
+    return (peakContext / maxContext) * 100;
+  }
+
+  // 3. Fallback: If no message turns exist (e.g. single turn / legacy trace), check tokens
+  const tokens = getStepTokens(step);
+  const totalTokens = (tokens.in || 0) + (tokens.out || 0);
+
+  if (totalTokens > 0 && maxContext > 0) {
+    return (totalTokens / maxContext) * 100;
+  }
+
+  // 4. Fallback to suite test-level context_used_pct if available
+  if (testData && testData.context_used_pct !== undefined && testData.context_used_pct !== null) {
+    return Number(testData.context_used_pct);
+  }
+
+  return null;
 }
 
 function escapeHtml(str) {

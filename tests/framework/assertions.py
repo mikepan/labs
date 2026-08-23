@@ -62,10 +62,17 @@ class GitChangeAssert(BaseAssertion):
         # 1. Check file existence according to status
         if is_delete:
             if os.path.exists(full_path):
-                return CheckResult(False, f"Expected file '{self.filepath}' to be deleted, but it exists.")
+                return CheckResult(
+                    False,
+                    f"Expected file '{self.filepath}' to be deleted, but it still exists in workspace '{workspace_dir}'.",
+                )
         else:
             if not os.path.exists(full_path):
-                return CheckResult(False, f"Expected file '{self.filepath}' to exist, but was not found.")
+                available_files = [f for f in os.listdir(workspace_dir) if not f.startswith(".")]
+                return CheckResult(
+                    False,
+                    f"Expected file '{self.filepath}' to exist, but was not found. (Files present in workspace: {available_files})",
+                )
 
         # 2. Check total lines count if specified
         line_count = 0
@@ -78,8 +85,8 @@ class GitChangeAssert(BaseAssertion):
             if not (min_lines <= line_count <= max_lines):
                 return CheckResult(
                     False,
-                    f"File '{self.filepath}' total line count {line_count} out of expected range [{min_lines}, {max_lines}].",
-                    {"line_count": line_count, "range": (min_lines, max_lines)},
+                    f"File '{self.filepath}' total line count {line_count} is out of expected range [{min_lines}, {max_lines}].",
+                    {"line_count": line_count, "expected_range": (min_lines, max_lines)},
                 )
 
         # 3. Check git diff / numstat lines changed if diff_lines specified
@@ -90,7 +97,6 @@ class GitChangeAssert(BaseAssertion):
                 capture_output=True,
                 text=True,
             )
-            # If nothing in HEAD diff, try uncommitted / staged diff
             numstat = res.stdout.strip()
             if not numstat:
                 res_uncommitted = subprocess.run(
@@ -114,11 +120,11 @@ class GitChangeAssert(BaseAssertion):
             if not (min_diff <= changed_lines <= max_diff):
                 return CheckResult(
                     False,
-                    f"File '{self.filepath}' diff lines changed {changed_lines} (+{added}/-{deleted}) out of expected range [{min_diff}, {max_diff}].",
-                    {"changed_lines": changed_lines, "added": added, "deleted": deleted, "range": (min_diff, max_diff)},
+                    f"File '{self.filepath}' diff lines changed {changed_lines} (+{added}/-{deleted}) is out of expected range [{min_diff}, {max_diff}].",
+                    {"changed_lines": changed_lines, "added": added, "deleted": deleted, "expected_range": (min_diff, max_diff)},
                 )
 
-        return CheckResult(True, f"Git change verified for '{self.filepath}' (total: {line_count} lines).")
+        return CheckResult(True, f"Git change verified for '{self.filepath}' (total lines: {line_count}).")
 
 
 class LangDetectAssert(BaseAssertion):
@@ -142,9 +148,8 @@ class LangDetectAssert(BaseAssertion):
 
         # Basic gibberish check
         if self.no_gibberish:
-            # Check ratio of readable text vs repeated characters
             if len(content) > 20 and len(set(content)) < 5:
-                return CheckResult(False, f"Gibberish detected in '{self.filepath}': low character variety.")
+                return CheckResult(False, f"Gibberish detected in '{self.filepath}': very low character variety ({len(set(content))} unique characters).")
 
         # Language detection: try langdetect library, fallback to unicode heuristics
         detected_lang = None
@@ -153,14 +158,12 @@ class LangDetectAssert(BaseAssertion):
 
             detected_lang = langdetect.detect(content)
         except Exception:
-            # Fallback: check CJK unicode for chinese, latin for english
             has_cjk = bool(re.search(r"[\u4e00-\u9fff]", content))
             if has_cjk:
                 detected_lang = "zh-cn"
             else:
                 detected_lang = "en"
 
-        # Normalize comparison (e.g. 'zh' vs 'zh-cn' vs 'zh-tw')
         matched = (
             detected_lang.startswith(self.lang)
             or self.lang.startswith(detected_lang)
@@ -168,10 +171,11 @@ class LangDetectAssert(BaseAssertion):
         )
 
         if not matched:
+            preview = content[:100].replace("\n", " ")
             return CheckResult(
                 False,
-                f"Expected language '{self.lang}' for '{self.filepath}', but detected '{detected_lang}'.",
-                {"detected": detected_lang, "expected": self.lang},
+                f"Expected language '{self.lang}' for '{self.filepath}', but detected '{detected_lang}'. Content snippet: '{preview}'",
+                {"detected": detected_lang, "expected": self.lang, "snippet": preview},
             )
 
         return CheckResult(True, f"Language '{self.lang}' confirmed for '{self.filepath}'.")
@@ -189,16 +193,20 @@ class FilesIdenticalAssert(BaseAssertion):
         p2 = os.path.join(workspace_dir, self.file2)
 
         if not os.path.exists(p1):
-            return CheckResult(False, f"File '{self.file1}' not found.")
+            return CheckResult(False, f"Source file '{self.file1}' not found in workspace.")
         if not os.path.exists(p2):
-            return CheckResult(False, f"File '{self.file2}' not found.")
+            return CheckResult(False, f"Target file '{self.file2}' not found in workspace.")
 
         with open(p1, "r", encoding="utf-8", errors="ignore") as f1, open(p2, "r", encoding="utf-8", errors="ignore") as f2:
             c1 = f1.read().strip()
             c2 = f2.read().strip()
 
         if c1 != c2:
-            return CheckResult(False, f"Files '{self.file1}' and '{self.file2}' are not identical.")
+            return CheckResult(
+                False,
+                f"Files '{self.file1}' (len: {len(c1)}) and '{self.file2}' (len: {len(c2)}) have different contents.",
+                {"len1": len(c1), "len2": len(c2)},
+            )
 
         return CheckResult(True, f"Files '{self.file1}' and '{self.file2}' are identical.")
 

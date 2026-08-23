@@ -1,17 +1,30 @@
 import csv
+from datetime import datetime
 import os
 import re
 import sys
+from collections import defaultdict
 
 from tests.framework import Step, Test, git_changes, custom_check, CustomAssert
-
-from collections import defaultdict
 
 _csv_source = os.path.join(os.path.dirname(os.path.abspath(__file__)), "bookstore_orders.csv")
 
 
+def _norm(s: str) -> str:
+    return re.sub(r"[_\s\-]+", "", str(s).strip().lower())
+
+
+def _clean_float(val: str) -> float:
+    cleaned = re.sub(r"[^\d\.\-]", "", str(val).strip())
+    return float(cleaned)
+
+
+# ==============================================================================
+# Ground Truth Computation Functions
+# ==============================================================================
+
 def compute_expected_top_customers(source_csv_path: str, top_n: int = 10) -> list[tuple[str, float]]:
-    """Parse raw bookstore orders CSV using Python to compute the known-good top customers by net spend,
+    """Parse bookstore orders CSV to compute top customers by net spend,
     aggregating by unique customer_id to properly distinguish different customers who share names."""
     customer_spends = defaultdict(lambda: {"fullname": "", "total_spend": 0.0})
     with open(source_csv_path, mode="r", encoding="utf-8", errors="ignore") as f:
@@ -32,22 +45,154 @@ def compute_expected_top_customers(source_csv_path: str, top_n: int = 10) -> lis
     return [(c["fullname"], c["total_spend"]) for c in sorted_customers]
 
 
-def check_csv(filepath: str = "top-cust.csv") -> CustomAssert:
-    """Validate the LLM's generated top-cust.csv against ground truth computed directly from bookstore_orders.csv."""
+def compute_expected_top_authors(source_csv_path: str, top_n: int = 10) -> list[tuple[str, int, float]]:
+    """Compute top authors by gross sales across both primary and secondary items."""
+    author_stats = defaultdict(lambda: {"units": 0, "gross_sales": 0.0})
+    with open(source_csv_path, mode="r", encoding="utf-8", errors="ignore") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            p_auth = row.get("primary_item_author", "").strip()
+            p_qty = int(row["primary_item_quantity"]) if row.get("primary_item_quantity") else 0
+            p_price = float(row["primary_item_unit_price"]) if row.get("primary_item_unit_price") else 0.0
+            if p_auth:
+                author_stats[p_auth]["units"] += p_qty
+                author_stats[p_auth]["gross_sales"] += p_qty * p_price
+
+            s_auth = row.get("secondary_item_author", "").strip()
+            s_qty = int(row["secondary_item_quantity"]) if row.get("secondary_item_quantity") else 0
+            s_price = float(row["secondary_item_unit_price"]) if row.get("secondary_item_unit_price") else 0.0
+            if s_auth:
+                author_stats[s_auth]["units"] += s_qty
+                author_stats[s_auth]["gross_sales"] += s_qty * s_price
+
+    sorted_authors = sorted(author_stats.items(), key=lambda x: x[1]["gross_sales"], reverse=True)[:top_n]
+    return [(author, data["units"], data["gross_sales"]) for author, data in sorted_authors]
+
+
+def compute_expected_genre_returns(source_csv_path: str) -> list[tuple[str, int, int, float, float]]:
+    """Compute order return rate percentage and total refunds per book genre."""
+    genre_stats = defaultdict(lambda: {"total": 0, "returned": 0, "refund": 0.0})
+    with open(source_csv_path, mode="r", encoding="utf-8", errors="ignore") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            genre = row.get("primary_item_genre", "").strip()
+            if not genre:
+                continue
+            is_returned = row.get("return_requested", "").strip().lower() == "yes"
+            refund = float(row.get("refund_amount") or 0.0)
+            genre_stats[genre]["total"] += 1
+            if is_returned:
+                genre_stats[genre]["returned"] += 1
+            genre_stats[genre]["refund"] += refund
+
+    results = []
+    for genre, data in genre_stats.items():
+        return_rate_pct = (data["returned"] / data["total"]) * 100.0 if data["total"] else 0.0
+        results.append((genre, data["total"], data["returned"], return_rate_pct, data["refund"]))
+
+    return sorted(results, key=lambda x: (x[3], x[4]), reverse=True)
+
+
+def compute_expected_carrier_otd(source_csv_path: str) -> list[tuple[str, int, int, float]]:
+    """Compute on-time delivery rate percentage for delivered orders by shipping carrier."""
+    carrier_stats = defaultdict(lambda: {"delivered": 0, "ontime": 0})
+    with open(source_csv_path, mode="r", encoding="utf-8", errors="ignore") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            if row.get("fulfillment_status", "").strip().lower() != "delivered":
+                continue
+            carrier = row.get("carrier_name", "").strip()
+            est = row.get("estimated_delivery_date", "").strip()
+            act = row.get("actual_delivery_date", "").strip()
+            if carrier and est and act:
+                carrier_stats[carrier]["delivered"] += 1
+                est_d = datetime.strptime(est.split()[0], "%Y-%m-%d").date()
+                act_d = datetime.strptime(act.split()[0], "%Y-%m-%d").date()
+                if act_d <= est_d:
+                    carrier_stats[carrier]["ontime"] += 1
+
+    results = []
+    for carrier, data in carrier_stats.items():
+        ontime_pct = (data["ontime"] / data["delivered"]) * 100.0 if data["delivered"] else 0.0
+        results.append((carrier, data["delivered"], data["ontime"], ontime_pct))
+
+    return sorted(results, key=lambda x: (x[3], x[1]), reverse=True)
+
+
+def compute_expected_carrier_delivery_time(source_csv_path: str) -> list[tuple[str, int, float]]:
+    """Compute average delivery turnaround time in hours for delivered orders per carrier."""
+    carrier_hours = defaultdict(list)
+    with open(source_csv_path, mode="r", encoding="utf-8", errors="ignore") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            if row.get("fulfillment_status", "").strip().lower() != "delivered":
+                continue
+            carrier = row.get("carrier_name", "").strip()
+            order_ts = row.get("order_timestamp", "").strip()
+            act_ts = row.get("actual_delivery_date", "").strip()
+            if carrier and order_ts and act_ts:
+                o_dt = datetime.strptime(order_ts, "%Y-%m-%d %H:%M:%S")
+                d_dt = datetime.strptime(act_ts, "%Y-%m-%d %H:%M:%S")
+                hours = (d_dt - o_dt).total_seconds() / 3600.0
+                carrier_hours[carrier].append(hours)
+
+    results = []
+    for carrier, hours_list in carrier_hours.items():
+        avg_hours = sum(hours_list) / len(hours_list) if hours_list else 0.0
+        results.append((carrier, len(hours_list), avg_hours))
+
+    return sorted(results, key=lambda x: x[2])
+
+
+def compute_expected_channel_performance(source_csv_path: str) -> list[tuple[str, int, float, float, float, float]]:
+    """Compute order count, gross revenue, refunds, net revenue, and Net AOV per sales channel."""
+    channel_stats = defaultdict(lambda: {"orders": 0, "gross": 0.0, "refund": 0.0, "net": 0.0})
+    with open(source_csv_path, mode="r", encoding="utf-8", errors="ignore") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            channel = row.get("order_channel", "").strip()
+            gross = float(row.get("order_grand_total") or 0.0)
+            refund = float(row.get("refund_amount") or 0.0)
+            net = gross - refund
+            channel_stats[channel]["orders"] += 1
+            channel_stats[channel]["gross"] += gross
+            channel_stats[channel]["refund"] += refund
+            channel_stats[channel]["net"] += net
+
+    results = []
+    for channel, data in channel_stats.items():
+        aov = data["net"] / data["orders"] if data["orders"] else 0.0
+        results.append((channel, data["orders"], data["gross"], data["refund"], data["net"], aov))
+
+    return sorted(results, key=lambda x: x[4], reverse=True)
+
+
+# ==============================================================================
+# Helper to resolve source CSV path in workspace or fallback
+# ==============================================================================
+
+def _get_source_csv(workspace_dir: str) -> str:
+    source_csv = os.path.join(workspace_dir, "bookstore_orders.csv")
+    if not os.path.exists(source_csv):
+        source_csv = _csv_source
+    return source_csv
+
+
+# ==============================================================================
+# CSV Validators with Detailed Error Reporting
+# ==============================================================================
+
+def check_top_customers_csv(filepath: str = "top-cust.csv") -> CustomAssert:
+    """Validate top-cust.csv against ground truth computed directly from bookstore_orders.csv."""
 
     def _validate(workspace_dir: str) -> tuple[bool, str]:
         target_path = os.path.join(workspace_dir, filepath)
         if not os.path.exists(target_path):
-            return False, f"File '{filepath}' not found in workspace."
+            available = [f for f in os.listdir(workspace_dir) if not f.startswith(".")]
+            return False, f"File '{filepath}' not found in workspace '{workspace_dir}'. Available files: {available}"
 
-        # 1. Compute ground-truth known-good results from raw CSV
-        source_csv = os.path.join(workspace_dir, "bookstore_orders.csv")
-        if not os.path.exists(source_csv):
-            source_csv = _csv_source
+        expected_top10 = compute_expected_top_customers(_get_source_csv(workspace_dir), top_n=10)
 
-        expected_top10 = compute_expected_top_customers(source_csv, top_n=10)
-
-        # 2. Parse agent's output CSV
         try:
             with open(target_path, "r", encoding="utf-8", errors="ignore") as f:
                 reader = csv.reader(f)
@@ -61,15 +206,13 @@ def check_csv(filepath: str = "top-cust.csv") -> CustomAssert:
         header = raw_rows[0]
         data_rows = raw_rows[1:]
 
-        # 3. Check exact row count (10 rows for top 10 people)
         if len(data_rows) != len(expected_top10):
-            return False, f"Expected exactly {len(expected_top10)} data rows, but found {len(data_rows)}."
+            return False, (
+                f"Row count mismatch: expected exactly {len(expected_top10)} data rows for top 10 customers, "
+                f"but found {len(data_rows)} rows. Header found: {header}"
+            )
 
-        # 4. Map columns (Fullname, TotalSpend)
-        def norm(s: str) -> str:
-            return re.sub(r"[_\s\-]+", "", s.strip().lower())
-
-        norm_header = [norm(h) for h in header]
+        norm_header = [_norm(h) for h in header]
         name_idx, spend_idx = None, None
         for idx, h in enumerate(norm_header):
             if "fullname" in h or h in "fullname" or "name" in h:
@@ -82,47 +225,551 @@ def check_csv(filepath: str = "top-cust.csv") -> CustomAssert:
         if spend_idx is None:
             spend_idx = 1 if len(header) > 1 else 0
 
-        # 5. Validate each row against the known-good ground truth
         for rank, ((exp_name, exp_spend), row) in enumerate(zip(expected_top10, data_rows), 1):
             if len(row) <= max(name_idx, spend_idx):
-                return False, f"Row {rank} is missing required columns: {row}"
+                return False, f"Row {rank} is missing required columns (FullName, TotalSpend). Found row: {row}"
 
             act_name = row[name_idx].strip()
-            raw_spend = row[spend_idx].strip()
-            clean_spend = re.sub(r"[^\d\.\-]", "", raw_spend)
             try:
-                act_spend = float(clean_spend)
+                act_spend = _clean_float(row[spend_idx])
             except ValueError:
-                return False, f"Row {rank} has non-numeric spend '{raw_spend}'."
+                return False, f"Row {rank} has non-numeric spend value '{row[spend_idx]}' in row: {row}"
 
-            # Verify customer name
             if exp_name.lower() != act_name.lower():
-                return False, f"Row {rank} customer mismatch: expected '{exp_name}', got '{act_name}'."
+                return False, (
+                    f"Row {rank} customer mismatch: expected '{exp_name}' (${exp_spend:.2f}), "
+                    f"got '{act_name}' (${act_spend:.2f}). "
+                    f"(Check: Did you aggregate orders by customer_id rather than customer name string? "
+                    f"Distinct customers who share names must be separated)."
+                )
 
-            # Verify spend amount within tolerance
             if abs(act_spend - exp_spend) > 0.05:
-                return False, f"Row {rank} ({exp_name}) spend mismatch: expected ${exp_spend:.2f}, got ${act_spend:.2f}."
+                return False, (
+                    f"Row {rank} ({exp_name}) spend mismatch: expected ${exp_spend:.2f}, "
+                    f"got ${act_spend:.2f} (diff: ${abs(act_spend - exp_spend):.2f}). "
+                    f"(Check: Did you subtract refund_amount for returns?)"
+                )
 
         top_preview = f"Rank 1: {expected_top10[0][0]} (${expected_top10[0][1]:.2f}) ... Rank 10: {expected_top10[-1][0]} (${expected_top10[-1][1]:.2f})"
-        return True, f"All 10 rows perfectly match ground-truth calculation ({top_preview})."
+        return True, f"All 10 rows match ground truth ({top_preview})."
 
     return custom_check(_validate)
 
 
+check_csv = check_top_customers_csv
+
+
+def check_top_authors_csv(filepath: str = "top-authors.csv") -> CustomAssert:
+    """Validate top-authors.csv (Author, UnitsSold, GrossSales) against ground truth."""
+
+    def _validate(workspace_dir: str) -> tuple[bool, str]:
+        target_path = os.path.join(workspace_dir, filepath)
+        if not os.path.exists(target_path):
+            available = [f for f in os.listdir(workspace_dir) if not f.startswith(".")]
+            return False, f"File '{filepath}' not found in workspace '{workspace_dir}'. Available files: {available}"
+
+        expected = compute_expected_top_authors(_get_source_csv(workspace_dir), top_n=10)
+
+        try:
+            with open(target_path, "r", encoding="utf-8", errors="ignore") as f:
+                reader = csv.reader(f)
+                raw_rows = [r for r in reader if any(cell.strip() for cell in r)]
+        except Exception as e:
+            return False, f"Failed to parse CSV '{filepath}': {e}"
+
+        if not raw_rows:
+            return False, f"File '{filepath}' is empty."
+
+        header = raw_rows[0]
+        data_rows = raw_rows[1:]
+
+        if len(data_rows) != len(expected):
+            return False, (
+                f"Row count mismatch: expected exactly {len(expected)} data rows for top 10 authors, "
+                f"but found {len(data_rows)} rows. Header found: {header}"
+            )
+
+        norm_header = [_norm(h) for h in header]
+        auth_idx, units_idx, sales_idx = None, None, None
+        for idx, h in enumerate(norm_header):
+            if "author" in h or "name" in h:
+                auth_idx = idx
+            elif "unit" in h or "qty" in h or "quantity" in h or "count" in h or "sold" in h:
+                units_idx = idx
+            elif "gross" in h or "sale" in h or "revenue" in h or "total" in h or "spend" in h:
+                sales_idx = idx
+
+        if auth_idx is None:
+            auth_idx = 0
+        if units_idx is None:
+            units_idx = 1
+        if sales_idx is None:
+            sales_idx = 2
+
+        for rank, ((exp_auth, exp_units, exp_sales), row) in enumerate(zip(expected, data_rows), 1):
+            if len(row) <= max(auth_idx, units_idx, sales_idx):
+                return False, f"Row {rank} is missing required columns (Author, UnitsSold, GrossSales). Found row: {row}"
+
+            act_auth = row[auth_idx].strip()
+            try:
+                act_units = int(round(_clean_float(row[units_idx])))
+            except ValueError:
+                return False, f"Row {rank} has non-integer units value '{row[units_idx]}' in row: {row}"
+
+            try:
+                act_sales = _clean_float(row[sales_idx])
+            except ValueError:
+                return False, f"Row {rank} has non-numeric gross sales value '{row[sales_idx]}' in row: {row}"
+
+            if exp_auth.lower() != act_auth.lower():
+                return False, (
+                    f"Row {rank} author mismatch: expected '{exp_auth}' (Units: {exp_units}, Gross: ${exp_sales:.2f}), "
+                    f"got '{act_auth}' (Units: {act_units}, Gross: ${act_sales:.2f}). "
+                    f"(Check: Did you aggregate across BOTH primary and secondary items, and sort by GrossSales descending?)"
+                )
+
+            if act_units != exp_units:
+                return False, (
+                    f"Row {rank} ({exp_auth}) units mismatch: expected {exp_units} units, "
+                    f"got {act_units} units (diff: {abs(act_units - exp_units)}). "
+                    f"(Check: Did you include secondary_item_quantity when secondary items are present?)"
+                )
+
+            if abs(act_sales - exp_sales) > 0.05:
+                return False, (
+                    f"Row {rank} ({exp_auth}) gross sales mismatch: expected ${exp_sales:.2f}, "
+                    f"got ${act_sales:.2f} (diff: ${abs(act_sales - exp_sales):.2f})."
+                )
+
+        return True, f"All 10 rows match top authors ground truth (Rank 1: {expected[0][0]} with {expected[0][1]} units, ${expected[0][2]:.2f})."
+
+    return custom_check(_validate)
+
+
+def check_genre_returns_csv(filepath: str = "genre-returns.csv") -> CustomAssert:
+    """Validate genre-returns.csv (Genre, TotalOrders, ReturnedOrders, ReturnRatePct, TotalRefund)."""
+
+    def _validate(workspace_dir: str) -> tuple[bool, str]:
+        target_path = os.path.join(workspace_dir, filepath)
+        if not os.path.exists(target_path):
+            available = [f for f in os.listdir(workspace_dir) if not f.startswith(".")]
+            return False, f"File '{filepath}' not found in workspace '{workspace_dir}'. Available files: {available}"
+
+        expected = compute_expected_genre_returns(_get_source_csv(workspace_dir))
+
+        try:
+            with open(target_path, "r", encoding="utf-8", errors="ignore") as f:
+                reader = csv.reader(f)
+                raw_rows = [r for r in reader if any(cell.strip() for cell in r)]
+        except Exception as e:
+            return False, f"Failed to parse CSV '{filepath}': {e}"
+
+        if not raw_rows:
+            return False, f"File '{filepath}' is empty."
+
+        header = raw_rows[0]
+        data_rows = raw_rows[1:]
+
+        if len(data_rows) != len(expected):
+            return False, (
+                f"Row count mismatch: expected exactly {len(expected)} genre data rows, "
+                f"but found {len(data_rows)} rows. Header found: {header}"
+            )
+
+        norm_header = [_norm(h) for h in header]
+        genre_idx, tot_idx, ret_idx, pct_idx, ref_idx = None, None, None, None, None
+        for idx, h in enumerate(norm_header):
+            if "genre" in h or "category" in h:
+                genre_idx = idx
+            elif "pct" in h or "rate" in h or "percent" in h:
+                pct_idx = idx
+            elif "refund" in h:
+                ref_idx = idx
+            elif "return" in h or "ret" in h:
+                ret_idx = idx
+            elif "tot" in h or "order" in h or "count" in h:
+                tot_idx = idx
+
+        genre_idx = genre_idx if genre_idx is not None else 0
+        tot_idx = tot_idx if tot_idx is not None else 1
+        ret_idx = ret_idx if ret_idx is not None else 2
+        pct_idx = pct_idx if pct_idx is not None else 3
+        ref_idx = ref_idx if ref_idx is not None else 4
+
+        for rank, ((exp_genre, exp_tot, exp_ret, exp_pct, exp_ref), row) in enumerate(zip(expected, data_rows), 1):
+            if len(row) <= max(genre_idx, tot_idx, ret_idx, pct_idx, ref_idx):
+                return False, f"Row {rank} is missing required columns (Genre, TotalOrders, ReturnedOrders, ReturnRatePct, TotalRefund). Found row: {row}"
+
+            act_genre = row[genre_idx].strip()
+            try:
+                act_tot = int(round(_clean_float(row[tot_idx])))
+                act_ret = int(round(_clean_float(row[ret_idx])))
+                act_pct = _clean_float(row[pct_idx])
+                act_ref = _clean_float(row[ref_idx])
+            except ValueError as e:
+                return False, f"Row {rank} contains invalid numeric data: {row} (error: {e})"
+
+            if exp_genre.lower() != act_genre.lower():
+                return False, (
+                    f"Row {rank} genre mismatch: expected '{exp_genre}' (Total: {exp_tot}, Ret: {exp_ret}, Rate: {exp_pct:.2f}%, Ref: ${exp_ref:.2f}), "
+                    f"got '{act_genre}' (Total: {act_tot}, Ret: {act_ret}, Rate: {act_pct:.2f}%, Ref: ${act_ref:.2f}). "
+                    f"(Check: Sort by ReturnRatePct descending, with ties broken by TotalRefund descending)."
+                )
+
+            if act_tot != exp_tot or act_ret != exp_ret:
+                return False, (
+                    f"Row {rank} ({exp_genre}) order count mismatch: expected Total={exp_tot}, Returned={exp_ret}, "
+                    f"got Total={act_tot}, Returned={act_ret}."
+                )
+
+            if abs(act_pct - exp_pct) > 0.1:
+                return False, (
+                    f"Row {rank} ({exp_genre}) return rate mismatch: expected {exp_pct:.2f}%, "
+                    f"got {act_pct:.2f}% (diff: {abs(act_pct - exp_pct):.2f}%)."
+                )
+
+            if abs(act_ref - exp_ref) > 0.05:
+                return False, (
+                    f"Row {rank} ({exp_genre}) refund mismatch: expected ${exp_ref:.2f}, "
+                    f"got ${act_ref:.2f} (diff: ${abs(act_ref - exp_ref):.2f})."
+                )
+
+        return True, f"All {len(expected)} genre rows match ground truth."
+
+    return custom_check(_validate)
+
+
+def check_carrier_otd_csv(filepath: str = "carrier-otd.csv") -> CustomAssert:
+    """Validate carrier-otd.csv (CarrierName, TotalDelivered, OnTimeDelivered, OnTimePct)."""
+
+    def _validate(workspace_dir: str) -> tuple[bool, str]:
+        target_path = os.path.join(workspace_dir, filepath)
+        if not os.path.exists(target_path):
+            available = [f for f in os.listdir(workspace_dir) if not f.startswith(".")]
+            return False, f"File '{filepath}' not found in workspace '{workspace_dir}'. Available files: {available}"
+
+        expected = compute_expected_carrier_otd(_get_source_csv(workspace_dir))
+
+        try:
+            with open(target_path, "r", encoding="utf-8", errors="ignore") as f:
+                reader = csv.reader(f)
+                raw_rows = [r for r in reader if any(cell.strip() for cell in r)]
+        except Exception as e:
+            return False, f"Failed to parse CSV '{filepath}': {e}"
+
+        if not raw_rows:
+            return False, f"File '{filepath}' is empty."
+
+        header = raw_rows[0]
+        data_rows = raw_rows[1:]
+
+        if len(data_rows) != len(expected):
+            return False, (
+                f"Row count mismatch: expected exactly {len(expected)} carrier data rows, "
+                f"but found {len(data_rows)} rows. Header found: {header}"
+            )
+
+        norm_header = [_norm(h) for h in header]
+        carrier_idx, deliv_idx, ontime_idx, pct_idx = None, None, None, None
+        for idx, h in enumerate(norm_header):
+            if "carrier" in h or "name" in h:
+                carrier_idx = idx
+            elif "pct" in h or "rate" in h or "percent" in h:
+                pct_idx = idx
+            elif "ontime" in h:
+                ontime_idx = idx
+            elif "deliv" in h or "total" in h or "count" in h or "order" in h:
+                deliv_idx = idx
+
+        carrier_idx = carrier_idx if carrier_idx is not None else 0
+        deliv_idx = deliv_idx if deliv_idx is not None else 1
+        ontime_idx = ontime_idx if ontime_idx is not None else 2
+        pct_idx = pct_idx if pct_idx is not None else 3
+
+        for rank, ((exp_carrier, exp_deliv, exp_ontime, exp_pct), row) in enumerate(zip(expected, data_rows), 1):
+            if len(row) <= max(carrier_idx, deliv_idx, ontime_idx, pct_idx):
+                return False, f"Row {rank} is missing required columns (CarrierName, TotalDelivered, OnTimeDelivered, OnTimePct). Found row: {row}"
+
+            act_carrier = row[carrier_idx].strip()
+            try:
+                act_deliv = int(round(_clean_float(row[deliv_idx])))
+                act_ontime = int(round(_clean_float(row[ontime_idx])))
+                act_pct = _clean_float(row[pct_idx])
+            except ValueError as e:
+                return False, f"Row {rank} contains invalid numeric data: {row} (error: {e})"
+
+            if exp_carrier.lower() != act_carrier.lower():
+                return False, (
+                    f"Row {rank} carrier mismatch: expected '{exp_carrier}' (Delivered: {exp_deliv}, OnTime: {exp_ontime}, OTD: {exp_pct:.2f}%), "
+                    f"got '{act_carrier}' (Delivered: {act_deliv}, OnTime: {act_ontime}, OTD: {act_pct:.2f}%). "
+                    f"(Check: Did you compare calendar dates 'YYYY-MM-DD' rather than datetime timestamps? "
+                    f"estimated_delivery_date is a date without time, so comparing full timestamps treats deliveries on the estimated date as late)."
+                )
+
+            if act_deliv != exp_deliv or act_ontime != exp_ontime:
+                return False, (
+                    f"Row {rank} ({exp_carrier}) count mismatch: expected Delivered={exp_deliv}, OnTime={exp_ontime}, "
+                    f"got Delivered={act_deliv}, OnTime={act_ontime}. "
+                    f"(Check: An order is on-time if actual_delivery_date.date() <= estimated_delivery_date.date())."
+                )
+
+            if abs(act_pct - exp_pct) > 0.1:
+                return False, (
+                    f"Row {rank} ({exp_carrier}) OTD % mismatch: expected {exp_pct:.2f}%, "
+                    f"got {act_pct:.2f}% (diff: {abs(act_pct - exp_pct):.2f}%)."
+                )
+
+        return True, f"All {len(expected)} carriers match ground truth OTD metrics."
+
+    return custom_check(_validate)
+
+
+def check_carrier_delivery_time_csv(filepath: str = "carrier-delivery-time.csv") -> CustomAssert:
+    """Validate carrier-delivery-time.csv (CarrierName, DeliveredOrders, AvgDeliveryHours)."""
+
+    def _validate(workspace_dir: str) -> tuple[bool, str]:
+        target_path = os.path.join(workspace_dir, filepath)
+        if not os.path.exists(target_path):
+            available = [f for f in os.listdir(workspace_dir) if not f.startswith(".")]
+            return False, f"File '{filepath}' not found in workspace '{workspace_dir}'. Available files: {available}"
+
+        expected = compute_expected_carrier_delivery_time(_get_source_csv(workspace_dir))
+
+        try:
+            with open(target_path, "r", encoding="utf-8", errors="ignore") as f:
+                reader = csv.reader(f)
+                raw_rows = [r for r in reader if any(cell.strip() for cell in r)]
+        except Exception as e:
+            return False, f"Failed to parse CSV '{filepath}': {e}"
+
+        if not raw_rows:
+            return False, f"File '{filepath}' is empty."
+
+        header = raw_rows[0]
+        data_rows = raw_rows[1:]
+
+        if len(data_rows) != len(expected):
+            return False, (
+                f"Row count mismatch: expected exactly {len(expected)} carrier data rows, "
+                f"but found {len(data_rows)} rows. Header found: {header}"
+            )
+
+        norm_header = [_norm(h) for h in header]
+        carrier_idx, count_idx, hours_idx = None, None, None
+        for idx, h in enumerate(norm_header):
+            if "carrier" in h or "name" in h:
+                carrier_idx = idx
+            elif "hour" in h or "time" in h or "avg" in h:
+                hours_idx = idx
+            elif "deliv" in h or "order" in h or "count" in h or "total" in h or "num" in h:
+                count_idx = idx
+
+        carrier_idx = carrier_idx if carrier_idx is not None else 0
+        count_idx = count_idx if count_idx is not None else 1
+        hours_idx = hours_idx if hours_idx is not None else 2
+
+        for rank, ((exp_carrier, exp_count, exp_hours), row) in enumerate(zip(expected, data_rows), 1):
+            if len(row) <= max(carrier_idx, count_idx, hours_idx):
+                return False, f"Row {rank} is missing required columns (CarrierName, DeliveredOrders, AvgDeliveryHours). Found row: {row}"
+
+            act_carrier = row[carrier_idx].strip()
+            try:
+                act_count = int(round(_clean_float(row[count_idx])))
+                act_hours = _clean_float(row[hours_idx])
+            except ValueError as e:
+                return False, f"Row {rank} contains invalid numeric data: {row} (error: {e})"
+
+            if exp_carrier.lower() != act_carrier.lower():
+                return False, (
+                    f"Row {rank} carrier mismatch: expected '{exp_carrier}' (Delivered: {exp_count}, AvgHours: {exp_hours:.2f}), "
+                    f"got '{act_carrier}' (Delivered: {act_count}, AvgHours: {act_hours:.2f}). "
+                    f"(Check: Sort by AvgDeliveryHours ascending so fastest carriers appear first)."
+                )
+
+            if act_count != exp_count:
+                return False, (
+                    f"Row {rank} ({exp_carrier}) delivered count mismatch: expected {exp_count} delivered orders, "
+                    f"got {act_count}."
+                )
+
+            if abs(act_hours - exp_hours) > 0.1:
+                return False, (
+                    f"Row {rank} ({exp_carrier}) average hours mismatch: expected {exp_hours:.2f} hrs, "
+                    f"got {act_hours:.2f} hrs (diff: {abs(act_hours - exp_hours):.2f} hrs)."
+                )
+
+        return True, f"All {len(expected)} carriers match delivery time ground truth."
+
+    return custom_check(_validate)
+
+
+def check_channel_performance_csv(filepath: str = "channel-performance.csv") -> CustomAssert:
+    """Validate channel-performance.csv (Channel, OrderCount, GrossRevenue, TotalRefunds, NetRevenue, NetAOV)."""
+
+    def _validate(workspace_dir: str) -> tuple[bool, str]:
+        target_path = os.path.join(workspace_dir, filepath)
+        if not os.path.exists(target_path):
+            available = [f for f in os.listdir(workspace_dir) if not f.startswith(".")]
+            return False, f"File '{filepath}' not found in workspace '{workspace_dir}'. Available files: {available}"
+
+        expected = compute_expected_channel_performance(_get_source_csv(workspace_dir))
+
+        try:
+            with open(target_path, "r", encoding="utf-8", errors="ignore") as f:
+                reader = csv.reader(f)
+                raw_rows = [r for r in reader if any(cell.strip() for cell in r)]
+        except Exception as e:
+            return False, f"Failed to parse CSV '{filepath}': {e}"
+
+        if not raw_rows:
+            return False, f"File '{filepath}' is empty."
+
+        header = raw_rows[0]
+        data_rows = raw_rows[1:]
+
+        if len(data_rows) != len(expected):
+            return False, (
+                f"Row count mismatch: expected exactly {len(expected)} channel data rows, "
+                f"but found {len(data_rows)} rows. Header found: {header}"
+            )
+
+        norm_header = [_norm(h) for h in header]
+        ch_idx, count_idx, gross_idx, ref_idx, net_idx, aov_idx = None, None, None, None, None, None
+        for idx, h in enumerate(norm_header):
+            if "channel" in h or "name" in h:
+                ch_idx = idx
+            elif "aov" in h or "average" in h:
+                aov_idx = idx
+            elif "net" in h or "profit" in h:
+                net_idx = idx
+            elif "refund" in h or "return" in h:
+                ref_idx = idx
+            elif "gross" in h:
+                gross_idx = idx
+            elif "count" in h or "order" in h or "num" in h:
+                count_idx = idx
+
+        ch_idx = ch_idx if ch_idx is not None else 0
+        count_idx = count_idx if count_idx is not None else 1
+        gross_idx = gross_idx if gross_idx is not None else 2
+        ref_idx = ref_idx if ref_idx is not None else 3
+        net_idx = net_idx if net_idx is not None else 4
+        aov_idx = aov_idx if aov_idx is not None else 5
+
+        for rank, ((exp_ch, exp_count, exp_gross, exp_ref, exp_net, exp_aov), row) in enumerate(zip(expected, data_rows), 1):
+            if len(row) <= max(ch_idx, count_idx, gross_idx, ref_idx, net_idx, aov_idx):
+                return False, f"Row {rank} is missing required columns (Channel, OrderCount, GrossRevenue, TotalRefunds, NetRevenue, NetAOV). Found row: {row}"
+
+            act_ch = row[ch_idx].strip()
+            try:
+                act_count = int(round(_clean_float(row[count_idx])))
+                act_gross = _clean_float(row[gross_idx])
+                act_ref = _clean_float(row[ref_idx])
+                act_net = _clean_float(row[net_idx])
+                act_aov = _clean_float(row[aov_idx])
+            except ValueError as e:
+                return False, f"Row {rank} contains invalid numeric data: {row} (error: {e})"
+
+            if exp_ch.lower() != act_ch.lower():
+                return False, (
+                    f"Row {rank} channel mismatch: expected '{exp_ch}' (Orders: {exp_count}, Gross: ${exp_gross:.2f}, Ref: ${exp_ref:.2f}, Net: ${exp_net:.2f}, NetAOV: ${exp_aov:.2f}), "
+                    f"got '{act_ch}' (Orders: {act_count}, Gross: ${act_gross:.2f}, Ref: ${act_ref:.2f}, Net: ${act_net:.2f}, NetAOV: ${act_aov:.2f}). "
+                    f"(Check: Sort by NetRevenue descending)."
+                )
+
+            if act_count != exp_count:
+                return False, (
+                    f"Row {rank} ({exp_ch}) order count mismatch: expected {exp_count} orders, "
+                    f"got {act_count}."
+                )
+
+            if abs(act_gross - exp_gross) > 0.05:
+                return False, (
+                    f"Row {rank} ({exp_ch}) gross revenue mismatch: expected ${exp_gross:.2f}, "
+                    f"got ${act_gross:.2f} (diff: ${abs(act_gross - exp_gross):.2f})."
+                )
+
+            if abs(act_ref - exp_ref) > 0.05:
+                return False, (
+                    f"Row {rank} ({exp_ch}) refund mismatch: expected ${exp_ref:.2f}, "
+                    f"got ${act_ref:.2f} (diff: ${abs(act_ref - exp_ref):.2f})."
+                )
+
+            if abs(act_net - exp_net) > 0.05:
+                return False, (
+                    f"Row {rank} ({exp_ch}) net revenue mismatch: expected ${exp_net:.2f}, "
+                    f"got ${act_net:.2f} (diff: ${abs(act_net - exp_net):.2f})."
+                )
+
+            if abs(act_aov - exp_aov) > 0.05:
+                return False, (
+                    f"Row {rank} ({exp_ch}) Net AOV mismatch: expected ${exp_aov:.2f}, "
+                    f"got ${act_aov:.2f} (diff: ${abs(act_aov - exp_aov):.2f})."
+                )
+
+        return True, f"All {len(expected)} channels match financial performance ground truth."
+
+    return custom_check(_validate)
+
+
+# ==============================================================================
+# Multi-Step Evaluation Test
+# ==============================================================================
+
 TEST = Test(
     name="data_analytics",
-    description="Analyze bookstore orders CSV dataset with Python to find top spending customers subtracting returns",
+    description="Multi-step data analytics and business intelligence evaluation on bookstore orders dataset",
     setup=[
         f"cp {_csv_source} .",
     ],
     steps=[
         Step(
-            prompt="""Use Python to find the customers (by ID) who spent the most amount at the store, making sure to subtract any returns they made. Produce a top-cust.csv with 2 columns - FullName and TotalSpend. Only record the top 10 people.""",
+            prompt="""Use Python to find the customers (by ID) who spent the most amount at the store, making sure to subtract any returns they made. Produce a "top-cust.csv" with 2 columns - FullName and TotalSpend. Only record the top 10 people.""",
             checks=[
                 git_changes("top-cust.csv", "A", total_lines=(10, 12)),
-                check_csv(),
+                check_top_customers_csv(),
             ],
-            point=1,
+            point=2,
+        ),
+        Step(
+            prompt="""Use Python to find the top authors by gross sales across all orders in bookstore_orders.csv. Make sure to account for both primary and secondary items. Produce a "top-authors.csv" with 3 columns - Author, UnitsSold, and GrossSales. Record the top 10 authors sorted by GrossSales in descending order.""",
+            checks=[
+                git_changes("top-authors.csv", "A", total_lines=(10, 12)),
+                check_top_authors_csv(),
+            ],
+            point=2,
+        ),
+        Step(
+            prompt="""Use Python to analyze product returns by book genre from the source csv. Group by primary item genre and calculate: TotalOrders, ReturnedOrders, ReturnRatePct (rounded to 2 decimals), and TotalRefund (sum of refund_amount rounded to 2 decimal places). Produce a "genre-returns.csv" with columns: Genre, TotalOrders, ReturnedOrders, ReturnRatePct, TotalRefund. Sort by ReturnRatePct descending, breaking ties with TotalRefund descending.""",
+            checks=[
+                git_changes("genre-returns.csv", "A", total_lines=(18, 20)),
+                check_genre_returns_csv(),
+            ],
+            point=2,
+        ),
+        Step(
+            prompt="""Calculate the On-Time Delivery performance for each shipping carrier. Filter for orders that have been successfully delivered. Group by carrier_name and calculate: TotalDelivered (number of delivered orders), OnTimeDelivered (number of on-time orders), and OnTimePct (percentage of delivered orders on-time, e.g. 93.33). Produce a "carrier-otd.csv" with columns: CarrierName, TotalDelivered, OnTimeDelivered, OnTimePct. Sort by OnTimePct descending.""",
+            checks=[
+                git_changes("carrier-otd.csv", "A", total_lines=(5, 7)),
+                check_carrier_otd_csv(),
+            ],
+            point=2,
+        ),
+        Step(
+            prompt="""Use Python to calculate the average delivery turnaround time in hours for each carrier on delivered orders (fulfillment_status is "Delivered"). For each order, compute the turnaround time in hours as the difference between order_timestamp and actual_delivery_date. Group by carrier_name and calculate: DeliveredOrders (count of delivered orders) and AvgDeliveryHours (average delivery time in hours rounded to 2 decimal places). Produce a "carrier-delivery-time.csv" with columns: CarrierName, DeliveredOrders, AvgDeliveryHours. Sort by AvgDeliveryHours ascending (fastest average delivery time first).""",
+            checks=[
+                git_changes("carrier-delivery-time.csv", "A", total_lines=(5, 7)),
+                check_carrier_delivery_time_csv(),
+            ],
+            point=2,
+        ),
+        Step(
+            prompt="""Use Python to evaluate channel performance across all sales channels in bookstore_orders.csv. Group by order_channel and calculate: OrderCount (number of orders), GrossRevenue (sum of order_grand_total), TotalRefunds (sum of refund_amount), NetRevenue (GrossRevenue minus TotalRefunds), and NetAOV (NetRevenue divided by OrderCount, rounded to 2 decimal places). Produce a "channel-performance.csv" with columns: Channel, OrderCount, GrossRevenue, TotalRefunds, NetRevenue, NetAOV. Sort by NetRevenue descending.""",
+            checks=[
+                git_changes("channel-performance.csv", "A", total_lines=(7, 9)),
+                check_channel_performance_csv(),
+            ],
+            point=2,
         ),
     ],
 )

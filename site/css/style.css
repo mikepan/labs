@@ -183,7 +183,7 @@ header {
   content: '';
   position: absolute;
   inset: 0;
-  background-image: 
+  background-image:
     linear-gradient(to right, rgba(249, 115, 22, 0.12) 1px, transparent 1px),
     linear-gradient(to bottom, rgba(249, 115, 22, 0.12) 1px, transparent 1px);
   background-size: 52px 52px;
@@ -196,7 +196,7 @@ header {
   content: '';
   position: absolute;
   inset: 0;
-  background-image: 
+  background-image:
     linear-gradient(to right, rgba(249, 115, 22, 0.08) 1px, transparent 1px),
     linear-gradient(to bottom, rgba(249, 115, 22, 0.08) 1px, transparent 1px);
   background-size: 13px 13px;
@@ -678,6 +678,7 @@ footer a:hover {
     height: 26px;
     font-size: 0.85rem;
   }
+
   .charts-section {
     padding: 0 0.5rem;
     margin-bottom: 2rem;
@@ -777,18 +778,21 @@ td.sort-active strong {
     width: 100%;
   }
 
-  th, td {
+  th,
+  td {
     padding: 0.5rem 0.15rem;
     font-size: 0.725rem;
     text-align: right;
   }
 
-  th:first-child, td:first-child {
+  th:first-child,
+  td:first-child {
     text-align: left;
     width: 38%;
   }
 
-  th:not(:first-child), td:not(:first-child) {
+  th:not(:first-child),
+  td:not(:first-child) {
     width: 15.5%;
   }
 
@@ -805,7 +809,9 @@ td.sort-active strong {
   .table-wrapper {
     overflow-x: hidden;
   }
-}/* =====================================================================
+}
+
+/* =====================================================================
    trace.css - FiniBench Interactive Live Chat Timeline & Trace Viewer
    Maximizes horizontal space usage while keeping a vertical timeline
 ===================================================================== */
@@ -841,7 +847,8 @@ td.sort-active strong {
   margin-bottom: 1.5rem;
 }
 
-.nav-left, .nav-right {
+.nav-left,
+.nav-right {
   display: flex;
   align-items: center;
   gap: 1rem;
@@ -875,7 +882,9 @@ td.sort-active strong {
   font-weight: 400;
 }
 
-.file-upload-btn, .secondary-btn, .primary-btn {
+.file-upload-btn,
+.secondary-btn,
+.primary-btn {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
@@ -891,7 +900,8 @@ td.sort-active strong {
   text-decoration: none;
 }
 
-.file-upload-btn:hover, .secondary-btn:hover {
+.file-upload-btn:hover,
+.secondary-btn:hover {
   background: #f1f5f9;
   border-color: rgba(0, 0, 0, 0.2);
 }
@@ -932,7 +942,9 @@ td.sort-active strong {
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .error-icon {
@@ -1294,6 +1306,8 @@ td.sort-active strong {
   color: var(--text-main, #0f172a);
   white-space: pre-wrap;
   word-break: break-word;
+  max-height: 300px;
+  overflow-y: auto;
 }
 
 /* ---------------------------------------------------------------------
@@ -1381,6 +1395,8 @@ td.sort-active strong {
   color: var(--text-main, #0f172a);
   white-space: pre-wrap;
   word-break: break-word;
+  max-height: 300px;
+  overflow-y: auto;
 }
 
 .reasoning-stream {
@@ -1391,7 +1407,7 @@ td.sort-active strong {
   border: 1px solid rgba(168, 85, 247, 0.15);
   border-radius: var(--radius-sm, 6px);
   padding: 0.75rem 1rem;
-  max-height: 400px;
+  max-height: 300px;
   overflow-y: auto;
   white-space: pre-wrap;
   word-break: break-word;
@@ -1406,6 +1422,8 @@ td.sort-active strong {
   border-radius: var(--radius-sm, 6px);
   padding: 0.4rem 0.85rem;
   display: inline-block;
+  max-height: 300px;
+  overflow-y: auto;
 }
 
 .execution-breadcrumb-trail {
@@ -1474,7 +1492,6 @@ td.sort-active strong {
 
 .tool-code-wrapper {
   position: relative;
-  width: 100%;
 }
 
 .tool-badge-corner {
@@ -1502,8 +1519,10 @@ td.sort-active strong {
   font-family: var(--font-mono, monospace);
   font-size: 0.775rem;
   overflow-x: auto;
+  overflow-y: auto;
   white-space: pre-wrap;
   word-break: break-all;
+  max-width: 100%;
   max-height: 300px;
 }
 
@@ -1521,6 +1540,8 @@ td.sort-active strong {
   padding: 0.75rem 1rem;
   white-space: pre-wrap;
   word-break: break-word;
+  max-height: 300px;
+  overflow-y: auto;
 }
 
 .validation-summary {
@@ -1529,6 +1550,8 @@ td.sort-active strong {
   border-radius: var(--radius-sm, 6px);
   padding: 0.75rem 1rem;
   font-size: 0.825rem;
+  max-height: 300px;
+  overflow-y: auto;
 }
 
 .validation-items {
@@ -1550,8 +1573,13 @@ td.sort-active strong {
   flex-shrink: 0;
 }
 
-.assertion-icon.passed { color: #16a34a; }
-.assertion-icon.failed { color: #dc2626; }
+.assertion-icon.passed {
+  color: #16a34a;
+}
+
+.assertion-icon.failed {
+  color: #dc2626;
+}
 
 .assertion-msg {
   color: var(--text-main, #0f172a);
@@ -1562,11 +1590,13 @@ td.sort-active strong {
   .grid-table-header {
     display: none;
   }
+
   .grid-table-row {
     grid-template-columns: 44px 1fr;
     gap: 0.65rem;
     padding: 0.75rem 0.85rem;
   }
+
   .col-type {
     justify-content: flex-end;
     align-self: center;
@@ -1611,9 +1641,11 @@ td.sort-active strong {
   color: #1e293b;
   background: #f8fafc;
   overflow-x: auto;
+  overflow-y: auto;
   white-space: pre-wrap;
   word-break: break-all;
-  max-height: 180px;
+  max-width: 100%;
+  max-height: 300px;
 }
 
 /* Assistant Final Response Box */
@@ -1623,6 +1655,8 @@ td.sort-active strong {
   border-left: 4px solid #3b82f6;
   border-radius: var(--radius-md, 10px);
   padding: 1rem 1.25rem;
+  max-height: 300px;
+  overflow-y: auto;
 }
 
 .chat-bubble-assistant .bubble-sender {
@@ -1635,6 +1669,8 @@ td.sort-active strong {
   border: 1px solid rgba(0, 0, 0, 0.06);
   border-radius: var(--radius-md, 10px);
   padding: 0.85rem 1.15rem;
+  max-height: 300px;
+  overflow-y: auto;
 }
 
 .assertion-item {
@@ -1650,8 +1686,13 @@ td.sort-active strong {
   flex-shrink: 0;
 }
 
-.assertion-icon.passed { color: #16a34a; }
-.assertion-icon.failed { color: #dc2626; }
+.assertion-icon.passed {
+  color: #16a34a;
+}
+
+.assertion-icon.failed {
+  color: #dc2626;
+}
 
 .assertion-msg {
   color: var(--text-main, #0f172a);
@@ -1661,5 +1702,18 @@ td.sort-active strong {
 @media (max-width: 768px) {
   .trace-page {
     padding: 1rem;
+  }
+
+  .user-prompt-text,
+  .reasoning-stream,
+  .reasoning-simple-text,
+  .tool-code-wrapper,
+  .response-text,
+  .validation-summary,
+  .chat-bubble-user,
+  .chat-bubble-assistant,
+  .assertions-container {
+    max-width: 100%;
+    width: 100%;
   }
 }

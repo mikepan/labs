@@ -242,21 +242,19 @@ function renderExecutiveSummary(data) {
   const launchCfg = data.launch_config || '';
 
   container.innerHTML = `
-    <div class="summary-header-row">
-      <div class="summary-title-group">
-        <h1>
-          <span>${escapeHtml(modelName)}</span>
-        </h1>
-        <div class="summary-meta-badges">
-          <span class="badge">LLM: ${escapeHtml(llmDisplay)}</span>
-          <span class="badge">Server: ${escapeHtml(llmServer)}</span>
-          <span class="badge">Spec Decoding: ${escapeHtml(specDecoding)}</span>
-          <span class="badge">Reasoning: ${escapeHtml(reasoning)}</span>
-          <span class="badge">KV Cache: ${escapeHtml(kvQuant)}</span>
-          ${contextDisplay ? `<span class="badge">Context: ${escapeHtml(contextDisplay)}</span>` : ''}
-          <span class="badge">Harness: ${escapeHtml(harness)}${harnessVer ? ' ' + escapeHtml(harnessVer) : ''}</span>
-          ${benchDate ? `<span class="badge">Test Date: ${escapeHtml(benchDate)}</span>` : ''}
-        </div>
+    <div class="summary-title-group">
+      <h1>
+        <span>${escapeHtml(modelName)}</span>
+      </h1>
+      <div class="summary-meta-badges">
+        <span class="badge">LLM: ${escapeHtml(llmDisplay)}</span>
+        <span class="badge">Server: ${escapeHtml(llmServer)}</span>
+        <span class="badge">Spec Decoding: ${escapeHtml(specDecoding)}</span>
+        <span class="badge">Reasoning: ${escapeHtml(reasoning)}</span>
+        <span class="badge">KV Cache: ${escapeHtml(kvQuant)}</span>
+        ${contextDisplay ? `<span class="badge">Context: ${escapeHtml(contextDisplay)}</span>` : ''}
+        <span class="badge">Harness: ${escapeHtml(harness)}${harnessVer ? ' ' + escapeHtml(harnessVer) : ''}</span>
+        ${benchDate ? `<span class="badge">Test Date: ${escapeHtml(benchDate)}</span>` : ''}
       </div>
     </div>
 
@@ -282,6 +280,12 @@ function renderExecutiveSummary(data) {
         <span class="kpi-sub">Engine memory consumption</span>
       </div>
     </div>
+
+    ${launchCfg ? `
+      <div class="launch-config-box">
+        <code>${escapeHtml(launchCfg)}</code>
+      </div>
+    ` : ''}
   `;
 }
 
@@ -361,48 +365,60 @@ function renderTestStepsTimeline(testData) {
         <!-- Step Header Bar -->
         <header class="step-header">
           <div class="step-header-left">
-            <span class="step-number-tag">[Step ${idx + 1}/${steps.length}]</span>
-            <span class="badge ${isPassed ? 'badge-success' : 'badge-failed'}">
-              ${isPassed ? '✓ Passed' : '✗ Failed'}
-            </span>
+            <span class="step-number-tag">Step ${idx + 1}/${steps.length}</span>
+            ${durSec ? `<span class="step-duration"><span class="step-clock-icon">⏱</span> ${durSec}</span>` : ''}
+            ${contextDisplay}
           </div>
 
           <div class="step-header-right">
-            ${durSec ? `<span class="step-duration">⏱ ${durSec}</span>` : ''}
-            ${contextDisplay}
+            <span class="badge ${isPassed ? 'badge-success' : 'badge-failed'}">
+              ${isPassed ? '✓ Passed' : '✗ Failed'}
+            </span>
             <svg class="step-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <polyline points="6 9 12 15 18 9"></polyline>
             </svg>
           </div>
         </header>
 
-        <!-- Step Body (Chronological Event Table) -->
+        <!-- Step Body (3-Column Layout: Col 1 Icon, Col 2 Content, Col 3 Evaluation Results) -->
         <div class="step-body">
-          <div class="trace-grid-table">
-            <!-- 1. User Prompt Row -->
-            <div class="grid-table-row row-user-prompt">
-              <div class="col-type">
-                <span class="type-pill pill-user" title="User Prompt">👤</span>
-              </div>
-              <div class="col-content">
-                <div class="content-text user-prompt-text">${escapeHtml(step.prompt || '')}</div>
+          <div class="step-columns-wrapper">
+            <!-- Trace Stream (Col 1 Icons & Col 2 Content) -->
+            <div class="step-trace-stream">
+              <div class="trace-grid-table">
+                <!-- 1. User Prompt Row -->
+                <div class="grid-table-row row-user-prompt">
+                  <div class="col-type">
+                    <span class="type-pill pill-user" title="User Prompt">👤</span>
+                  </div>
+                  <div class="col-content">
+                    <div class="content-text user-prompt-text">${escapeHtml(step.prompt || '')}</div>
+                  </div>
+                </div>
+
+                <!-- 2. Chronological Events Stream (Thinking, Tools, Agent Responses) -->
+                ${renderChronologicalEvents(step, currentViewMode)}
               </div>
             </div>
 
-            <!-- 2. Chronological Events Stream (Thinking, Tools, Agent Responses) -->
-            ${renderChronologicalEvents(step, currentViewMode)}
-
-            <!-- 3. Validation / Procedural Assertions Row -->
-            ${checks.length > 0 ? `
-              <div class="grid-table-row row-validation">
-                <div class="col-type">
-                  <span class="type-pill ${isPassed ? 'pill-valid-pass' : 'pill-valid-fail'}" title="Validation ${isPassed ? 'Passed' : 'Failed'}">
-                    ${isPassed ? '✓' : '✗'}
+            <!-- Evaluation Results Sidebar (Col 3) -->
+            <aside class="step-eval-column">
+              <div class="step-eval-panel ${isPassed ? 'eval-panel-pass' : 'eval-panel-fail'}">
+                <div class="eval-panel-header">
+                  <div class="eval-panel-title">
+                    <span class="eval-status-icon ${isPassed ? 'passed' : 'failed'}">${isPassed ? '✓' : '✗'}</span>
+                    <span>Evaluation</span>
+                  </div>
+                  <span class="eval-score-badge ${isPassed ? 'badge-success' : 'badge-failed'}">
+                    ${scoreText}
                   </span>
                 </div>
-                <div class="col-content">
-                  <div class="validation-summary">
-                    <strong>Procedural Assertions: ${checks.filter(c => c.passed).length}/${checks.length} Passed (+${scoreText})</strong>
+
+                <div class="eval-panel-body">
+                  ${checks.length > 0 ? `
+                    <div class="eval-assertions-summary">
+                      Procedural Assertions: <strong>${checks.filter(c => c.passed).length}/${checks.length} Passed</strong>
+                    </div>
                     <div class="validation-items">
                       ${checks.map(c => `
                         <div class="assertion-item">
@@ -411,10 +427,14 @@ function renderTestStepsTimeline(testData) {
                         </div>
                       `).join('')}
                     </div>
-                  </div>
+                  ` : `
+                    <div class="eval-empty-note">
+                      ${isPassed ? 'All step criteria satisfied' : 'Step did not meet passing criteria'}
+                    </div>
+                  `}
                 </div>
               </div>
-            ` : ''}
+            </aside>
           </div>
         </div>
       </article>
@@ -454,36 +474,57 @@ function renderChronologicalEvents(step, viewMode = 'simple') {
   }
 
   if (viewMode === 'full') {
-    return events.map(ev => {
-      if (ev.type === 'reasoning') {
-        return `
-          <div class="grid-table-row row-thinking">
-            <div class="col-type">
-              <span class="type-pill pill-thinking" title="Thinking">🧠</span>
+    let fullHtml = '';
+    let pendingStack = [];
+
+    function flushStack() {
+      if (pendingStack.length === 0) return;
+      const stackItemsHtml = pendingStack.map((item, idx) => {
+        const isFirst = idx === 0;
+        const isLast = idx === pendingStack.length - 1;
+        const only = pendingStack.length === 1;
+
+        if (item.type === 'reasoning') {
+          return `
+            <div class="stack-block block-thinking ${isFirst ? 'is-first' : ''} ${isLast ? 'is-last' : ''} ${only ? 'is-only' : ''}">
+              <span class="thinking-badge-corner">Thinking</span>
+              <div class="reasoning-stream">${escapeHtml(item.content || '')}</div>
             </div>
-            <div class="col-content">
-              <div class="reasoning-stream">${escapeHtml(ev.content || '')}</div>
+          `;
+        } else if (item.type === 'tool') {
+          const tc = item.data || {};
+          const toolName = tc.tool || 'tool';
+          return `
+            <div class="stack-block block-tool ${isFirst ? 'is-first' : ''} ${isLast ? 'is-last' : ''} ${only ? 'is-only' : ''}">
+              <span class="tool-badge-corner">Tool: ${escapeHtml(toolName)}</span>
+              <pre class="tool-code-preview"><code>${escapeHtml(formatToolInputOutput(tc))}</code></pre>
+            </div>
+          `;
+        }
+        return '';
+      }).join('');
+
+      fullHtml += `
+        <div class="grid-table-row row-execution-stack">
+          <div class="col-type">
+            <span class="type-pill pill-tool" title="Execution Sequence">⚙️</span>
+          </div>
+          <div class="col-content">
+            <div class="vertical-execution-stack">
+              ${stackItemsHtml}
             </div>
           </div>
-        `;
-      } else if (ev.type === 'tool') {
-        const tc = ev.data || {};
-        const toolName = tc.tool || 'tool';
-        return `
-          <div class="grid-table-row row-tool">
-            <div class="col-type">
-              <span class="type-pill pill-tool" title="Tool: ${escapeHtml(toolName)}">⚙️</span>
-            </div>
-            <div class="col-content">
-              <div class="tool-code-wrapper">
-                <span class="tool-badge-corner">Tool: ${escapeHtml(toolName)}</span>
-                <pre class="tool-code-preview"><code>${escapeHtml(formatToolInputOutput(tc))}</code></pre>
-              </div>
-            </div>
-          </div>
-        `;
+        </div>
+      `;
+      pendingStack = [];
+    }
+
+    events.forEach(ev => {
+      if (ev.type === 'reasoning' || ev.type === 'tool') {
+        pendingStack.push(ev);
       } else if (ev.type === 'response') {
-        return `
+        flushStack();
+        fullHtml += `
           <div class="grid-table-row row-response">
             <div class="col-type">
               <span class="type-pill pill-response" title="Response">💬</span>
@@ -494,8 +535,9 @@ function renderChronologicalEvents(step, viewMode = 'simple') {
           </div>
         `;
       }
-      return '';
-    }).join('');
+    });
+    flushStack();
+    return fullHtml;
   }
 
   // Simple Mode: Collapse intermediate execution sequence into a single breadcrumb line

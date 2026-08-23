@@ -276,7 +276,7 @@ function renderModelSpeedChart(evaluations) {
         color: '#64748b',
         fontFamily: 'system-ui, -apple-system, sans-serif',
         interval: 0,
-        rotate: 25,
+        rotate: 45,
         fontSize: 10,
         lineHeight: 13,
         formatter: function (value) {
@@ -372,7 +372,7 @@ function renderModelDensityChart(evaluations) {
         color: '#64748b',
         fontFamily: 'system-ui, -apple-system, sans-serif',
         interval: 0,
-        rotate: 25,
+        rotate: 45,
         fontSize: 10,
         lineHeight: 13,
         formatter: function (value) {

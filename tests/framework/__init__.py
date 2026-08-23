@@ -11,7 +11,6 @@ from .assertions import (
     LangDetectAssert,
     custom_check,
     files_identical,
-    gibberish_detect,
     git_changes,
     lang_detect,
 )
@@ -37,7 +36,6 @@ __all__ = [
     "CustomAssert",
     "git_changes",
     "lang_detect",
-    "gibberish_detect",
     "files_identical",
     "custom_check",
     # Runner

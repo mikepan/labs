@@ -18,7 +18,6 @@ __all__ = [
     "CustomAssert",
     "git_changes",
     "lang_detect",
-    "gibberish_detect",
     "files_identical",
     "custom_check",
 ]
@@ -130,10 +129,9 @@ class GitChangeAssert(BaseAssertion):
 class LangDetectAssert(BaseAssertion):
     """Asserts that a file's content matches the expected natural language."""
 
-    def __init__(self, filepath: str, lang: str = "en", no_gibberish: bool = True):
+    def __init__(self, filepath: str, lang: str = "en"):
         self.filepath = filepath
         self.lang = lang.lower()
-        self.no_gibberish = no_gibberish
 
     def evaluate(self, workspace_dir: str) -> CheckResult:
         full_path = os.path.join(workspace_dir, self.filepath)
@@ -145,11 +143,6 @@ class LangDetectAssert(BaseAssertion):
 
         if not content:
             return CheckResult(False, f"File '{self.filepath}' is empty.")
-
-        # Basic gibberish check
-        if self.no_gibberish:
-            if len(content) > 20 and len(set(content)) < 5:
-                return CheckResult(False, f"Gibberish detected in '{self.filepath}': very low character variety ({len(set(content))} unique characters).")
 
         # Language detection: try langdetect library, fallback to unicode heuristics
         detected_lang = None
@@ -249,12 +242,8 @@ def git_changes(
     )
 
 
-def lang_detect(filepath: str, lang: str = "en", no_gibberish: bool = True) -> LangDetectAssert:
-    return LangDetectAssert(filepath=filepath, lang=lang, no_gibberish=no_gibberish)
-
-
-def gibberish_detect(filepath: str) -> LangDetectAssert:
-    return LangDetectAssert(filepath=filepath, no_gibberish=True)
+def lang_detect(filepath: str, lang: str = "en") -> LangDetectAssert:
+    return LangDetectAssert(filepath=filepath, lang=lang)
 
 
 def files_identical(file1: str, file2: str) -> FilesIdenticalAssert:

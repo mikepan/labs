@@ -3,11 +3,7 @@ import os
 import re
 import sys
 
-_repo_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-if _repo_root not in sys.path:
-    sys.path.insert(0, _repo_root)
-
-from tests.framework import *
+from tests.framework import Step, Test, git_changes, custom_check, CustomAssert
 
 from collections import defaultdict
 
@@ -34,7 +30,6 @@ def compute_expected_top_customers(source_csv_path: str, top_n: int = 10) -> lis
 
     sorted_customers = sorted(customer_spends.values(), key=lambda c: c["total_spend"], reverse=True)[:top_n]
     return [(c["fullname"], c["total_spend"]) for c in sorted_customers]
-
 
 
 def check_csv(filepath: str = "top-cust.csv") -> CustomAssert:
@@ -114,7 +109,6 @@ def check_csv(filepath: str = "top-cust.csv") -> CustomAssert:
     return custom_check(_validate)
 
 
-
 TEST = Test(
     name="data_analytics",
     description="Analyze bookstore orders CSV dataset with Python to find top spending customers subtracting returns",
@@ -132,5 +126,3 @@ TEST = Test(
         ),
     ],
 )
-
-

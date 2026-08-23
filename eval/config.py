@@ -3,12 +3,9 @@ eval.config - Centralized configurations, path definitions, and environment defa
 """
 
 from pathlib import Path
-import sys
 
 # Repository Root Directory (Path object)
 REPO_ROOT = Path(__file__).resolve().parent.parent
-if str(REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT))
 
 # Cluster & Remote Host Configuration
 REMOTE_HOST = "mike@spark"
@@ -29,3 +26,21 @@ BENCHMARK_DATA_FILE = REPO_ROOT / "site" / "results" / "benchmark-data.json"
 BENCHMARK_SCHEMA_FILE = REPO_ROOT / "eval" / "benchmark-data.schema.json"
 RESULTS_DIR = REPO_ROOT / "site" / "results"
 TESTS_DIR = REPO_ROOT / "tests"
+
+__all__ = [
+    "REPO_ROOT",
+    "REMOTE_HOST",
+    "REMOTE_VLLM_DIR",
+    "API_BASE_URL",
+    "DEFAULT_LLM_BASE_URL",
+    "DEFAULT_BUILDER_SANDBOX_NAME",
+    "DEFAULT_WORKER_SANDBOX_NAME",
+    "DEFAULT_TEMPLATE_TAG",
+    "DEFAULT_OPENCODE_PORT",
+    "MODELS_CONFIG_FILE",
+    "HARNESSES_CONFIG_FILE",
+    "BENCHMARK_DATA_FILE",
+    "BENCHMARK_SCHEMA_FILE",
+    "RESULTS_DIR",
+    "TESTS_DIR",
+]

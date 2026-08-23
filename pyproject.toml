@@ -1,0 +1,17 @@
+[project]
+name = "labs"
+version = "0.1.0"
+requires-python = ">=3.10"
+dependencies = [
+    "requests",
+]
+
+[project.optional-dependencies]
+eval = [
+    "langdetect",
+    "html5lib",
+    "beautifulsoup4",
+]
+
+[tool.setuptools.packages.find]
+include = ["eval*", "tests*"]

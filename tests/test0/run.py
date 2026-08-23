@@ -1,14 +1,12 @@
-import os, sys
+import os
+import sys
 
-_repo_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-if _repo_root not in sys.path:
-    sys.path.insert(0, _repo_root)
-
-from tests.framework import *
+from tests.framework import Step, Test, git_changes, lang_detect, files_identical
 
 
 TEST = Test(
     name="multilingual_science_presentation",
+    description="Multi-step multilingual content creation with translation, HTML presentation, and iterative refinement",
     steps=[
         Step(
             prompt="""Why is the sky blue?

@@ -16,9 +16,16 @@ import sys
 import time
 import urllib.error
 import urllib.request
-from config import *
-from common import setup_logger
 from typing import Any
+
+from eval.config import (
+    API_BASE_URL,
+    MODELS_CONFIG_FILE,
+    REMOTE_HOST,
+    REMOTE_VLLM_DIR,
+    REPO_ROOT,
+)
+from eval.common import setup_logger
 
 logger = setup_logger("launch_model")
 

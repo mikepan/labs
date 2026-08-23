@@ -2,13 +2,11 @@
 assertions.py - Concise assertion primitives for evaluating agent actions in git repositories.
 """
 
-import csv
 from dataclasses import dataclass
-from enum import Enum
 import os
 import re
 import subprocess
-from typing import Any, Callable, Optional
+from typing import Any, Callable
 
 
 __all__ = [
@@ -30,7 +28,7 @@ __all__ = [
 class CheckResult:
     passed: bool
     message: str
-    details: Optional[dict[str, Any]] = None
+    details: dict[str, Any] | None = None
 
 
 class BaseAssertion:
@@ -47,8 +45,8 @@ class GitChangeAssert(BaseAssertion):
         self,
         filepath: str,
         status: str = "A",
-        total_lines: Optional[tuple[int, int] | int] = None,
-        diff_lines: Optional[tuple[int, int] | int] = None,
+        total_lines: tuple[int, int] | int | None = None,
+        diff_lines: tuple[int, int] | int | None = None,
     ):
         self.filepath = filepath
         self.status = status.strip().upper() if status else "A"
@@ -232,8 +230,8 @@ class CustomAssert(BaseAssertion):
 def git_changes(
     filepath: str,
     status: str = "A",
-    total_lines: Optional[tuple[int, int] | int] = None,
-    diff_lines: Optional[tuple[int, int] | int] = None,
+    total_lines: tuple[int, int] | int | None = None,
+    diff_lines: tuple[int, int] | int | None = None,
 ) -> GitChangeAssert:
     return GitChangeAssert(
         filepath=filepath,
@@ -257,6 +255,3 @@ def files_identical(file1: str, file2: str) -> FilesIdenticalAssert:
 
 def custom_check(func: Callable[[str], Any]) -> CustomAssert:
     return CustomAssert(func=func)
-
-
-

@@ -3,6 +3,7 @@ runner.py - Execution engine for running test steps and assertions in a workspac
 """
 
 from dataclasses import dataclass, field
+import os
 import subprocess
 import time
 from typing import Any
@@ -39,8 +40,6 @@ class TestEvaluationResult:
     duration_seconds: float = 0.0
 
 
-
-import os
 
 def setup_workspace(test: Test, workspace_dir: str) -> None:
     """Execute test setup commands (e.g. copying files) and automatically initialize git baseline."""
@@ -105,5 +104,3 @@ def evaluate_step(step: Step, workspace_dir: str, auto_commit: bool = True) -> S
         check_results=results,
         duration_seconds=elapsed,
     )
-
-

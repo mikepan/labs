@@ -194,6 +194,45 @@ function getOrCreateChart(chartEl) {
   return chart;
 }
 
+function formatChartModelLabel(name) {
+  if (!name || typeof name !== 'string') return '';
+
+  // Match the right-most parameter size / architecture boundary e.g. "26B-", "A4B-", "70B-"
+  const matches = [...name.matchAll(/(?:\d+|[A-Z]\d+)[Bb]-/g)];
+  if (matches.length > 0) {
+    const lastMatch = matches[matches.length - 1];
+    const splitIdx = lastMatch.index + lastMatch[0].length;
+    return name.slice(0, splitIdx) + '\n' + name.slice(splitIdx);
+  }
+
+  // Fallback: find any last "B-" or "b-"
+  const lastB = Math.max(name.lastIndexOf('B-'), name.lastIndexOf('b-'));
+  if (lastB !== -1) {
+    return name.slice(0, lastB + 2) + '\n' + name.slice(lastB + 2);
+  }
+
+  // Fallback: for long names (> 16 chars), split near the middle hyphen or space
+  if (name.length > 16) {
+    const mid = Math.floor(name.length / 2);
+    let bestIdx = -1;
+    let minDiff = Infinity;
+    for (let i = 0; i < name.length; i++) {
+      if (name[i] === '-' || name[i] === '_' || name[i] === ' ') {
+        const diff = Math.abs(i - mid);
+        if (diff < minDiff) {
+          minDiff = diff;
+          bestIdx = i;
+        }
+      }
+    }
+    if (bestIdx !== -1) {
+      return name.slice(0, bestIdx + 1) + '\n' + name.slice(bestIdx + 1);
+    }
+  }
+
+  return name;
+}
+
 function renderModelSpeedChart(evaluations) {
   const chartEl = document.getElementById('chart-model-speed');
   const chart = getOrCreateChart(chartEl);
@@ -225,7 +264,7 @@ function renderModelSpeedChart(evaluations) {
     grid: {
       left: '3%',
       right: '4%',
-      bottom: '22%',
+      bottom: '24%',
       top: '12%',
       containLabel: true
     },
@@ -238,7 +277,11 @@ function renderModelSpeedChart(evaluations) {
         fontFamily: 'system-ui, -apple-system, sans-serif',
         interval: 0,
         rotate: 25,
-        fontSize: 11
+        fontSize: 10,
+        lineHeight: 13,
+        formatter: function (value) {
+          return formatChartModelLabel(value);
+        }
       }
     },
     yAxis: {
@@ -317,7 +360,7 @@ function renderModelDensityChart(evaluations) {
     grid: {
       left: '3%',
       right: '4%',
-      bottom: '22%',
+      bottom: '24%',
       top: '12%',
       containLabel: true
     },
@@ -330,7 +373,11 @@ function renderModelDensityChart(evaluations) {
         fontFamily: 'system-ui, -apple-system, sans-serif',
         interval: 0,
         rotate: 25,
-        fontSize: 11
+        fontSize: 10,
+        lineHeight: 13,
+        formatter: function (value) {
+          return formatChartModelLabel(value);
+        }
       }
     },
     yAxis: {

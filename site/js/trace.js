@@ -344,7 +344,7 @@ function renderTestStepsTimeline(testData) {
   feed.innerHTML = steps.map((step, idx) => {
     const isPassed = step.evaluation ? step.evaluation.passed : (step.earned_score >= step.max_score);
     const scoreText = `${step.earned_score ?? 0} / ${step.max_score ?? step.point ?? 1} pts`;
-    const durSec = step.duration_seconds !== undefined ? `${Number(step.duration_seconds).toFixed(2)}s` : '';
+    const durSec = step.duration_seconds !== undefined ? `${Math.round(Number(step.duration_seconds))}s` : '';
     const events = step.events || [];
     const hasTools = events.some(e => e.type === 'tool');
     const hasReasoning = events.some(e => e.type === 'reasoning');
@@ -504,16 +504,12 @@ function renderChronologicalEvents(step, viewMode = 'simple') {
 
   function flushBreadcrumbs() {
     if (pendingCrumbs.length === 0) return;
-    const trailHtml = pendingCrumbs.map((c, i) => {
-      const isLast = i === pendingCrumbs.length - 1;
+    const trailHtml = pendingCrumbs.map(c => {
       const chipClass = c.type === 'reasoning' ? 'chip-thinking' : 'chip-tool';
       const label = c.type === 'reasoning'
-        ? `[Thinking]`
-        : `[Tool: ${escapeHtml(capitalize(c.tool || 'tool'))}]`;
-      return `
-        <span class="breadcrumb-chip ${chipClass}">${label}</span>
-        ${!isLast ? '<span class="breadcrumb-sep">&gt;</span>' : ''}
-      `;
+        ? `Thinking`
+        : `Tool: ${escapeHtml(capitalize(c.tool || 'tool'))}`;
+      return `<span class="breadcrumb-chip ${chipClass}">${label}</span>`;
     }).join('');
 
     html += `

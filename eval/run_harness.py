@@ -168,14 +168,90 @@ def run_test_suite_on_agent(
         for idx, step in enumerate(test_obj.steps):
             step_name = step.name or f"Step {idx + 1}"
             step_point = getattr(step, "point", 1)
-            logger.info("--- [Step %d/%d] %s (point=%d) ---", idx + 1, len(test_obj.steps), step_name, step_point)
+            step_timeout = getattr(step, "timeout", 1800)
+            logger.info("--- [Step %d/%d] %s (point=%d, timeout=%ds) ---", idx + 1, len(test_obj.steps), step_name, step_point, step_timeout)
             logger.debug("Prompt: %s...", step.prompt.strip()[:100])
 
             step_t0 = time.time()
             step_start_iso = datetime.fromtimestamp(step_t0, timezone.utc).isoformat()
 
+            # Track message count before sending so we can recover partial traces on failure
+            try:
+                prev_msgs = driver.get_all_messages(sandbox, session_id)
+                prev_msg_count = len(prev_msgs) if prev_msgs else 0
+            except Exception:
+                prev_msg_count = 0
+
             # Send prompt through the driver — returns normalized TurnData
-            turn = driver.send_prompt(sandbox, session_id, step.prompt, active_model)
+            try:
+                turn = driver.send_prompt(sandbox, session_id, step.prompt, active_model, timeout=step_timeout)
+            except Exception as e:
+                step_elapsed = round(time.time() - step_t0, 2)
+                step_end_iso = datetime.now(timezone.utc).isoformat()
+                error_msg = str(e)
+                is_timeout = "timeout" in error_msg.lower() or "timed out" in error_msg.lower()
+                fail_reason = "TIMEOUT" if is_timeout else "ERROR"
+                logger.warning("  ✗ Step %d %s (0/%d pts) (%.2fs): %s",
+                               idx + 1, fail_reason, step_point, step_elapsed, error_msg[:200])
+
+                # Recover partial messages from the session to capture what the agent did
+                partial_messages: list[dict] = []
+                partial_tool_calls: list[dict] = []
+                partial_events: list[dict] = []
+                partial_reasoning: list[str] = []
+                partial_text: list[str] = []
+                try:
+                    all_msgs = driver.get_all_messages(sandbox, session_id)
+                    if all_msgs and len(all_msgs) > prev_msg_count:
+                        partial_messages = all_msgs[prev_msg_count:]
+                        # Parse partial messages using driver's _parse_turn if available
+                        if hasattr(driver, '_parse_turn'):
+                            partial_turn = driver._parse_turn(partial_messages, step_start_iso)
+                            partial_tool_calls = [tc.to_dict() for tc in partial_turn.tool_calls]
+                            partial_events = partial_turn.events
+                            partial_reasoning = partial_turn.reasoning
+                            partial_text = partial_turn.text
+                            total_tokens_in += partial_turn.tokens_in
+                            total_tokens_out += partial_turn.tokens_out
+                        n_tool_calls = len(partial_tool_calls)
+                        logger.warning("    Recovered %d messages (%d tool calls) from session before %s",
+                                       len(partial_messages), n_tool_calls, fail_reason.lower())
+                        # Log the tool calls so the user can see the loop
+                        for tc in partial_tool_calls:
+                            logger.warning("    - [Tool Call]: %s", tc.get("tool", "unknown"))
+                except Exception as recover_err:
+                    logger.debug("    Could not recover partial messages: %s", recover_err)
+
+                # Build step trace with recovered partial data
+                response_parts = partial_text or []
+                response_parts.append(f"[{fail_reason}] {error_msg}")
+                step_traces.append(StepTrace(
+                    step_index=idx,
+                    step_name=step_name,
+                    prompt=step.prompt,
+                    point=step_point,
+                    earned_score=0,
+                    max_score=step_point,
+                    start_time=step_start_iso,
+                    end_time=step_end_iso,
+                    tokens_in=0,
+                    tokens_out=0,
+                    events=partial_events,
+                    tool_calls=partial_tool_calls,
+                    reasoning_blocks=partial_reasoning,
+                    response_text="\n\n".join(response_parts),
+                    messages=partial_messages,
+                    evaluation={
+                        "step_name": step_name,
+                        "passed": False,
+                        "point": step_point,
+                        "score": 0,
+                        "duration_seconds": step_elapsed,
+                        "check_results": [{"passed": False, "message": f"Driver {fail_reason}: {error_msg}"}],
+                    },
+                    duration_seconds=step_elapsed,
+                ).to_dict())
+                continue
 
             step_elapsed = round(time.time() - step_t0, 2)
             step_end_iso = datetime.now(timezone.utc).isoformat()

@@ -42,6 +42,7 @@ class HarnessDriver(ABC):
         session_id: str,
         prompt: str,
         model_name: str,
+        timeout: int,
     ) -> TurnData:
         """Send a prompt, wait for completion, return normalized TurnData."""
 

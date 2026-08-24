@@ -15,6 +15,7 @@ class Step:
     checks: list[Any] = field(default_factory=list)
     name: str = ""
     point: int | float = 1
+    timeout: int = 1800  # per-step timeout (default: 30 min)
 
 
 

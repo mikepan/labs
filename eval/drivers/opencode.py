@@ -92,6 +92,7 @@ print(data.get('id', ''))
         session_id: str,
         prompt: str,
         model_name: str,
+        timeout: int,
     ) -> TurnData:
         """Send prompt to OpenCode, wait for response, return normalized TurnData."""
         # Get message count before sending
@@ -116,7 +117,7 @@ req = urllib.request.Request(
     headers={{'Content-Type': 'application/json'}}
 )
 try:
-    res = urllib.request.urlopen(req, timeout=1200)
+    res = urllib.request.urlopen(req, timeout={timeout})
     print("__JSON_START__" + res.read().decode('utf-8') + "__JSON_END__")
 except urllib.error.HTTPError as e:
     err_body = e.read().decode('utf-8', errors='replace')

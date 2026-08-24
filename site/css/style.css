@@ -900,8 +900,8 @@ footer a:hover {
 
 .summary-kpi-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 0.85rem;
   margin-bottom: 1.25rem;
 }
 
@@ -1430,7 +1430,7 @@ footer a:hover {
   border-radius: var(--radius-sm);
 }
 
-.stack-block + .stack-block {
+.stack-block+.stack-block {
   margin-top: -1px;
 }
 

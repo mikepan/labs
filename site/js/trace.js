@@ -241,6 +241,23 @@ function renderExecutiveSummary(data) {
   const intelDensity = (data.intelligence_density !== undefined && data.intelligence_density !== null && !isNaN(Number(data.intelligence_density))) ? `${Number(data.intelligence_density).toFixed(1)} tasks/GB` : 'N/A';
   const launchCfg = data.launch_config || '';
 
+  const testsObj = data.tests || (data.suite_trace ? data.suite_trace.tests : {}) || data.test_results || {};
+  const testsList = Array.isArray(testsObj) ? testsObj : Object.values(testsObj);
+  let totalTimeSec = 0;
+  if (data.time_sec !== undefined && data.time_sec !== null) {
+    totalTimeSec = Number(data.time_sec);
+  } else if (data.duration_seconds !== undefined && data.duration_seconds !== null) {
+    totalTimeSec = Number(data.duration_seconds);
+  } else if (data.completion_time_sec !== undefined && data.completion_time_sec !== null) {
+    totalTimeSec = Number(data.completion_time_sec);
+  } else if (testsList.length > 0) {
+    totalTimeSec = testsList.reduce((acc, t) => acc + (t.duration_seconds || t.run_time_sec || t.completion_time_sec || 0), 0);
+  }
+
+  const completionTimeDisplay = totalTimeSec > 0
+    ? (totalTimeSec >= 60 ? `${Math.floor(totalTimeSec / 60)}m ${Math.round(totalTimeSec % 60)}s` : `${Math.round(totalTimeSec)}s`)
+    : 'N/A';
+
   container.innerHTML = `
     <div class="summary-title-group">
       <h1>
@@ -263,6 +280,11 @@ function renderExecutiveSummary(data) {
         <span class="kpi-label">Intelligence Pass Rate</span>
         <span class="kpi-value" style="color: #16a34a;">${intelligence}</span>
         <span class="kpi-sub">Overall benchmark completion</span>
+      </div>
+      <div class="kpi-card">
+        <span class="kpi-label">Completion Time</span>
+        <span class="kpi-value" style="color: #2563eb;">${completionTimeDisplay}</span>
+        <span class="kpi-sub">Total execution duration</span>
       </div>
       <div class="kpi-card">
         <span class="kpi-label">Task Speed</span>

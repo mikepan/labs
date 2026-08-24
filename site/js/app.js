@@ -35,8 +35,9 @@ function extractEvalMetrics(e) {
   const testsObj = e.test_results || {};
   const tests = Object.values(testsObj);
 
-  const timeSec = tests.length > 0
-    ? Math.round(tests.reduce((acc, t) => acc + (t.run_time_sec || 0), 0) / tests.length)
+  const totalTimeSec = tests.reduce((acc, t) => acc + (t.run_time_sec || 0), 0);
+  const timeMin = tests.length > 0
+    ? Number((totalTimeSec / 60).toFixed(1))
     : 0;
 
   const runMemGb = Number(e.memory_gb || 0);
@@ -46,7 +47,8 @@ function extractEvalMetrics(e) {
     evalId: e.eval_id || '',
     tests,
     intelligence: e.intelligence ?? 0,
-    timeSec,
+    timeMin,
+    totalTimeSec,
     runMemGb,
     memoryGb: Math.round(runMemGb),
     modelName: e.name || '',
@@ -299,7 +301,7 @@ function renderTopScatterChart(evaluations, viewMode = 'time') {
   evaluations.forEach((e, idx) => {
     const m = extractEvalMetrics(e);
     const yVal = m.intelligence;
-    const xVal = viewMode === 'time' ? m.timeSec : m.runMemGb;
+    const xVal = viewMode === 'time' ? m.timeMin : m.runMemGb;
     if (xVal !== undefined && yVal !== undefined) {
       rawPoints.push({
         id: idx,
@@ -380,7 +382,7 @@ function renderTopScatterChart(evaluations, viewMode = 'time') {
     });
   });
 
-  const xAxisName = viewMode === 'time' ? 'Task Completion Time (seconds)' : 'Memory / VRAM Size (GB)';
+  const xAxisName = viewMode === 'time' ? 'Total Completion Time (min)' : 'Memory / VRAM Size (GB)';
 
   const option = {
     animation: false,
@@ -589,7 +591,7 @@ function formatModelCardTooltip(evalRecord) {
 
     <div style="min-width: 210px;">
       ${row('Intelligence', m.intelligence)}
-      ${row('Completion Time', m.timeSec + ' sec')}
+      ${row('Completion Time', m.timeMin + ' min')}
       ${row('Memory Use', m.memoryGb + ' GB')}
       ${row('Server', m.llmServer)}
       ${row('Speculative', m.speculativeDecoding)}

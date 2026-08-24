@@ -154,7 +154,7 @@ function renderExecutiveSummary(data) {
   const totalTimeSec = testsList.reduce((acc, t) => acc + (t.duration_seconds || 0), 0);
 
   const completionTimeDisplay = totalTimeSec > 0
-    ? (totalTimeSec >= 60 ? `${Math.floor(totalTimeSec / 60)}m ${Math.round(totalTimeSec % 60)}s` : `${Math.round(totalTimeSec)}s`)
+    ? `${(totalTimeSec / 60).toFixed(1)} min`
     : 'N/A';
 
   container.innerHTML = `

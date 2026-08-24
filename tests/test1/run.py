@@ -9,10 +9,6 @@ from typing import Iterator
 
 from tests.framework import Step, Test, git_changes, custom_check, CustomAssert
 
-_CSV_SOURCE = Path(__file__).resolve().parent / "bookstore_orders.csv"
-_csv_source = str(_CSV_SOURCE)
-
-
 def _norm(s: str) -> str:
     return re.sub(r"[_\s\-]+", "", str(s).strip().lower())
 
@@ -27,8 +23,7 @@ def _read_orders(source_csv_path: str | Path) -> Iterator[dict[str, str]]:
 
 
 def _get_source_csv(workspace_dir: str | Path) -> str:
-    ws_csv = Path(workspace_dir) / "bookstore_orders.csv"
-    return str(ws_csv if ws_csv.exists() else _CSV_SOURCE)
+    return str(Path(workspace_dir) / "bookstore_orders.csv")
 
 
 # ==============================================================================
@@ -453,9 +448,7 @@ def check_channel_performance_csv(filepath: str = "channel-performance.csv") -> 
 TEST = Test(
     name="data_analytics",
     description="Multi-step data analytics and business intelligence evaluation on bookstore orders dataset",
-    setup=[
-        f"cp {_csv_source} .",
-    ],
+    setup=[],
     steps=[
         Step(
             prompt="""Use Python to find the customers (by ID) who spent the most amount at the store, making sure to subtract any returns they made. Produce a "top-cust.csv" with 2 columns - FullName and TotalSpend. Only record the top 10 people.""",

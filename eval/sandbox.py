@@ -2,11 +2,13 @@ import json
 import os
 from pathlib import Path
 import re
+import shutil
 import sys
+import tempfile
 from typing import Any
 
 from eval.common import setup_logger, run_cmd
-from eval.config import DEFAULT_WORKER_SANDBOX_NAME, DEFAULT_TEMPLATE_TAG, DEFAULT_OPENCODE_PORT, REPO_ROOT
+from eval.config import DEFAULT_WORKER_SANDBOX_NAME, DEFAULT_TEMPLATE_TAG, DEFAULT_OPENCODE_PORT
 
 __all__ = ["SandboxClient"]
 
@@ -18,6 +20,7 @@ class SandboxClient:
 
     def __init__(self, name: str = DEFAULT_WORKER_SANDBOX_NAME):
         self.name = name
+        self._ephemeral_dir: str | None = None
 
     # ----- Core execution primitives -----
 
@@ -49,15 +52,25 @@ class SandboxClient:
     # ----- Lifecycle management -----
 
     def ensure(self, template: str = DEFAULT_TEMPLATE_TAG, workspace: str | None = None) -> None:
-        """Provision a clean ephemeral sandbox from the base template."""
+        """Provision a clean ephemeral sandbox from the base template with an isolated workspace."""
         run_cmd("sbx", "rm", "-f", self.name)
-        logger.info("Provisioning sandbox '%s' from template '%s'...", self.name, template)
+        if self._ephemeral_dir and os.path.exists(self._ephemeral_dir):
+            shutil.rmtree(self._ephemeral_dir, ignore_errors=True)
+            self._ephemeral_dir = None
+
+        if workspace:
+            ws_path = workspace
+        else:
+            self._ephemeral_dir = tempfile.mkdtemp(prefix="sbx_empty_ws_")
+            ws_path = self._ephemeral_dir
+
+        logger.info("Provisioning sandbox '%s' from template '%s' (workspace: %s)...", self.name, template, ws_path)
         res = run_cmd(
             "sbx", "create",
             "--name", self.name,
             "--template", template,
             "-p", f"{DEFAULT_OPENCODE_PORT}:{DEFAULT_OPENCODE_PORT}",
-            "shell", str(workspace or REPO_ROOT),
+            "shell", ws_path,
         )
         if res.returncode != 0:
             logger.error("Error creating sandbox:\n%s\n%s", res.stderr, res.stdout)
@@ -65,9 +78,12 @@ class SandboxClient:
         logger.info("✓ Sandbox '%s' is ready.", self.name)
 
     def remove(self) -> None:
-        """Clean up and remove the sandbox container."""
+        """Clean up and remove the sandbox container and ephemeral workspace."""
         logger.info("Cleaning up sandbox '%s'...", self.name)
         run_cmd("sbx", "rm", "-f", self.name)
+        if self._ephemeral_dir and os.path.exists(self._ephemeral_dir):
+            shutil.rmtree(self._ephemeral_dir, ignore_errors=True)
+            self._ephemeral_dir = None
 
     def exists(self) -> bool:
         """Check if sandbox exists."""
@@ -79,6 +95,29 @@ class SandboxClient:
         run_cmd("sbx", "stop", self.name)
 
     # ----- File transfer -----
+
+    def upload_file(self, local_path: str | Path, remote_path: str) -> bool:
+        """Upload a local file from host to a remote path inside the sandbox."""
+        p = Path(local_path)
+        if not p.is_file():
+            return False
+        try:
+            content = p.read_text(encoding="utf-8")
+            cmd = f"mkdir -p \"$(dirname '{remote_path}')\" && cat > '{remote_path}'"
+            res = run_cmd("sbx", "exec", self.name, "bash", "-c", cmd, input=content)
+            return res.returncode == 0
+        except UnicodeDecodeError:
+            import base64
+            b64 = base64.b64encode(p.read_bytes()).decode("ascii")
+            cmd = f"mkdir -p \"$(dirname '{remote_path}')\" && base64 -d > '{remote_path}'"
+            res = run_cmd("sbx", "exec", self.name, "bash", "-c", cmd, input=b64)
+            return res.returncode == 0
+
+    def write_file(self, remote_path: str, content: str) -> bool:
+        """Write string content directly to a remote path inside the sandbox."""
+        cmd = f"mkdir -p \"$(dirname '{remote_path}')\" && cat > '{remote_path}'"
+        res = run_cmd("sbx", "exec", self.name, "bash", "-c", cmd, input=content)
+        return res.returncode == 0
 
     def extract_artifacts(self, workspace_dir: str, dest_dir: str | Path) -> None:
         """Extract workspace files (excluding .git) from sandbox to a local directory."""

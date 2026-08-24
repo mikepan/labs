@@ -18,6 +18,7 @@ import importlib.util
 import json
 import logging
 import os
+from pathlib import Path
 import re
 import tempfile
 import time
@@ -30,7 +31,6 @@ from eval.config import (
     DEFAULT_LLM_BASE_URL,
     DEFAULT_WORKER_SANDBOX_NAME,
     HARNESSES_CONFIG_FILE,
-    REPO_ROOT,
     RESULTS_DIR,
     TESTS_DIR,
 )
@@ -43,8 +43,23 @@ logger = setup_logger("run_harness")
 
 
 # =====================================================================
-# Test Loading
+# Test Loading & Framework In-Memory Bundling
 # =====================================================================
+
+_FRAMEWORK_BUNDLE: tuple[str, str, str] | None = None
+
+
+def _get_framework_bundle() -> tuple[str, str, str]:
+    """Load framework spec, assertions, and runner source code for in-memory sandbox evaluation."""
+    global _FRAMEWORK_BUNDLE
+    if _FRAMEWORK_BUNDLE is None:
+        fw_dir = TESTS_DIR / "framework"
+        spec_code = (fw_dir / "spec.py").read_text(encoding="utf-8")
+        assertions_code = (fw_dir / "assertions.py").read_text(encoding="utf-8")
+        runner_code = (fw_dir / "runner.py").read_text(encoding="utf-8")
+        _FRAMEWORK_BUNDLE = (spec_code, assertions_code, runner_code)
+    return _FRAMEWORK_BUNDLE
+
 
 def load_test_spec(test_name_or_path: str):
     """Load a TestSpec from a test directory or run.py file."""
@@ -70,7 +85,7 @@ def load_test_spec(test_name_or_path: str):
 
 
 # =====================================================================
-# Step Evaluation (runs test assertions inside sandbox)
+# Step Evaluation (runs test assertions inside sandbox in-memory)
 # =====================================================================
 
 def evaluate_step_in_sandbox(
@@ -79,18 +94,46 @@ def evaluate_step_in_sandbox(
     step_idx: int,
     workspace_dir: str,
 ) -> dict[str, Any]:
-    """Execute step assertions directly inside the sandbox container."""
-    eval_script = f"""import json, sys, importlib.util
-sys.path.insert(0, '{REPO_ROOT}')
-from tests.framework.runner import evaluate_step
+    """Execute step assertions directly inside the sandbox container in memory without disk persistence."""
+    spec_code, assertions_code, runner_code = _get_framework_bundle()
+    test_code = Path(test_run_file).read_text(encoding="utf-8")
 
-spec = importlib.util.spec_from_file_location('test_mod', '{test_run_file}')
-mod = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(mod)
-test = mod.TEST
-step = test.steps[{step_idx}]
+    eval_script = f"""import json, sys, types
+from pathlib import Path
 
-res = evaluate_step(step, '{workspace_dir}')
+t_mod = types.ModuleType('tests')
+t_mod.__path__ = []
+tf_mod = types.ModuleType('tests.framework')
+tf_mod.__path__ = []
+
+spec_mod = types.ModuleType('tests.framework.spec')
+exec({spec_code!r}, spec_mod.__dict__)
+
+assertions_mod = types.ModuleType('tests.framework.assertions')
+exec({assertions_code!r}, assertions_mod.__dict__)
+
+runner_mod = types.ModuleType('tests.framework.runner')
+sys.modules['tests'] = t_mod
+sys.modules['tests.framework'] = tf_mod
+sys.modules['tests.framework.spec'] = spec_mod
+sys.modules['tests.framework.assertions'] = assertions_mod
+sys.modules['tests.framework.runner'] = runner_mod
+
+exec({runner_code!r}, runner_mod.__dict__)
+
+for mod in (spec_mod, assertions_mod, runner_mod):
+    for k in getattr(mod, '__all__', []):
+        setattr(tf_mod, k, getattr(mod, k))
+t_mod.framework = tf_mod
+
+test_mod = types.ModuleType('test_module')
+test_mod.__file__ = '{workspace_dir}/run.py'
+exec({test_code!r}, test_mod.__dict__)
+
+test_obj = test_mod.TEST
+step = test_obj.steps[{step_idx}]
+res = runner_mod.evaluate_step(step, '{workspace_dir}')
+
 output = {{
     "step_name": res.step_name,
     "passed": res.passed,
@@ -155,6 +198,15 @@ def run_test_suite_on_agent(
         # Setup workspace and start agent
         test_ws = f"/tmp/eval_{test_id}"
         sandbox.setup_test_workspace(test_ws, test_obj.setup)
+
+        # Upload test data assets (excluding .py files and hidden directories)
+        test_dir = Path(test_path).parent
+        for asset_path in test_dir.iterdir():
+            if asset_path.is_file() and not asset_path.name.endswith(".py") and not asset_path.name.startswith("."):
+                remote_asset = f"{test_ws}/{asset_path.name}"
+                logger.debug("Uploading test asset %s -> %s", asset_path.name, remote_asset)
+                sandbox.upload_file(asset_path, remote_asset)
+
         active_model = driver.start(sandbox, test_ws, model_name, DEFAULT_LLM_BASE_URL)
         session_id = driver.create_session(sandbox)
 

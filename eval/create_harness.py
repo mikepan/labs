@@ -13,8 +13,10 @@ Usage:
 import json
 import logging
 import os
+import shutil
 import subprocess
 import sys
+import tempfile
 from typing import Any
 
 from eval.common import setup_logger, load_json_config
@@ -22,7 +24,6 @@ from eval.config import (
     DEFAULT_BUILDER_SANDBOX_NAME,
     DEFAULT_TEMPLATE_TAG,
     HARNESSES_CONFIG_FILE,
-    REPO_ROOT,
 )
 from eval.sandbox import SandboxClient
 
@@ -166,41 +167,45 @@ def main():
     for h in harnesses:
         logger.info("  - %s", h)
 
-    # Create fresh builder sandbox (no template, no port mapping needed)
+    # Create fresh builder sandbox with ephemeral empty workspace
+    tmp_ws = tempfile.mkdtemp(prefix="sbx_builder_ws_")
     sandbox = SandboxClient(name=DEFAULT_BUILDER_SANDBOX_NAME)
     sandbox.remove()
 
-    logger.info("Creating sandbox '%s' with workspace: %s...", sandbox.name, REPO_ROOT)
+    logger.info("Creating sandbox '%s' with isolated workspace: %s...", sandbox.name, tmp_ws)
     create_res = subprocess.run(
-        ["sbx", "create", "--name", sandbox.name, "shell", str(REPO_ROOT)],
+        ["sbx", "create", "--name", sandbox.name, "shell", tmp_ws],
         capture_output=True,
         text=True,
     )
     if create_res.returncode != 0:
         logger.error("Error creating sandbox:\n%s\n%s", create_res.stderr, create_res.stdout)
+        shutil.rmtree(tmp_ws, ignore_errors=True)
         sys.exit(1)
     logger.info("✓ Sandbox '%s' created.", sandbox.name)
 
-    # 1. Install base evaluation dependencies
-    install_evaluation_dependencies(sandbox)
+    try:
+        # 1. Install base evaluation dependencies
+        install_evaluation_dependencies(sandbox)
 
-    # 2. Install each agent harness
-    updated = False
-    for h_name, h_info in harnesses.items():
-        v = install_harness(sandbox, h_name, h_info)
-        if v:
-            h_info["version"] = v
-            updated = True
+        # 2. Install each agent harness
+        updated = False
+        for h_name, h_info in harnesses.items():
+            v = install_harness(sandbox, h_name, h_info)
+            if v:
+                h_info["version"] = v
+                updated = True
 
-    # Save template snapshot
-    save_as_template(sandbox, DEFAULT_TEMPLATE_TAG)
+        # Save template snapshot
+        save_as_template(sandbox, DEFAULT_TEMPLATE_TAG)
 
-    # Save updated versions to JSON
-    if updated:
-        save_harness_config(harnesses)
-
-    # Always cleanup builder container
-    sandbox.remove()
+        # Save updated versions to JSON
+        if updated:
+            save_harness_config(harnesses)
+    finally:
+        # Always cleanup builder container and temp workspace
+        sandbox.remove()
+        shutil.rmtree(tmp_ws, ignore_errors=True)
 
     logger.info("HARNESS CONFIGURATION COMPLETE. Base template ready: %s", DEFAULT_TEMPLATE_TAG)
 

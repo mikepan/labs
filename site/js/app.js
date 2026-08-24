@@ -28,74 +28,41 @@ document.addEventListener('DOMContentLoaded', () => {
 
 /**
  * Extracts and normalizes benchmark evaluation metrics for a single evaluation record.
- * Supports both Columnar Matrix objects and legacy nested structures.
  */
 function extractEvalMetrics(e) {
   if (!e) return {};
 
   const testsObj = e.test_results || {};
-  const tests = Array.isArray(testsObj) ? testsObj : Object.values(testsObj);
-
-  const sumCompletion = tests.reduce((acc, t) => {
-    if (t.earned_score !== undefined && t.max_score) {
-      return acc + (t.earned_score / t.max_score * 100.0);
-    }
-    return acc + (t.run_completion || 0);
-  }, 0);
-  const intelligence = e.intelligence !== undefined
-    ? e.intelligence
-    : (e.summary_metrics?.intelligence !== undefined
-      ? e.summary_metrics.intelligence
-      : (e.summary_metrics?.task_intelligence !== undefined
-        ? e.summary_metrics.task_intelligence
-        : Math.round(sumCompletion * 10) / 10));
+  const tests = Object.values(testsObj);
 
   const timeSec = tests.length > 0
-    ? Math.round(tests.reduce((acc, t) => acc + (t.run_time_sec || t.completion_time_sec || 0), 0) / tests.length)
+    ? Math.round(tests.reduce((acc, t) => acc + (t.run_time_sec || 0), 0) / tests.length)
     : 0;
 
-  const runMemGb = e.memory_gb !== undefined
-    ? Number(e.memory_gb)
-    : (tests.length > 0 && tests[0].run_memory_gb !== undefined
-      ? tests[0].run_memory_gb
-      : (e.model_size_gb || e.llm?.model_size_gb || 28.0));
-
-  const modelName = e.name || e.llm?.name || 'Unknown Model';
-  const company = e.company || e.llm?.company || '';
-  const baseModel = e.base_model || e.parent_model || modelName;
-  const kvQuant = e.kv_quant || e.llm?.kv_quant || 'FP16';
-  const contextLength = e.context_length || 262144;
-  const llmServer = e.llm_server || e.llm?.llm_server || e.server || 'vLLM';
-  const speculativeDecoding = e.speculative_decoding || e.llm?.speculative_decoding || 'off';
-  const harnessName = typeof e.harness === 'string' ? e.harness : (e.harness?.name || 'N/A');
-  const harnessVersion = e.harness_version || '1.18.18';
-  const reasoning = e.reasoning || e.harness?.reasoning || e.harness?.reasoning_effort || 'off';
-  const benchmarkDate = e.benchmark_date || (e.benchmark_start_time ? e.benchmark_start_time.split('T')[0] : '') || e.release_date || '';
-  const launchConfig = e.launch_config || '';
-  const taskSpeed = e.task_speed !== undefined ? e.task_speed : (e.summary_metrics?.task_speed ?? 0);
-  const intelligenceDensity = e.intelligence_density !== undefined ? e.intelligence_density : (e.summary_metrics?.intelligence_density ?? 0);
+  const runMemGb = Number(e.memory_gb || 0);
 
   return {
     raw: e,
+    evalId: e.eval_id || '',
     tests,
-    intelligence,
+    intelligence: e.intelligence ?? 0,
     timeSec,
     runMemGb,
     memoryGb: Math.round(runMemGb),
-    modelName,
-    company,
-    baseModel,
-    kvQuant,
-    contextLength,
-    benchmarkDate,
-    llmServer,
-    speculativeDecoding,
-    reasoning,
-    harnessName,
-    harnessVersion,
-    launchConfig,
-    taskSpeed,
-    intelligenceDensity
+    modelName: e.name || '',
+    company: e.company || '',
+    baseModel: e.base_model || e.name || '',
+    kvQuant: e.kv_quant || '',
+    contextLength: e.context_length || 0,
+    benchmarkDate: e.benchmark_date || '',
+    llmServer: e.llm_server || '',
+    speculativeDecoding: e.speculative_decoding || 'off',
+    reasoning: e.reasoning || 'off',
+    harnessName: e.harness || '',
+    harnessVersion: e.harness_version || '',
+    launchConfig: e.launch_config || '',
+    taskSpeed: e.task_speed ?? 0,
+    intelligenceDensity: e.intelligence_density ?? 0
   };
 }
 
@@ -105,6 +72,7 @@ function initDashboard(data) {
   const models = evaluations.map(e => {
     const m = extractEvalMetrics(e);
     return {
+      eval_id: m.evalId,
       name: m.modelName,
       family: m.company,
       base_model: m.baseModel,
@@ -318,13 +286,8 @@ function renderModelSpeedChart(evaluations) {
   chart.off('click');
   chart.on('click', function (params) {
     const rawEval = sorted[params.dataIndex]?.raw;
-    if (rawEval) {
-      const evalId = rawEval.eval_id || rawEval.trace_id;
-      if (evalId) {
-        window.location.href = `./trace.html?eval_id=${encodeURIComponent(evalId)}`;
-      } else {
-        window.location.href = './trace.html';
-      }
+    if (rawEval && rawEval.eval_id) {
+      window.location.href = `./trace.html?eval_id=${encodeURIComponent(rawEval.eval_id)}`;
     }
   });
 }
@@ -414,13 +377,8 @@ function renderModelDensityChart(evaluations) {
   chart.off('click');
   chart.on('click', function (params) {
     const rawEval = sorted[params.dataIndex]?.raw;
-    if (rawEval) {
-      const evalId = rawEval.eval_id || rawEval.trace_id;
-      if (evalId) {
-        window.location.href = `./trace.html?eval_id=${encodeURIComponent(evalId)}`;
-      } else {
-        window.location.href = './trace.html';
-      }
+    if (rawEval && rawEval.eval_id) {
+      window.location.href = `./trace.html?eval_id=${encodeURIComponent(rawEval.eval_id)}`;
     }
   });
 }
@@ -670,14 +628,8 @@ function renderTopScatterChart(evaluations, viewMode = 'time') {
   // Navigate to trace viewer on dot click
   chart.off('click');
   chart.on('click', function (params) {
-    if (params.data && params.data.rawEval) {
-      const raw = params.data.rawEval;
-      const evalId = raw.eval_id || raw.trace_id;
-      if (evalId) {
-        window.location.href = `./trace.html?eval_id=${encodeURIComponent(evalId)}`;
-      } else {
-        window.location.href = './trace.html';
-      }
+    if (params.data && params.data.rawEval && params.data.rawEval.eval_id) {
+      window.location.href = `./trace.html?eval_id=${encodeURIComponent(params.data.rawEval.eval_id)}`;
     }
   });
 }
@@ -743,7 +695,7 @@ function renderLeaderboard(models) {
     const cls = (key) => key === currentSortKey ? 'sort-active' : '';
 
     tbody.innerHTML = filtered.map(m => {
-      const evalId = m.eval_id || (m.raw && (m.raw.eval_id || m.raw.trace_id)) || m.trace_id || '';
+      const evalId = m.eval_id || '';
       const traceHref = evalId ? `./trace.html?eval_id=${encodeURIComponent(evalId)}` : './trace.html';
 
       return `
@@ -816,7 +768,7 @@ function formatModelCardTooltip(evalRecord) {
   return `
     <div style="font-weight:600; color:#0f172a; font-size:0.95rem; margin-bottom:4px;">${escapeHtml(m.modelName)}</div>
     <div style="margin-bottom:10px;">
-      <span style="display:inline-block; padding:2px 8px; border-radius:10px; font-family:var(--font-mono, monospace); font-size:0.75rem; font-weight:600; background:rgba(249,115,22,0.1); color:#ea580c; border:1px solid rgba(249,115,22,0.25);">${escapeHtml(m.company || m.parentModel)}</span>
+      <span style="display:inline-block; padding:2px 8px; border-radius:10px; font-family:var(--font-mono, monospace); font-size:0.75rem; font-weight:600; background:rgba(249,115,22,0.1); color:#ea580c; border:1px solid rgba(249,115,22,0.25);">${escapeHtml(m.company)}</span>
     </div>
 
     <div style="min-width: 210px;">

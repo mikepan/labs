@@ -15,7 +15,7 @@ let currentViewMode = 'simple';
 
 document.addEventListener('DOMContentLoaded', () => {
   const urlParams = new URLSearchParams(window.location.search);
-  const evalIdParam = urlParams.get('eval_id') || urlParams.get('trace_id') || urlParams.get('id');
+  const evalIdParam = urlParams.get('eval_id') || urlParams.get('id');
   const fileParam = urlParams.get('file');
 
   // Wire Simple / Full mode toggles
@@ -28,7 +28,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (radio) radio.checked = true;
       currentViewMode = pill.getAttribute('data-mode') || 'simple';
       if (currentTraceData) {
-        const testsObj = currentTraceData.tests || (currentTraceData.suite_trace ? currentTraceData.suite_trace.tests : {}) || currentTraceData.test_results || {};
+        const testsObj = currentTraceData.tests || {};
         if (activeTestKey && testsObj[activeTestKey]) {
           renderTestStepsTimeline(testsObj[activeTestKey]);
         }
@@ -83,39 +83,18 @@ function loadJsonFromUrl(url) {
 
 function loadTraceById(evalId) {
   showLoading();
-  Promise.all([
-    fetch(`./results/${encodeURIComponent(evalId)}/full_trace.json`).then(res => {
+  fetch(`./results/${encodeURIComponent(evalId)}/full_trace.json`)
+    .then(res => {
       if (!res.ok) throw new Error(`Evaluation trace '${evalId}' not found in results directory.`);
       return res.json();
-    }),
-    fetch(`./results/benchmark-data.json`).then(r => r.ok ? r.json() : null).catch(() => null)
-  ])
-    .then(([traceData, benchData]) => {
-      if (benchData && benchData.evaluations) {
-        const match = benchData.evaluations.find(e => e.eval_id === evalId);
-        if (match) {
-          traceData.company = traceData.company || match.company;
-          traceData.base_model = traceData.base_model || match.base_model;
-          traceData.harness = traceData.harness || match.harness;
-          traceData.harness_version = traceData.harness_version || match.harness_version;
-          traceData.memory_gb = traceData.memory_gb || match.memory_gb;
-          traceData.kv_quant = traceData.kv_quant || match.kv_quant;
-          traceData.reasoning = traceData.reasoning || match.reasoning;
-          traceData.intelligence = traceData.intelligence !== undefined ? traceData.intelligence : match.intelligence;
-          traceData.task_speed = traceData.task_speed !== undefined ? traceData.task_speed : match.task_speed;
-          traceData.intelligence_density = traceData.intelligence_density !== undefined ? traceData.intelligence_density : match.intelligence_density;
-          traceData.launch_config = traceData.launch_config || match.launch_config;
-        }
-      }
+    })
+    .then(traceData => {
       renderTracePage(traceData);
     })
     .catch(err => {
       showError('Evaluation Not Found', err.message);
     });
 }
-
-
-
 
 function handleLocalFileUpload(event) {
   const file = event.target.files[0];
@@ -126,18 +105,7 @@ function handleLocalFileUpload(event) {
   reader.onload = (e) => {
     try {
       const parsed = JSON.parse(e.target.result);
-
-      // If it's a full_trace.json format containing suite_trace, flatten it
-      let normalized = parsed;
-      if (parsed.suite_trace) {
-        normalized = {
-          ...parsed,
-          tests: parsed.suite_trace.tests || {},
-          start_time: parsed.suite_trace.start_time,
-          end_time: parsed.suite_trace.end_time,
-        };
-      }
-      renderTracePage(normalized);
+      renderTracePage(parsed);
     } catch (err) {
       showError('Invalid JSON Format', `Failed to parse uploaded JSON file: ${err.message}`);
     }
@@ -146,66 +114,6 @@ function handleLocalFileUpload(event) {
     showError('Read Error', 'Could not read local file.');
   };
   reader.readAsText(file);
-}
-
-/**
- * Normalizes different formats (results.json, full_trace.json, benchmark-data.json row) into a unified object model.
- */
-function normalizeBenchmarkRowToTrace(row, columns) {
-  // Map array row by index
-  const modelName = row[0] || 'Unknown Model';
-  const company = row[1] || '';
-  const parentModel = row[2] || modelName;
-  const kvQuant = row[3] || 'FP16';
-  const contextLength = row[4] || 262144;
-  const memoryGb = row[5] || 0;
-  const startTime = row[6] || new Date().toISOString();
-  const llmServer = row[7] || 'vLLM';
-  const speculative = row[8] || 'off';
-  const harness = row[9] || 'opencode';
-  const harnessVersion = row[10] || '1.18.18';
-  const reasoning = row[11] || 'off';
-  const launchConfig = row[12] || '';
-  const intelligence = row[13] || 0;
-  const taskSpeed = row[14] || 0;
-  const intelDensity = row[15] || 0;
-  const testResults = row[16] || {};
-
-  // Build test suite trace objects
-  const tests = {};
-  for (const [testKey, tData] of Object.entries(testResults)) {
-    tests[testKey] = {
-      name: tData.name || testKey,
-      trace_id: tData.trace_id,
-      earned_score: tData.earned_score,
-      max_score: tData.max_score,
-      duration_seconds: tData.run_time_sec,
-      tokens_in: tData.tokens_in,
-      tokens_out: tData.tokens_out,
-      context_used_pct: tData.context_used_pct,
-      steps: tData.steps || [],
-    };
-  }
-
-  return {
-    model: modelName,
-    company: company,
-    base_model: parentModel,
-    kv_quant: kvQuant,
-    context_length: contextLength,
-    memory_gb: memoryGb,
-    start_time: startTime,
-    llm_server: llmServer,
-    speculative_decoding: speculative,
-    harness: harness,
-    harness_version: harnessVersion,
-    reasoning: reasoning,
-    launch_config: launchConfig,
-    intelligence: intelligence,
-    task_speed: taskSpeed,
-    intelligence_density: intelDensity,
-    tests: tests,
-  };
 }
 
 /**
@@ -222,7 +130,7 @@ function renderTracePage(traceData, preferredTestKey) {
 function renderExecutiveSummary(data) {
   const container = document.getElementById('executive-summary');
 
-  const modelName = data.model || data.eval_name || data.name || 'Evaluation Run';
+  const modelName = data.name || data.model || 'Evaluation Run';
   const company = data.company || '';
   const baseModel = data.base_model || '';
   const llmDisplay = (company && baseModel) ? `${company}/${baseModel}` : (baseModel || company || modelName);
@@ -235,24 +143,15 @@ function renderExecutiveSummary(data) {
   const memGb = data.memory_gb ? `${data.memory_gb} GB` : 'N/A';
   const contextLength = data.context_length;
   const contextDisplay = contextLength ? (contextLength >= 1000 ? `${Math.round(contextLength / 1000)}k` : `${contextLength}`) : '';
-  const benchDate = data.benchmark_date || (data.start_time ? data.start_time.split('T')[0] : (data.timestamp ? data.timestamp.split('T')[0] : ''));
+  const benchDate = data.benchmark_date || (data.start_time ? data.start_time.split('T')[0] : '');
   const intelligence = (data.intelligence !== undefined && data.intelligence !== null && !isNaN(Number(data.intelligence))) ? `${Number(data.intelligence).toFixed(1)}%` : 'N/A';
   const taskSpeed = (data.task_speed !== undefined && data.task_speed !== null && !isNaN(Number(data.task_speed))) ? `${Number(data.task_speed).toFixed(1)} tasks/hr` : 'N/A';
   const intelDensity = (data.intelligence_density !== undefined && data.intelligence_density !== null && !isNaN(Number(data.intelligence_density))) ? `${Number(data.intelligence_density).toFixed(1)} tasks/GB` : 'N/A';
   const launchCfg = data.launch_config || '';
 
-  const testsObj = data.tests || (data.suite_trace ? data.suite_trace.tests : {}) || data.test_results || {};
-  const testsList = Array.isArray(testsObj) ? testsObj : Object.values(testsObj);
-  let totalTimeSec = 0;
-  if (data.time_sec !== undefined && data.time_sec !== null) {
-    totalTimeSec = Number(data.time_sec);
-  } else if (data.duration_seconds !== undefined && data.duration_seconds !== null) {
-    totalTimeSec = Number(data.duration_seconds);
-  } else if (data.completion_time_sec !== undefined && data.completion_time_sec !== null) {
-    totalTimeSec = Number(data.completion_time_sec);
-  } else if (testsList.length > 0) {
-    totalTimeSec = testsList.reduce((acc, t) => acc + (t.duration_seconds || t.run_time_sec || t.completion_time_sec || 0), 0);
-  }
+  const testsObj = data.tests || {};
+  const testsList = Object.values(testsObj);
+  const totalTimeSec = testsList.reduce((acc, t) => acc + (t.duration_seconds || 0), 0);
 
   const completionTimeDisplay = totalTimeSec > 0
     ? (totalTimeSec >= 60 ? `${Math.floor(totalTimeSec / 60)}m ${Math.round(totalTimeSec % 60)}s` : `${Math.round(totalTimeSec)}s`)
@@ -313,7 +212,7 @@ function renderExecutiveSummary(data) {
 
 function renderTestTabsAndTimeline(data, preferredTestKey) {
   const tabsContainer = document.getElementById('test-tabs-container');
-  const testsObj = data.tests || (data.suite_trace ? data.suite_trace.tests : {}) || data.test_results || {};
+  const testsObj = data.tests || {};
   const testKeys = Object.keys(testsObj);
 
   if (testKeys.length === 0) {
@@ -702,12 +601,10 @@ function getStepPeakContextTokens(step) {
 }
 
 function getStepContextUsedPct(step, testData, rootTraceData) {
-  // 1. If step explicitly has context_used_pct
   if (step.context_used_pct !== undefined && step.context_used_pct !== null) {
     return Number(step.context_used_pct);
   }
 
-  // 2. Compute peak context window size across individual turns in this step
   const maxContext = (rootTraceData && rootTraceData.context_length) || (testData && testData.context_length) || 262144;
   const peakContext = getStepPeakContextTokens(step);
 
@@ -715,17 +612,11 @@ function getStepContextUsedPct(step, testData, rootTraceData) {
     return (peakContext / maxContext) * 100;
   }
 
-  // 3. Fallback: If no message turns exist (e.g. single turn / legacy trace), check tokens
   const tokens = getStepTokens(step);
   const totalTokens = (tokens.in || 0) + (tokens.out || 0);
 
   if (totalTokens > 0 && maxContext > 0) {
     return (totalTokens / maxContext) * 100;
-  }
-
-  // 4. Fallback to suite test-level context_used_pct if available
-  if (testData && testData.context_used_pct !== undefined && testData.context_used_pct !== null) {
-    return Number(testData.context_used_pct);
   }
 
   return null;

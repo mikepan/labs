@@ -277,7 +277,6 @@ def run_test_suite_on_agent(
                     if not cr.get("passed"):
                         logger.warning("    - Failure: %s", cr.get("message"))
 
-            # Build step trace using consistent StepTrace format
             step_traces.append(StepTrace(
                 step_index=idx,
                 step_name=step_name,

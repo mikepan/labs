@@ -1269,8 +1269,6 @@ footer a:hover {
 .response-text,
 .validation-summary,
 .tool-code-preview,
-.chat-bubble-user,
-.chat-bubble-assistant,
 .assertions-container {
   max-height: 300px;
   overflow-y: auto;
@@ -1541,62 +1539,10 @@ footer a:hover {
   line-height: 1.5;
 }
 
-/* Chat Bubbles (User & Assistant) */
-.chat-bubble-user,
-.chat-bubble-assistant {
-  padding: 1rem 1.25rem;
-  border-radius: var(--radius-md);
-}
-
-.chat-bubble-user {
-  background: #f8fafc;
-  border: 1px solid rgba(0, 0, 0, 0.07);
-  border-left: 4px solid var(--accent-orange);
-}
-
-.chat-bubble-assistant {
-  background: #ffffff;
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  border-left: 4px solid #3b82f6;
-}
-
-.bubble-sender {
-  font-size: 0.75rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  margin-bottom: 0.35rem;
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-}
-
-.chat-bubble-user .bubble-sender {
-  color: var(--accent-orange);
-}
-
-.chat-bubble-assistant .bubble-sender {
-  color: #2563eb;
-}
-
-.bubble-text {
-  font-size: 0.925rem;
-  line-height: 1.55;
-  color: var(--text-main);
-  white-space: pre-wrap;
-  word-break: break-word;
-  max-height: 300px;
-  overflow-y: auto;
-}
-
 /* =====================================================================
    Consolidated Responsive Media Queries
 ===================================================================== */
 @media (max-width: 900px) {
-  .grid-table-header {
-    display: none;
-  }
-
   .step-columns-wrapper {
     grid-template-columns: 1fr;
     gap: 1.25rem;
@@ -1626,8 +1572,6 @@ footer a:hover {
   .tool-code-wrapper,
   .response-text,
   .validation-summary,
-  .chat-bubble-user,
-  .chat-bubble-assistant,
   .assertions-container {
     max-width: 100%;
     width: 100%;

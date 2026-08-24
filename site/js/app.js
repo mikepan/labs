@@ -201,17 +201,15 @@ function formatChartModelLabel(name) {
   return name;
 }
 
-function renderModelSpeedChart(evaluations) {
-  const chartEl = document.getElementById('chart-model-speed');
+function renderRankingBarChart(containerId, evaluations, { metricKey, yAxisName, gradientColors, hoverColor }) {
+  const chartEl = document.getElementById(containerId);
   const chart = getOrCreateChart(chartEl);
   if (!chart) return;
 
-  // Sort evaluations by task_speed descending and take top 10
   const normalized = evaluations.map(e => extractEvalMetrics(e));
-  const sorted = normalized.sort((a, b) => (b.taskSpeed || 0) - (a.taskSpeed || 0)).slice(0, 10);
-
+  const sorted = normalized.sort((a, b) => (b[metricKey] || 0) - (a[metricKey] || 0)).slice(0, 10);
   const modelLabels = sorted.map(m => m.modelName);
-  const speedValues = sorted.map(m => Number(m.taskSpeed || 0).toFixed(1));
+  const metricValues = sorted.map(m => Number(m[metricKey] || 0).toFixed(1));
 
   const option = {
     backgroundColor: 'transparent',
@@ -223,19 +221,9 @@ function renderModelSpeedChart(evaluations) {
       shadowColor: 'rgba(0, 0, 0, 0.08)',
       shadowBlur: 12,
       textStyle: { color: '#0f172a', fontFamily: 'system-ui, -apple-system, sans-serif' },
-      formatter: function (params) {
-        const item = params[0];
-        const rawEval = sorted[item.dataIndex]?.raw;
-        return formatModelCardTooltip(rawEval);
-      }
+      formatter: (params) => formatModelCardTooltip(sorted[params[0].dataIndex]?.raw)
     },
-    grid: {
-      left: '3%',
-      right: '4%',
-      bottom: '24%',
-      top: '12%',
-      containLabel: true
-    },
+    grid: { left: '3%', right: '4%', bottom: '24%', top: '12%', containLabel: true },
     xAxis: {
       type: 'category',
       data: modelLabels,
@@ -247,42 +235,33 @@ function renderModelSpeedChart(evaluations) {
         rotate: 45,
         fontSize: 10,
         lineHeight: 13,
-        formatter: function (value) {
-          return formatChartModelLabel(value);
-        }
+        formatter: (value) => formatChartModelLabel(value)
       }
     },
     yAxis: {
       type: 'value',
-      name: 'Task Speed',
+      name: yAxisName,
       axisLine: { lineStyle: { color: '#cbd5e1' } },
       splitLine: { lineStyle: { color: '#f1f5f9' } },
       axisLabel: { color: '#64748b', fontFamily: 'system-ui, -apple-system, sans-serif' }
     },
-    series: [
-      {
-        name: 'Task Speed',
-        type: 'bar',
-        data: speedValues,
-        itemStyle: {
-          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: '#ea580c' },
-            { offset: 1, color: '#fb923c' }
-          ]),
-          borderRadius: [6, 6, 0, 0]
-        },
-        barWidth: 18,
-        emphasis: {
-          itemStyle: {
-            color: '#c2410c'
-          }
-        }
-      }
-    ]
+    series: [{
+      name: yAxisName,
+      type: 'bar',
+      data: metricValues,
+      itemStyle: {
+        color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+          { offset: 0, color: gradientColors[0] },
+          { offset: 1, color: gradientColors[1] }
+        ]),
+        borderRadius: [6, 6, 0, 0]
+      },
+      barWidth: 18,
+      emphasis: { itemStyle: { color: hoverColor } }
+    }]
   };
 
   chart.setOption(option);
-
   chart.off('click');
   chart.on('click', function (params) {
     const rawEval = sorted[params.dataIndex]?.raw;
@@ -292,94 +271,21 @@ function renderModelSpeedChart(evaluations) {
   });
 }
 
+function renderModelSpeedChart(evaluations) {
+  renderRankingBarChart('chart-model-speed', evaluations, {
+    metricKey: 'taskSpeed',
+    yAxisName: 'Task Speed',
+    gradientColors: ['#ea580c', '#fb923c'],
+    hoverColor: '#c2410c'
+  });
+}
+
 function renderModelDensityChart(evaluations) {
-  const chartEl = document.getElementById('chart-model-density');
-  const chart = getOrCreateChart(chartEl);
-  if (!chart) return;
-
-  // Sort evaluations by intelligence_density descending and take top 10
-  const normalized = evaluations.map(e => extractEvalMetrics(e));
-  const sorted = normalized.sort((a, b) => (b.intelligenceDensity || 0) - (a.intelligenceDensity || 0)).slice(0, 10);
-
-  const modelLabels = sorted.map(m => m.modelName);
-  const densityValues = sorted.map(m => Number(m.intelligenceDensity || 0).toFixed(1));
-
-  const option = {
-    backgroundColor: 'transparent',
-    tooltip: {
-      trigger: 'axis',
-      confine: true,
-      backgroundColor: 'rgba(255, 255, 255, 0.96)',
-      borderColor: '#e2e8f0',
-      shadowColor: 'rgba(0, 0, 0, 0.08)',
-      shadowBlur: 12,
-      textStyle: { color: '#0f172a', fontFamily: 'system-ui, -apple-system, sans-serif' },
-      formatter: function (params) {
-        const item = params[0];
-        const rawEval = sorted[item.dataIndex]?.raw;
-        return formatModelCardTooltip(rawEval);
-      }
-    },
-    grid: {
-      left: '3%',
-      right: '4%',
-      bottom: '24%',
-      top: '12%',
-      containLabel: true
-    },
-    xAxis: {
-      type: 'category',
-      data: modelLabels,
-      axisLine: { lineStyle: { color: '#cbd5e1' } },
-      axisLabel: {
-        color: '#64748b',
-        fontFamily: 'system-ui, -apple-system, sans-serif',
-        interval: 0,
-        rotate: 45,
-        fontSize: 10,
-        lineHeight: 13,
-        formatter: function (value) {
-          return formatChartModelLabel(value);
-        }
-      }
-    },
-    yAxis: {
-      type: 'value',
-      name: 'Intelligence Density',
-      axisLine: { lineStyle: { color: '#cbd5e1' } },
-      splitLine: { lineStyle: { color: '#f1f5f9' } },
-      axisLabel: { color: '#64748b', fontFamily: 'system-ui, -apple-system, sans-serif' }
-    },
-    series: [
-      {
-        name: 'Intelligence Density',
-        type: 'bar',
-        data: densityValues,
-        itemStyle: {
-          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: '#059669' },
-            { offset: 1, color: '#34d399' }
-          ]),
-          borderRadius: [6, 6, 0, 0]
-        },
-        barWidth: 18,
-        emphasis: {
-          itemStyle: {
-            color: '#047857'
-          }
-        }
-      }
-    ]
-  };
-
-  chart.setOption(option);
-
-  chart.off('click');
-  chart.on('click', function (params) {
-    const rawEval = sorted[params.dataIndex]?.raw;
-    if (rawEval && rawEval.eval_id) {
-      window.location.href = `./trace.html?eval_id=${encodeURIComponent(rawEval.eval_id)}`;
-    }
+  renderRankingBarChart('chart-model-density', evaluations, {
+    metricKey: 'intelligenceDensity',
+    yAxisName: 'Intelligence Density',
+    gradientColors: ['#059669', '#34d399'],
+    hoverColor: '#047857'
   });
 }
 
@@ -427,20 +333,15 @@ function renderTopScatterChart(evaluations, viewMode = 'time') {
     }
   });
 
-  // Sort paretoPoints by X ascending to form the frontier curve
   paretoPoints.sort((a, b) => a.x - b.x);
 
   // 3. Classify points & assign tier label
   const pointClassifications = new Map();
   paretoPoints.forEach(p => {
-    pointClassifications.set(p.id, {
-      tier: 'Best-In-Class',
-      color: '#059669' // Green
-    });
+    pointClassifications.set(p.id, { tier: 'Best-In-Class', color: '#059669' });
   });
 
   dominatedPoints.forEach(p => {
-    // Interpolate Pareto frontier Y value at p.x
     let frontierY = 0;
     if (p.x <= paretoPoints[0].x) {
       frontierY = paretoPoints[0].y;
@@ -457,38 +358,26 @@ function renderTopScatterChart(evaluations, viewMode = 'time') {
     }
 
     const deficit = frontierY - p.y;
-    if (deficit <= 12.0) {
-      pointClassifications.set(p.id, {
-        tier: 'Average',
-        color: '#d97706' // Yellow / Amber
-      });
-    } else {
-      pointClassifications.set(p.id, {
-        tier: 'Below Average',
-        color: '#e11d48' // Red
-      });
-    }
+    pointClassifications.set(p.id, {
+      tier: deficit <= 12.0 ? 'Average' : 'Below Average',
+      color: deficit <= 12.0 ? '#d97706' : '#e11d48'
+    });
   });
 
-  // Group scatter series data by legend category
-  const bestInClassData = [];
-  const averageData = [];
-  const belowAverageData = [];
+  const tierConfigs = [
+    { name: 'Best-In-Class', color: '#059669', shadow: 'rgba(5, 150, 105, 0.3)', data: [] },
+    { name: 'Average', color: '#d97706', shadow: 'rgba(217, 119, 6, 0.3)', data: [] },
+    { name: 'Below Average', color: '#e11d48', shadow: 'rgba(225, 29, 72, 0.3)', data: [] }
+  ];
+  const tierMap = Object.fromEntries(tierConfigs.map(t => [t.name, t.data]));
 
   rawPoints.forEach(p => {
     const cls = pointClassifications.get(p.id);
-    const item = {
+    tierMap[cls.tier]?.push({
       name: p.name,
       value: [p.x, p.y],
       rawEval: p.rawEval
-    };
-    if (cls.tier === 'Best-In-Class') {
-      bestInClassData.push(item);
-    } else if (cls.tier === 'Average') {
-      averageData.push(item);
-    } else {
-      belowAverageData.push(item);
-    }
+    });
   });
 
   const xAxisName = viewMode === 'time' ? 'Task Completion Time (seconds)' : 'Memory / VRAM Size (GB)';
@@ -503,9 +392,7 @@ function renderTopScatterChart(evaluations, viewMode = 'time') {
       shadowColor: 'rgba(0, 0, 0, 0.08)',
       shadowBlur: 12,
       textStyle: { color: '#0f172a', fontFamily: 'system-ui, -apple-system, sans-serif' },
-      formatter: function (params) {
-        return formatModelCardTooltip(params.data.rawEval);
-      }
+      formatter: (params) => formatModelCardTooltip(params.data.rawEval)
     },
     legend: {
       data: ['Best-In-Class', 'Average', 'Below Average'],
@@ -513,13 +400,7 @@ function renderTopScatterChart(evaluations, viewMode = 'time') {
       right: '5%',
       textStyle: { color: '#64748b', fontFamily: 'system-ui, -apple-system, sans-serif' }
     },
-    grid: {
-      left: '4%',
-      right: '5%',
-      bottom: '12%',
-      top: '12%',
-      containLabel: true
-    },
+    grid: { left: '4%', right: '5%', bottom: '12%', top: '12%', containLabel: true },
     xAxis: {
       type: 'value',
       name: xAxisName,
@@ -538,94 +419,29 @@ function renderTopScatterChart(evaluations, viewMode = 'time') {
       splitLine: { lineStyle: { color: '#f1f5f9' } },
       axisLabel: { color: '#64748b', fontFamily: 'system-ui, -apple-system, sans-serif' }
     },
-    series: [
-      {
-        name: 'Best-In-Class',
-        type: 'scatter',
-        symbolSize: 22,
-        data: bestInClassData,
-        itemStyle: {
-          color: '#059669',
-          borderWidth: 1.5,
-          borderColor: 'rgba(255, 255, 255, 0.9)',
-          shadowColor: 'rgba(5, 150, 105, 0.3)',
-          shadowBlur: 10
-        },
-        emphasis: {
-          focus: 'self',
-          scale: 1.5,
-          itemStyle: {
-            borderColor: '#ffffff',
-            borderWidth: 3.5,
-            shadowBlur: 35,
-            shadowColor: '#059669',
-            opacity: 1
-          }
-        },
-        blur: {
-          itemStyle: { opacity: 0.2, shadowBlur: 0 }
-        }
+    series: tierConfigs.map(t => ({
+      name: t.name,
+      type: 'scatter',
+      symbolSize: 22,
+      data: t.data,
+      itemStyle: {
+        color: t.color,
+        borderWidth: 1.5,
+        borderColor: 'rgba(255, 255, 255, 0.9)',
+        shadowColor: t.shadow,
+        shadowBlur: 10
       },
-      {
-        name: 'Average',
-        type: 'scatter',
-        symbolSize: 22,
-        data: averageData,
-        itemStyle: {
-          color: '#d97706',
-          borderWidth: 1.5,
-          borderColor: 'rgba(255, 255, 255, 0.9)',
-          shadowColor: 'rgba(217, 119, 6, 0.3)',
-          shadowBlur: 10
-        },
-        emphasis: {
-          focus: 'self',
-          scale: 1.5,
-          itemStyle: {
-            borderColor: '#ffffff',
-            borderWidth: 3.5,
-            shadowBlur: 35,
-            shadowColor: '#d97706',
-            opacity: 1
-          }
-        },
-        blur: {
-          itemStyle: { opacity: 0.2, shadowBlur: 0 }
-        }
+      emphasis: {
+        focus: 'self',
+        scale: 1.5,
+        itemStyle: { borderColor: '#ffffff', borderWidth: 3.5, shadowBlur: 35, shadowColor: t.color, opacity: 1 }
       },
-      {
-        name: 'Below Average',
-        type: 'scatter',
-        symbolSize: 22,
-        data: belowAverageData,
-        itemStyle: {
-          color: '#e11d48',
-          borderWidth: 1.5,
-          borderColor: 'rgba(255, 255, 255, 0.9)',
-          shadowColor: 'rgba(225, 29, 72, 0.3)',
-          shadowBlur: 10
-        },
-        emphasis: {
-          focus: 'self',
-          scale: 1.5,
-          itemStyle: {
-            borderColor: '#ffffff',
-            borderWidth: 3.5,
-            shadowBlur: 35,
-            shadowColor: '#e11d48',
-            opacity: 1
-          }
-        },
-        blur: {
-          itemStyle: { opacity: 0.2, shadowBlur: 0 }
-        }
-      }
-    ]
+      blur: { itemStyle: { opacity: 0.2, shadowBlur: 0 } }
+    }))
   };
 
   chart.setOption(option, true);
 
-  // Navigate to trace viewer on dot click
   chart.off('click');
   chart.on('click', function (params) {
     if (params.data && params.data.rawEval && params.data.rawEval.eval_id) {

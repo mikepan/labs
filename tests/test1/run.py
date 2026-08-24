@@ -173,9 +173,53 @@ def compute_expected_channel_performance(source_csv_path: str) -> list[tuple[str
 
 def _get_source_csv(workspace_dir: str) -> str:
     source_csv = os.path.join(workspace_dir, "bookstore_orders.csv")
-    if not os.path.exists(source_csv):
-        source_csv = _csv_source
-    return source_csv
+    return source_csv if os.path.exists(source_csv) else _csv_source
+
+
+def _validate_tabular_csv(
+    workspace_dir: str,
+    filepath: str,
+    expected_rows: list,
+    col_matchers: list[tuple[str, list[str]]],
+    row_validator,
+    success_msg: str,
+) -> tuple[bool, str]:
+    target_path = os.path.join(workspace_dir, filepath)
+    if not os.path.exists(target_path):
+        available = [f for f in os.listdir(workspace_dir) if not f.startswith(".")]
+        return False, f"File '{filepath}' not found in workspace '{workspace_dir}'. Available files: {available}"
+
+    try:
+        with open(target_path, "r", encoding="utf-8", errors="ignore") as f:
+            raw_rows = [r for r in csv.reader(f) if any(cell.strip() for cell in r)]
+    except Exception as e:
+        return False, f"Failed to parse CSV '{filepath}': {e}"
+
+    if not raw_rows:
+        return False, f"File '{filepath}' is empty."
+
+    data_rows = raw_rows[1:]
+    if len(data_rows) != len(expected_rows):
+        return False, (
+            f"Row count mismatch: expected exactly {len(expected_rows)} data rows, "
+            f"but found {len(data_rows)} rows. Header found: {raw_rows[0]}"
+        )
+
+    norm_header = [_norm(h) for h in raw_rows[0]]
+    indices = []
+    for col_name, keywords in col_matchers:
+        idx = next((i for i, h in enumerate(norm_header) if any(k in h for k in keywords)), None)
+        indices.append(idx if idx is not None else len(indices))
+
+    for rank, (exp, row) in enumerate(zip(expected_rows, data_rows), 1):
+        if len(row) <= max(indices):
+            req_cols = ", ".join(c[0] for c in col_matchers)
+            return False, f"Row {rank} is missing required columns ({req_cols}). Found row: {row}"
+        valid, msg = row_validator(rank, exp, row, indices)
+        if not valid:
+            return False, msg
+
+    return True, success_msg
 
 
 # ==============================================================================
@@ -184,57 +228,16 @@ def _get_source_csv(workspace_dir: str) -> str:
 
 def check_top_customers_csv(filepath: str = "top-cust.csv") -> CustomAssert:
     """Validate top-cust.csv against ground truth computed directly from bookstore_orders.csv."""
-
     def _validate(workspace_dir: str) -> tuple[bool, str]:
-        target_path = os.path.join(workspace_dir, filepath)
-        if not os.path.exists(target_path):
-            available = [f for f in os.listdir(workspace_dir) if not f.startswith(".")]
-            return False, f"File '{filepath}' not found in workspace '{workspace_dir}'. Available files: {available}"
-
-        expected_top10 = compute_expected_top_customers(_get_source_csv(workspace_dir), top_n=10)
-
-        try:
-            with open(target_path, "r", encoding="utf-8", errors="ignore") as f:
-                reader = csv.reader(f)
-                raw_rows = [r for r in reader if any(cell.strip() for cell in r)]
-        except Exception as e:
-            return False, f"Failed to parse CSV '{filepath}': {e}"
-
-        if not raw_rows:
-            return False, f"File '{filepath}' is empty."
-
-        header = raw_rows[0]
-        data_rows = raw_rows[1:]
-
-        if len(data_rows) != len(expected_top10):
-            return False, (
-                f"Row count mismatch: expected exactly {len(expected_top10)} data rows for top 10 customers, "
-                f"but found {len(data_rows)} rows. Header found: {header}"
-            )
-
-        norm_header = [_norm(h) for h in header]
-        name_idx, spend_idx = None, None
-        for idx, h in enumerate(norm_header):
-            if "fullname" in h or h in "fullname" or "name" in h:
-                name_idx = idx
-            elif "spend" in h or "total" in h or "amount" in h:
-                spend_idx = idx
-
-        if name_idx is None:
-            name_idx = 0
-        if spend_idx is None:
-            spend_idx = 1 if len(header) > 1 else 0
-
-        for rank, ((exp_name, exp_spend), row) in enumerate(zip(expected_top10, data_rows), 1):
-            if len(row) <= max(name_idx, spend_idx):
-                return False, f"Row {rank} is missing required columns (FullName, TotalSpend). Found row: {row}"
-
+        expected = compute_expected_top_customers(_get_source_csv(workspace_dir), top_n=10)
+        def _check_row(rank, exp, row, idxs):
+            name_idx, spend_idx = idxs
+            exp_name, exp_spend = exp
             act_name = row[name_idx].strip()
             try:
                 act_spend = _clean_float(row[spend_idx])
             except ValueError:
                 return False, f"Row {rank} has non-numeric spend value '{row[spend_idx]}' in row: {row}"
-
             if exp_name.lower() != act_name.lower():
                 return False, (
                     f"Row {rank} customer mismatch: expected '{exp_name}' (${exp_spend:.2f}), "
@@ -242,17 +245,20 @@ def check_top_customers_csv(filepath: str = "top-cust.csv") -> CustomAssert:
                     f"(Check: Did you aggregate orders by customer_id rather than customer name string? "
                     f"Distinct customers who share names must be separated)."
                 )
-
             if abs(act_spend - exp_spend) > 0.05:
                 return False, (
                     f"Row {rank} ({exp_name}) spend mismatch: expected ${exp_spend:.2f}, "
                     f"got ${act_spend:.2f} (diff: ${abs(act_spend - exp_spend):.2f}). "
                     f"(Check: Did you subtract refund_amount for returns?)"
                 )
+            return True, ""
 
-        top_preview = f"Rank 1: {expected_top10[0][0]} (${expected_top10[0][1]:.2f}) ... Rank 10: {expected_top10[-1][0]} (${expected_top10[-1][1]:.2f})"
-        return True, f"All 10 rows match ground truth ({top_preview})."
-
+        top_preview = f"Rank 1: {expected[0][0]} (${expected[0][1]:.2f}) ... Rank 10: {expected[-1][0]} (${expected[-1][1]:.2f})"
+        return _validate_tabular_csv(
+            workspace_dir, filepath, expected,
+            [("FullName", ["fullname", "name"]), ("TotalSpend", ["spend", "total", "amount"])],
+            _check_row, f"All 10 rows match ground truth ({top_preview})."
+        )
     return custom_check(_validate)
 
 
@@ -261,145 +267,51 @@ check_csv = check_top_customers_csv
 
 def check_top_authors_csv(filepath: str = "top-authors.csv") -> CustomAssert:
     """Validate top-authors.csv (Author, UnitsSold, GrossSales) against ground truth."""
-
     def _validate(workspace_dir: str) -> tuple[bool, str]:
-        target_path = os.path.join(workspace_dir, filepath)
-        if not os.path.exists(target_path):
-            available = [f for f in os.listdir(workspace_dir) if not f.startswith(".")]
-            return False, f"File '{filepath}' not found in workspace '{workspace_dir}'. Available files: {available}"
-
         expected = compute_expected_top_authors(_get_source_csv(workspace_dir), top_n=10)
-
-        try:
-            with open(target_path, "r", encoding="utf-8", errors="ignore") as f:
-                reader = csv.reader(f)
-                raw_rows = [r for r in reader if any(cell.strip() for cell in r)]
-        except Exception as e:
-            return False, f"Failed to parse CSV '{filepath}': {e}"
-
-        if not raw_rows:
-            return False, f"File '{filepath}' is empty."
-
-        header = raw_rows[0]
-        data_rows = raw_rows[1:]
-
-        if len(data_rows) != len(expected):
-            return False, (
-                f"Row count mismatch: expected exactly {len(expected)} data rows for top 10 authors, "
-                f"but found {len(data_rows)} rows. Header found: {header}"
-            )
-
-        norm_header = [_norm(h) for h in header]
-        auth_idx, units_idx, sales_idx = None, None, None
-        for idx, h in enumerate(norm_header):
-            if "author" in h or "name" in h:
-                auth_idx = idx
-            elif "unit" in h or "qty" in h or "quantity" in h or "count" in h or "sold" in h:
-                units_idx = idx
-            elif "gross" in h or "sale" in h or "revenue" in h or "total" in h or "spend" in h:
-                sales_idx = idx
-
-        if auth_idx is None:
-            auth_idx = 0
-        if units_idx is None:
-            units_idx = 1
-        if sales_idx is None:
-            sales_idx = 2
-
-        for rank, ((exp_auth, exp_units, exp_sales), row) in enumerate(zip(expected, data_rows), 1):
-            if len(row) <= max(auth_idx, units_idx, sales_idx):
-                return False, f"Row {rank} is missing required columns (Author, UnitsSold, GrossSales). Found row: {row}"
-
+        def _check_row(rank, exp, row, idxs):
+            auth_idx, units_idx, sales_idx = idxs
+            exp_auth, exp_units, exp_sales = exp
             act_auth = row[auth_idx].strip()
             try:
                 act_units = int(round(_clean_float(row[units_idx])))
-            except ValueError:
-                return False, f"Row {rank} has non-integer units value '{row[units_idx]}' in row: {row}"
-
-            try:
                 act_sales = _clean_float(row[sales_idx])
             except ValueError:
-                return False, f"Row {rank} has non-numeric gross sales value '{row[sales_idx]}' in row: {row}"
-
+                return False, f"Row {rank} contains invalid numeric data in row: {row}"
             if exp_auth.lower() != act_auth.lower():
                 return False, (
                     f"Row {rank} author mismatch: expected '{exp_auth}' (Units: {exp_units}, Gross: ${exp_sales:.2f}), "
                     f"got '{act_auth}' (Units: {act_units}, Gross: ${act_sales:.2f}). "
                     f"(Check: Did you aggregate across BOTH primary and secondary items, and sort by GrossSales descending?)"
                 )
-
             if act_units != exp_units:
                 return False, (
                     f"Row {rank} ({exp_auth}) units mismatch: expected {exp_units} units, "
                     f"got {act_units} units (diff: {abs(act_units - exp_units)}). "
                     f"(Check: Did you include secondary_item_quantity when secondary items are present?)"
                 )
-
             if abs(act_sales - exp_sales) > 0.05:
                 return False, (
                     f"Row {rank} ({exp_auth}) gross sales mismatch: expected ${exp_sales:.2f}, "
                     f"got ${act_sales:.2f} (diff: ${abs(act_sales - exp_sales):.2f})."
                 )
+            return True, ""
 
-        return True, f"All 10 rows match top authors ground truth (Rank 1: {expected[0][0]} with {expected[0][1]} units, ${expected[0][2]:.2f})."
-
+        return _validate_tabular_csv(
+            workspace_dir, filepath, expected,
+            [("Author", ["author", "name"]), ("UnitsSold", ["unit", "qty", "quantity", "count", "sold"]), ("GrossSales", ["gross", "sale", "revenue", "total", "spend"])],
+            _check_row, f"All 10 rows match top authors ground truth (Rank 1: {expected[0][0]} with {expected[0][1]} units, ${expected[0][2]:.2f})."
+        )
     return custom_check(_validate)
 
 
 def check_genre_returns_csv(filepath: str = "genre-returns.csv") -> CustomAssert:
     """Validate genre-returns.csv (Genre, TotalOrders, ReturnedOrders, ReturnRatePct, TotalRefund)."""
-
     def _validate(workspace_dir: str) -> tuple[bool, str]:
-        target_path = os.path.join(workspace_dir, filepath)
-        if not os.path.exists(target_path):
-            available = [f for f in os.listdir(workspace_dir) if not f.startswith(".")]
-            return False, f"File '{filepath}' not found in workspace '{workspace_dir}'. Available files: {available}"
-
         expected = compute_expected_genre_returns(_get_source_csv(workspace_dir))
-
-        try:
-            with open(target_path, "r", encoding="utf-8", errors="ignore") as f:
-                reader = csv.reader(f)
-                raw_rows = [r for r in reader if any(cell.strip() for cell in r)]
-        except Exception as e:
-            return False, f"Failed to parse CSV '{filepath}': {e}"
-
-        if not raw_rows:
-            return False, f"File '{filepath}' is empty."
-
-        header = raw_rows[0]
-        data_rows = raw_rows[1:]
-
-        if len(data_rows) != len(expected):
-            return False, (
-                f"Row count mismatch: expected exactly {len(expected)} genre data rows, "
-                f"but found {len(data_rows)} rows. Header found: {header}"
-            )
-
-        norm_header = [_norm(h) for h in header]
-        genre_idx, tot_idx, ret_idx, pct_idx, ref_idx = None, None, None, None, None
-        for idx, h in enumerate(norm_header):
-            if "genre" in h or "category" in h:
-                genre_idx = idx
-            elif "pct" in h or "rate" in h or "percent" in h:
-                pct_idx = idx
-            elif "refund" in h:
-                ref_idx = idx
-            elif "return" in h or "ret" in h:
-                ret_idx = idx
-            elif "tot" in h or "order" in h or "count" in h:
-                tot_idx = idx
-
-        genre_idx = genre_idx if genre_idx is not None else 0
-        tot_idx = tot_idx if tot_idx is not None else 1
-        ret_idx = ret_idx if ret_idx is not None else 2
-        pct_idx = pct_idx if pct_idx is not None else 3
-        ref_idx = ref_idx if ref_idx is not None else 4
-
-        for rank, ((exp_genre, exp_tot, exp_ret, exp_pct, exp_ref), row) in enumerate(zip(expected, data_rows), 1):
-            if len(row) <= max(genre_idx, tot_idx, ret_idx, pct_idx, ref_idx):
-                return False, f"Row {rank} is missing required columns (Genre, TotalOrders, ReturnedOrders, ReturnRatePct, TotalRefund). Found row: {row}"
-
+        def _check_row(rank, exp, row, idxs):
+            genre_idx, tot_idx, ret_idx, pct_idx, ref_idx = idxs
+            exp_genre, exp_tot, exp_ret, exp_pct, exp_ref = exp
             act_genre = row[genre_idx].strip()
             try:
                 act_tot = int(round(_clean_float(row[tot_idx])))
@@ -408,88 +320,44 @@ def check_genre_returns_csv(filepath: str = "genre-returns.csv") -> CustomAssert
                 act_ref = _clean_float(row[ref_idx])
             except ValueError as e:
                 return False, f"Row {rank} contains invalid numeric data: {row} (error: {e})"
-
             if exp_genre.lower() != act_genre.lower():
                 return False, (
                     f"Row {rank} genre mismatch: expected '{exp_genre}' (Total: {exp_tot}, Ret: {exp_ret}, Rate: {exp_pct:.2f}%, Ref: ${exp_ref:.2f}), "
                     f"got '{act_genre}' (Total: {act_tot}, Ret: {act_ret}, Rate: {act_pct:.2f}%, Ref: ${act_ref:.2f}). "
                     f"(Check: Sort by ReturnRatePct descending, with ties broken by TotalRefund descending)."
                 )
-
             if act_tot != exp_tot or act_ret != exp_ret:
                 return False, (
                     f"Row {rank} ({exp_genre}) order count mismatch: expected Total={exp_tot}, Returned={exp_ret}, "
                     f"got Total={act_tot}, Returned={act_ret}."
                 )
-
             if abs(act_pct - exp_pct) > 0.1:
                 return False, (
                     f"Row {rank} ({exp_genre}) return rate mismatch: expected {exp_pct:.2f}%, "
                     f"got {act_pct:.2f}% (diff: {abs(act_pct - exp_pct):.2f}%)."
                 )
-
             if abs(act_ref - exp_ref) > 0.05:
                 return False, (
                     f"Row {rank} ({exp_genre}) refund mismatch: expected ${exp_ref:.2f}, "
                     f"got ${act_ref:.2f} (diff: ${abs(act_ref - exp_ref):.2f})."
                 )
+            return True, ""
 
-        return True, f"All {len(expected)} genre rows match ground truth."
-
+        return _validate_tabular_csv(
+            workspace_dir, filepath, expected,
+            [("Genre", ["genre", "category"]), ("TotalOrders", ["tot", "order", "count"]), ("ReturnedOrders", ["return", "ret"]), ("ReturnRatePct", ["pct", "rate", "percent"]), ("TotalRefund", ["refund"])],
+            _check_row, f"All {len(expected)} genre rows match ground truth."
+        )
     return custom_check(_validate)
 
 
 def check_carrier_otd_csv(filepath: str = "carrier-otd.csv") -> CustomAssert:
     """Validate carrier-otd.csv (CarrierName, TotalDelivered, OnTimeDelivered, OnTimePct)."""
-
     def _validate(workspace_dir: str) -> tuple[bool, str]:
-        target_path = os.path.join(workspace_dir, filepath)
-        if not os.path.exists(target_path):
-            available = [f for f in os.listdir(workspace_dir) if not f.startswith(".")]
-            return False, f"File '{filepath}' not found in workspace '{workspace_dir}'. Available files: {available}"
-
         expected = compute_expected_carrier_otd(_get_source_csv(workspace_dir))
-
-        try:
-            with open(target_path, "r", encoding="utf-8", errors="ignore") as f:
-                reader = csv.reader(f)
-                raw_rows = [r for r in reader if any(cell.strip() for cell in r)]
-        except Exception as e:
-            return False, f"Failed to parse CSV '{filepath}': {e}"
-
-        if not raw_rows:
-            return False, f"File '{filepath}' is empty."
-
-        header = raw_rows[0]
-        data_rows = raw_rows[1:]
-
-        if len(data_rows) != len(expected):
-            return False, (
-                f"Row count mismatch: expected exactly {len(expected)} carrier data rows, "
-                f"but found {len(data_rows)} rows. Header found: {header}"
-            )
-
-        norm_header = [_norm(h) for h in header]
-        carrier_idx, deliv_idx, ontime_idx, pct_idx = None, None, None, None
-        for idx, h in enumerate(norm_header):
-            if "carrier" in h or "name" in h:
-                carrier_idx = idx
-            elif "pct" in h or "rate" in h or "percent" in h:
-                pct_idx = idx
-            elif "ontime" in h:
-                ontime_idx = idx
-            elif "deliv" in h or "total" in h or "count" in h or "order" in h:
-                deliv_idx = idx
-
-        carrier_idx = carrier_idx if carrier_idx is not None else 0
-        deliv_idx = deliv_idx if deliv_idx is not None else 1
-        ontime_idx = ontime_idx if ontime_idx is not None else 2
-        pct_idx = pct_idx if pct_idx is not None else 3
-
-        for rank, ((exp_carrier, exp_deliv, exp_ontime, exp_pct), row) in enumerate(zip(expected, data_rows), 1):
-            if len(row) <= max(carrier_idx, deliv_idx, ontime_idx, pct_idx):
-                return False, f"Row {rank} is missing required columns (CarrierName, TotalDelivered, OnTimeDelivered, OnTimePct). Found row: {row}"
-
+        def _check_row(rank, exp, row, idxs):
+            carrier_idx, deliv_idx, ontime_idx, pct_idx = idxs
+            exp_carrier, exp_deliv, exp_ontime, exp_pct = exp
             act_carrier = row[carrier_idx].strip()
             try:
                 act_deliv = int(round(_clean_float(row[deliv_idx])))
@@ -497,7 +365,6 @@ def check_carrier_otd_csv(filepath: str = "carrier-otd.csv") -> CustomAssert:
                 act_pct = _clean_float(row[pct_idx])
             except ValueError as e:
                 return False, f"Row {rank} contains invalid numeric data: {row} (error: {e})"
-
             if exp_carrier.lower() != act_carrier.lower():
                 return False, (
                     f"Row {rank} carrier mismatch: expected '{exp_carrier}' (Delivered: {exp_deliv}, OnTime: {exp_ontime}, OTD: {exp_pct:.2f}%), "
@@ -505,161 +372,73 @@ def check_carrier_otd_csv(filepath: str = "carrier-otd.csv") -> CustomAssert:
                     f"(Check: Did you compare calendar dates 'YYYY-MM-DD' rather than datetime timestamps? "
                     f"estimated_delivery_date is a date without time, so comparing full timestamps treats deliveries on the estimated date as late)."
                 )
-
             if act_deliv != exp_deliv or act_ontime != exp_ontime:
                 return False, (
                     f"Row {rank} ({exp_carrier}) count mismatch: expected Delivered={exp_deliv}, OnTime={exp_ontime}, "
                     f"got Delivered={act_deliv}, OnTime={act_ontime}. "
                     f"(Check: An order is on-time if actual_delivery_date.date() <= estimated_delivery_date.date())."
                 )
-
             if abs(act_pct - exp_pct) > 0.1:
                 return False, (
                     f"Row {rank} ({exp_carrier}) OTD % mismatch: expected {exp_pct:.2f}%, "
                     f"got {act_pct:.2f}% (diff: {abs(act_pct - exp_pct):.2f}%)."
                 )
+            return True, ""
 
-        return True, f"All {len(expected)} carriers match ground truth OTD metrics."
-
+        return _validate_tabular_csv(
+            workspace_dir, filepath, expected,
+            [("CarrierName", ["carrier", "name"]), ("TotalDelivered", ["deliv", "total", "count", "order"]), ("OnTimeDelivered", ["ontime"]), ("OnTimePct", ["pct", "rate", "percent"])],
+            _check_row, f"All {len(expected)} carriers match ground truth OTD metrics."
+        )
     return custom_check(_validate)
 
 
 def check_carrier_delivery_time_csv(filepath: str = "carrier-delivery-time.csv") -> CustomAssert:
     """Validate carrier-delivery-time.csv (CarrierName, DeliveredOrders, AvgDeliveryHours)."""
-
     def _validate(workspace_dir: str) -> tuple[bool, str]:
-        target_path = os.path.join(workspace_dir, filepath)
-        if not os.path.exists(target_path):
-            available = [f for f in os.listdir(workspace_dir) if not f.startswith(".")]
-            return False, f"File '{filepath}' not found in workspace '{workspace_dir}'. Available files: {available}"
-
         expected = compute_expected_carrier_delivery_time(_get_source_csv(workspace_dir))
-
-        try:
-            with open(target_path, "r", encoding="utf-8", errors="ignore") as f:
-                reader = csv.reader(f)
-                raw_rows = [r for r in reader if any(cell.strip() for cell in r)]
-        except Exception as e:
-            return False, f"Failed to parse CSV '{filepath}': {e}"
-
-        if not raw_rows:
-            return False, f"File '{filepath}' is empty."
-
-        header = raw_rows[0]
-        data_rows = raw_rows[1:]
-
-        if len(data_rows) != len(expected):
-            return False, (
-                f"Row count mismatch: expected exactly {len(expected)} carrier data rows, "
-                f"but found {len(data_rows)} rows. Header found: {header}"
-            )
-
-        norm_header = [_norm(h) for h in header]
-        carrier_idx, count_idx, hours_idx = None, None, None
-        for idx, h in enumerate(norm_header):
-            if "carrier" in h or "name" in h:
-                carrier_idx = idx
-            elif "hour" in h or "time" in h or "avg" in h:
-                hours_idx = idx
-            elif "deliv" in h or "order" in h or "count" in h or "total" in h or "num" in h:
-                count_idx = idx
-
-        carrier_idx = carrier_idx if carrier_idx is not None else 0
-        count_idx = count_idx if count_idx is not None else 1
-        hours_idx = hours_idx if hours_idx is not None else 2
-
-        for rank, ((exp_carrier, exp_count, exp_hours), row) in enumerate(zip(expected, data_rows), 1):
-            if len(row) <= max(carrier_idx, count_idx, hours_idx):
-                return False, f"Row {rank} is missing required columns (CarrierName, DeliveredOrders, AvgDeliveryHours). Found row: {row}"
-
+        def _check_row(rank, exp, row, idxs):
+            carrier_idx, count_idx, hours_idx = idxs
+            exp_carrier, exp_count, exp_hours = exp
             act_carrier = row[carrier_idx].strip()
             try:
                 act_count = int(round(_clean_float(row[count_idx])))
                 act_hours = _clean_float(row[hours_idx])
             except ValueError as e:
                 return False, f"Row {rank} contains invalid numeric data: {row} (error: {e})"
-
             if exp_carrier.lower() != act_carrier.lower():
                 return False, (
                     f"Row {rank} carrier mismatch: expected '{exp_carrier}' (Delivered: {exp_count}, AvgHours: {exp_hours:.2f}), "
                     f"got '{act_carrier}' (Delivered: {act_count}, AvgHours: {act_hours:.2f}). "
                     f"(Check: Sort by AvgDeliveryHours ascending so fastest carriers appear first)."
                 )
-
             if act_count != exp_count:
                 return False, (
                     f"Row {rank} ({exp_carrier}) delivered count mismatch: expected {exp_count} delivered orders, "
                     f"got {act_count}."
                 )
-
             if abs(act_hours - exp_hours) > 0.1:
                 return False, (
                     f"Row {rank} ({exp_carrier}) average hours mismatch: expected {exp_hours:.2f} hrs, "
                     f"got {act_hours:.2f} hrs (diff: {abs(act_hours - exp_hours):.2f} hrs)."
                 )
+            return True, ""
 
-        return True, f"All {len(expected)} carriers match delivery time ground truth."
-
+        return _validate_tabular_csv(
+            workspace_dir, filepath, expected,
+            [("CarrierName", ["carrier", "name"]), ("DeliveredOrders", ["deliv", "order", "count", "total", "num"]), ("AvgDeliveryHours", ["hour", "time", "avg"])],
+            _check_row, f"All {len(expected)} carriers match delivery time ground truth."
+        )
     return custom_check(_validate)
 
 
 def check_channel_performance_csv(filepath: str = "channel-performance.csv") -> CustomAssert:
     """Validate channel-performance.csv (Channel, OrderCount, GrossRevenue, TotalRefunds, NetRevenue, NetAOV)."""
-
     def _validate(workspace_dir: str) -> tuple[bool, str]:
-        target_path = os.path.join(workspace_dir, filepath)
-        if not os.path.exists(target_path):
-            available = [f for f in os.listdir(workspace_dir) if not f.startswith(".")]
-            return False, f"File '{filepath}' not found in workspace '{workspace_dir}'. Available files: {available}"
-
         expected = compute_expected_channel_performance(_get_source_csv(workspace_dir))
-
-        try:
-            with open(target_path, "r", encoding="utf-8", errors="ignore") as f:
-                reader = csv.reader(f)
-                raw_rows = [r for r in reader if any(cell.strip() for cell in r)]
-        except Exception as e:
-            return False, f"Failed to parse CSV '{filepath}': {e}"
-
-        if not raw_rows:
-            return False, f"File '{filepath}' is empty."
-
-        header = raw_rows[0]
-        data_rows = raw_rows[1:]
-
-        if len(data_rows) != len(expected):
-            return False, (
-                f"Row count mismatch: expected exactly {len(expected)} channel data rows, "
-                f"but found {len(data_rows)} rows. Header found: {header}"
-            )
-
-        norm_header = [_norm(h) for h in header]
-        ch_idx, count_idx, gross_idx, ref_idx, net_idx, aov_idx = None, None, None, None, None, None
-        for idx, h in enumerate(norm_header):
-            if "channel" in h or "name" in h:
-                ch_idx = idx
-            elif "aov" in h or "average" in h:
-                aov_idx = idx
-            elif "net" in h or "profit" in h:
-                net_idx = idx
-            elif "refund" in h or "return" in h:
-                ref_idx = idx
-            elif "gross" in h:
-                gross_idx = idx
-            elif "count" in h or "order" in h or "num" in h:
-                count_idx = idx
-
-        ch_idx = ch_idx if ch_idx is not None else 0
-        count_idx = count_idx if count_idx is not None else 1
-        gross_idx = gross_idx if gross_idx is not None else 2
-        ref_idx = ref_idx if ref_idx is not None else 3
-        net_idx = net_idx if net_idx is not None else 4
-        aov_idx = aov_idx if aov_idx is not None else 5
-
-        for rank, ((exp_ch, exp_count, exp_gross, exp_ref, exp_net, exp_aov), row) in enumerate(zip(expected, data_rows), 1):
-            if len(row) <= max(ch_idx, count_idx, gross_idx, ref_idx, net_idx, aov_idx):
-                return False, f"Row {rank} is missing required columns (Channel, OrderCount, GrossRevenue, TotalRefunds, NetRevenue, NetAOV). Found row: {row}"
-
+        def _check_row(rank, exp, row, idxs):
+            ch_idx, count_idx, gross_idx, ref_idx, net_idx, aov_idx = idxs
+            exp_ch, exp_count, exp_gross, exp_ref, exp_net, exp_aov = exp
             act_ch = row[ch_idx].strip()
             try:
                 act_count = int(round(_clean_float(row[count_idx])))
@@ -669,46 +448,29 @@ def check_channel_performance_csv(filepath: str = "channel-performance.csv") -> 
                 act_aov = _clean_float(row[aov_idx])
             except ValueError as e:
                 return False, f"Row {rank} contains invalid numeric data: {row} (error: {e})"
-
             if exp_ch.lower() != act_ch.lower():
                 return False, (
                     f"Row {rank} channel mismatch: expected '{exp_ch}' (Orders: {exp_count}, Gross: ${exp_gross:.2f}, Ref: ${exp_ref:.2f}, Net: ${exp_net:.2f}, NetAOV: ${exp_aov:.2f}), "
                     f"got '{act_ch}' (Orders: {act_count}, Gross: ${act_gross:.2f}, Ref: ${act_ref:.2f}, Net: ${act_net:.2f}, NetAOV: ${act_aov:.2f}). "
                     f"(Check: Sort by NetRevenue descending)."
                 )
-
             if act_count != exp_count:
-                return False, (
-                    f"Row {rank} ({exp_ch}) order count mismatch: expected {exp_count} orders, "
-                    f"got {act_count}."
-                )
-
+                return False, f"Row {rank} ({exp_ch}) order count mismatch: expected {exp_count} orders, got {act_count}."
             if abs(act_gross - exp_gross) > 0.05:
-                return False, (
-                    f"Row {rank} ({exp_ch}) gross revenue mismatch: expected ${exp_gross:.2f}, "
-                    f"got ${act_gross:.2f} (diff: ${abs(act_gross - exp_gross):.2f})."
-                )
-
+                return False, f"Row {rank} ({exp_ch}) gross revenue mismatch: expected ${exp_gross:.2f}, got ${act_gross:.2f} (diff: ${abs(act_gross - exp_gross):.2f})."
             if abs(act_ref - exp_ref) > 0.05:
-                return False, (
-                    f"Row {rank} ({exp_ch}) refund mismatch: expected ${exp_ref:.2f}, "
-                    f"got ${act_ref:.2f} (diff: ${abs(act_ref - exp_ref):.2f})."
-                )
-
+                return False, f"Row {rank} ({exp_ch}) refund mismatch: expected ${exp_ref:.2f}, got ${act_ref:.2f} (diff: ${abs(act_ref - exp_ref):.2f})."
             if abs(act_net - exp_net) > 0.05:
-                return False, (
-                    f"Row {rank} ({exp_ch}) net revenue mismatch: expected ${exp_net:.2f}, "
-                    f"got ${act_net:.2f} (diff: ${abs(act_net - exp_net):.2f})."
-                )
-
+                return False, f"Row {rank} ({exp_ch}) net revenue mismatch: expected ${exp_net:.2f}, got ${act_net:.2f} (diff: ${abs(act_net - exp_net):.2f})."
             if abs(act_aov - exp_aov) > 0.05:
-                return False, (
-                    f"Row {rank} ({exp_ch}) Net AOV mismatch: expected ${exp_aov:.2f}, "
-                    f"got ${act_aov:.2f} (diff: ${abs(act_aov - exp_aov):.2f})."
-                )
+                return False, f"Row {rank} ({exp_ch}) Net AOV mismatch: expected ${exp_aov:.2f}, got ${act_aov:.2f} (diff: ${abs(act_aov - exp_aov):.2f})."
+            return True, ""
 
-        return True, f"All {len(expected)} channels match financial performance ground truth."
-
+        return _validate_tabular_csv(
+            workspace_dir, filepath, expected,
+            [("Channel", ["channel", "name"]), ("OrderCount", ["count", "order", "num"]), ("GrossRevenue", ["gross"]), ("TotalRefunds", ["refund", "return"]), ("NetRevenue", ["net", "profit"]), ("NetAOV", ["aov", "average"])],
+            _check_row, f"All {len(expected)} channels match financial performance ground truth."
+        )
     return custom_check(_validate)
 
 

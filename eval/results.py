@@ -9,7 +9,7 @@ import shutil
 import subprocess
 from typing import Any
 
-from eval.common import setup_logger
+from eval.common import setup_logger, run_cmd, http_json
 from eval.config import (
     BENCHMARK_DATA_FILE,
     MODELS_CONFIG_FILE,
@@ -29,16 +29,10 @@ logger = setup_logger("results")
 
 def get_vllm_model_info(base_url: str) -> dict[str, Any] | None:
     """Fetch model info from /v1/models in a single call."""
-    try:
-        import requests
-        url = f"{base_url}/models" if not base_url.endswith("/models") else base_url
-        res = requests.get(url, timeout=3)
-        if res.status_code == 200:
-            models_list = res.json().get("data", [])
-            if models_list:
-                return models_list[0]
-    except Exception as e:
-        logger.debug("Failed to query /v1/models: %s", e)
+    url = f"{base_url}/models" if not base_url.endswith("/models") else base_url
+    data = http_json(url, timeout=3)
+    if data and "data" in data and len(data["data"]) > 0:
+        return data["data"][0]
     return None
 
 
@@ -49,8 +43,7 @@ def calculate_model_memory_gb(host: str = REMOTE_HOST) -> float:
              - CUDA Graph memory + 1 full KV context
     """
     try:
-        cmd = ["ssh", host, "docker logs --tail 5000 vllm_node 2>&1"]
-        res = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+        res = run_cmd("ssh", host, "docker logs --tail 5000 vllm_node 2>&1", timeout=10)
         logs = res.stdout
 
         m_usage = re.search(

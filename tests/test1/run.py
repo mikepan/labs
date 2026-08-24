@@ -1,13 +1,16 @@
 import csv
 from datetime import datetime
 import os
+from pathlib import Path
 import re
 import sys
 from collections import defaultdict
+from typing import Iterator
 
 from tests.framework import Step, Test, git_changes, custom_check, CustomAssert
 
-_csv_source = os.path.join(os.path.dirname(os.path.abspath(__file__)), "bookstore_orders.csv")
+_CSV_SOURCE = Path(__file__).resolve().parent / "bookstore_orders.csv"
+_csv_source = str(_CSV_SOURCE)
 
 
 def _norm(s: str) -> str:
@@ -15,8 +18,17 @@ def _norm(s: str) -> str:
 
 
 def _clean_float(val: str) -> float:
-    cleaned = re.sub(r"[^\d\.\-]", "", str(val).strip())
-    return float(cleaned)
+    return float(re.sub(r"[^\d\.\-]", "", str(val).strip()))
+
+
+def _read_orders(source_csv_path: str | Path) -> Iterator[dict[str, str]]:
+    with open(source_csv_path, mode="r", encoding="utf-8", errors="ignore") as f:
+        yield from csv.DictReader(f)
+
+
+def _get_source_csv(workspace_dir: str | Path) -> str:
+    ws_csv = Path(workspace_dir) / "bookstore_orders.csv"
+    return str(ws_csv if ws_csv.exists() else _CSV_SOURCE)
 
 
 # ==============================================================================
@@ -24,156 +36,116 @@ def _clean_float(val: str) -> float:
 # ==============================================================================
 
 def compute_expected_top_customers(source_csv_path: str, top_n: int = 10) -> list[tuple[str, float]]:
-    """Parse bookstore orders CSV to compute top customers by net spend,
-    aggregating by unique customer_id to properly distinguish different customers who share names."""
-    customer_spends = defaultdict(lambda: {"fullname": "", "total_spend": 0.0})
-    with open(source_csv_path, mode="r", encoding="utf-8", errors="ignore") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            cust_id = row["customer_id"].strip()
-            first_name = row["customer_first_name"].strip()
-            last_name = row["customer_last_name"].strip()
-            fullname = f"{first_name} {last_name}"
-            grand_total = float(row["order_grand_total"]) if row.get("order_grand_total") else 0.0
-            refund = float(row["refund_amount"]) if row.get("refund_amount") else 0.0
-            net_spend = grand_total - refund
+    """Parse bookstore orders CSV to compute top customers by net spend."""
+    spends = defaultdict(lambda: {"fullname": "", "total_spend": 0.0})
+    for row in _read_orders(source_csv_path):
+        cust_id = row["customer_id"].strip()
+        net = float(row.get("order_grand_total") or 0) - float(row.get("refund_amount") or 0)
+        spends[cust_id]["fullname"] = f"{row['customer_first_name'].strip()} {row['customer_last_name'].strip()}"
+        spends[cust_id]["total_spend"] += net
 
-            customer_spends[cust_id]["fullname"] = fullname
-            customer_spends[cust_id]["total_spend"] += net_spend
-
-    sorted_customers = sorted(customer_spends.values(), key=lambda c: c["total_spend"], reverse=True)[:top_n]
-    return [(c["fullname"], c["total_spend"]) for c in sorted_customers]
+    sorted_custs = sorted(spends.values(), key=lambda c: c["total_spend"], reverse=True)[:top_n]
+    return [(c["fullname"], c["total_spend"]) for c in sorted_custs]
 
 
 def compute_expected_top_authors(source_csv_path: str, top_n: int = 10) -> list[tuple[str, int, float]]:
     """Compute top authors by gross sales across both primary and secondary items."""
-    author_stats = defaultdict(lambda: {"units": 0, "gross_sales": 0.0})
-    with open(source_csv_path, mode="r", encoding="utf-8", errors="ignore") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            p_auth = row.get("primary_item_author", "").strip()
-            p_qty = int(row["primary_item_quantity"]) if row.get("primary_item_quantity") else 0
-            p_price = float(row["primary_item_unit_price"]) if row.get("primary_item_unit_price") else 0.0
-            if p_auth:
-                author_stats[p_auth]["units"] += p_qty
-                author_stats[p_auth]["gross_sales"] += p_qty * p_price
+    authors = defaultdict(lambda: {"units": 0, "gross_sales": 0.0})
+    for row in _read_orders(source_csv_path):
+        p_auth = row.get("primary_item_author", "").strip()
+        if p_auth:
+            p_qty = int(row.get("primary_item_quantity") or 0)
+            authors[p_auth]["units"] += p_qty
+            authors[p_auth]["gross_sales"] += p_qty * float(row.get("primary_item_unit_price") or 0)
 
-            s_auth = row.get("secondary_item_author", "").strip()
-            s_qty = int(row["secondary_item_quantity"]) if row.get("secondary_item_quantity") else 0
-            s_price = float(row["secondary_item_unit_price"]) if row.get("secondary_item_unit_price") else 0.0
-            if s_auth:
-                author_stats[s_auth]["units"] += s_qty
-                author_stats[s_auth]["gross_sales"] += s_qty * s_price
+        s_auth = row.get("secondary_item_author", "").strip()
+        if s_auth:
+            s_qty = int(row.get("secondary_item_quantity") or 0)
+            authors[s_auth]["units"] += s_qty
+            authors[s_auth]["gross_sales"] += s_qty * float(row.get("secondary_item_unit_price") or 0)
 
-    sorted_authors = sorted(author_stats.items(), key=lambda x: x[1]["gross_sales"], reverse=True)[:top_n]
-    return [(author, data["units"], data["gross_sales"]) for author, data in sorted_authors]
+    sorted_auths = sorted(authors.items(), key=lambda x: x[1]["gross_sales"], reverse=True)[:top_n]
+    return [(auth, data["units"], data["gross_sales"]) for auth, data in sorted_auths]
 
 
 def compute_expected_genre_returns(source_csv_path: str) -> list[tuple[str, int, int, float, float]]:
     """Compute order return rate percentage and total refunds per book genre."""
-    genre_stats = defaultdict(lambda: {"total": 0, "returned": 0, "refund": 0.0})
-    with open(source_csv_path, mode="r", encoding="utf-8", errors="ignore") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            genre = row.get("primary_item_genre", "").strip()
-            if not genre:
-                continue
-            is_returned = row.get("return_requested", "").strip().lower() == "yes"
-            refund = float(row.get("refund_amount") or 0.0)
-            genre_stats[genre]["total"] += 1
-            if is_returned:
-                genre_stats[genre]["returned"] += 1
-            genre_stats[genre]["refund"] += refund
+    genres = defaultdict(lambda: {"total": 0, "returned": 0, "refund": 0.0})
+    for row in _read_orders(source_csv_path):
+        genre = row.get("primary_item_genre", "").strip()
+        if not genre:
+            continue
+        genres[genre]["total"] += 1
+        if row.get("return_requested", "").strip().lower() == "yes":
+            genres[genre]["returned"] += 1
+        genres[genre]["refund"] += float(row.get("refund_amount") or 0)
 
-    results = []
-    for genre, data in genre_stats.items():
-        return_rate_pct = (data["returned"] / data["total"]) * 100.0 if data["total"] else 0.0
-        results.append((genre, data["total"], data["returned"], return_rate_pct, data["refund"]))
-
+    results = [
+        (g, d["total"], d["returned"], (d["returned"] / d["total"] * 100.0) if d["total"] else 0.0, d["refund"])
+        for g, d in genres.items()
+    ]
     return sorted(results, key=lambda x: (x[3], x[4]), reverse=True)
 
 
 def compute_expected_carrier_otd(source_csv_path: str) -> list[tuple[str, int, int, float]]:
     """Compute on-time delivery rate percentage for delivered orders by shipping carrier."""
-    carrier_stats = defaultdict(lambda: {"delivered": 0, "ontime": 0})
-    with open(source_csv_path, mode="r", encoding="utf-8", errors="ignore") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            if row.get("fulfillment_status", "").strip().lower() != "delivered":
-                continue
-            carrier = row.get("carrier_name", "").strip()
-            est = row.get("estimated_delivery_date", "").strip()
-            act = row.get("actual_delivery_date", "").strip()
-            if carrier and est and act:
-                carrier_stats[carrier]["delivered"] += 1
-                est_d = datetime.strptime(est.split()[0], "%Y-%m-%d").date()
-                act_d = datetime.strptime(act.split()[0], "%Y-%m-%d").date()
-                if act_d <= est_d:
-                    carrier_stats[carrier]["ontime"] += 1
+    carriers = defaultdict(lambda: {"delivered": 0, "ontime": 0})
+    for row in _read_orders(source_csv_path):
+        if row.get("fulfillment_status", "").strip().lower() != "delivered":
+            continue
+        carrier = row.get("carrier_name", "").strip()
+        est = row.get("estimated_delivery_date", "").strip()
+        act = row.get("actual_delivery_date", "").strip()
+        if carrier and est and act:
+            carriers[carrier]["delivered"] += 1
+            if act.split()[0] <= est.split()[0]:
+                carriers[carrier]["ontime"] += 1
 
-    results = []
-    for carrier, data in carrier_stats.items():
-        ontime_pct = (data["ontime"] / data["delivered"]) * 100.0 if data["delivered"] else 0.0
-        results.append((carrier, data["delivered"], data["ontime"], ontime_pct))
-
+    results = [
+        (c, d["delivered"], d["ontime"], (d["ontime"] / d["delivered"] * 100.0) if d["delivered"] else 0.0)
+        for c, d in carriers.items()
+    ]
     return sorted(results, key=lambda x: (x[3], x[1]), reverse=True)
 
 
 def compute_expected_carrier_delivery_time(source_csv_path: str) -> list[tuple[str, int, float]]:
     """Compute average delivery turnaround time in hours for delivered orders per carrier."""
     carrier_hours = defaultdict(list)
-    with open(source_csv_path, mode="r", encoding="utf-8", errors="ignore") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            if row.get("fulfillment_status", "").strip().lower() != "delivered":
-                continue
-            carrier = row.get("carrier_name", "").strip()
-            order_ts = row.get("order_timestamp", "").strip()
-            act_ts = row.get("actual_delivery_date", "").strip()
-            if carrier and order_ts and act_ts:
-                o_dt = datetime.strptime(order_ts, "%Y-%m-%d %H:%M:%S")
-                d_dt = datetime.strptime(act_ts, "%Y-%m-%d %H:%M:%S")
-                hours = (d_dt - o_dt).total_seconds() / 3600.0
-                carrier_hours[carrier].append(hours)
+    for row in _read_orders(source_csv_path):
+        if row.get("fulfillment_status", "").strip().lower() != "delivered":
+            continue
+        carrier = row.get("carrier_name", "").strip()
+        order_ts = row.get("order_timestamp", "").strip()
+        act_ts = row.get("actual_delivery_date", "").strip()
+        if carrier and order_ts and act_ts:
+            o_dt = datetime.strptime(order_ts, "%Y-%m-%d %H:%M:%S")
+            d_dt = datetime.strptime(act_ts, "%Y-%m-%d %H:%M:%S")
+            carrier_hours[carrier].append((d_dt - o_dt).total_seconds() / 3600.0)
 
-    results = []
-    for carrier, hours_list in carrier_hours.items():
-        avg_hours = sum(hours_list) / len(hours_list) if hours_list else 0.0
-        results.append((carrier, len(hours_list), avg_hours))
-
+    results = [
+        (c, len(hrs), sum(hrs) / len(hrs) if hrs else 0.0)
+        for c, hrs in carrier_hours.items()
+    ]
     return sorted(results, key=lambda x: x[2])
 
 
 def compute_expected_channel_performance(source_csv_path: str) -> list[tuple[str, int, float, float, float, float]]:
     """Compute order count, gross revenue, refunds, net revenue, and Net AOV per sales channel."""
-    channel_stats = defaultdict(lambda: {"orders": 0, "gross": 0.0, "refund": 0.0, "net": 0.0})
-    with open(source_csv_path, mode="r", encoding="utf-8", errors="ignore") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            channel = row.get("order_channel", "").strip()
-            gross = float(row.get("order_grand_total") or 0.0)
-            refund = float(row.get("refund_amount") or 0.0)
-            net = gross - refund
-            channel_stats[channel]["orders"] += 1
-            channel_stats[channel]["gross"] += gross
-            channel_stats[channel]["refund"] += refund
-            channel_stats[channel]["net"] += net
+    channels = defaultdict(lambda: {"orders": 0, "gross": 0.0, "refund": 0.0, "net": 0.0})
+    for row in _read_orders(source_csv_path):
+        ch = row.get("order_channel", "").strip()
+        gross = float(row.get("order_grand_total") or 0)
+        ref = float(row.get("refund_amount") or 0)
+        channels[ch]["orders"] += 1
+        channels[ch]["gross"] += gross
+        channels[ch]["refund"] += ref
+        channels[ch]["net"] += gross - ref
 
-    results = []
-    for channel, data in channel_stats.items():
-        aov = data["net"] / data["orders"] if data["orders"] else 0.0
-        results.append((channel, data["orders"], data["gross"], data["refund"], data["net"], aov))
-
+    results = [
+        (ch, d["orders"], d["gross"], d["refund"], d["net"], (d["net"] / d["orders"]) if d["orders"] else 0.0)
+        for ch, d in channels.items()
+    ]
     return sorted(results, key=lambda x: x[4], reverse=True)
-
-
-# ==============================================================================
-# Helper to resolve source CSV path in workspace or fallback
-# ==============================================================================
-
-def _get_source_csv(workspace_dir: str) -> str:
-    source_csv = os.path.join(workspace_dir, "bookstore_orders.csv")
-    return source_csv if os.path.exists(source_csv) else _csv_source
 
 
 def _validate_tabular_csv(

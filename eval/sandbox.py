@@ -1,17 +1,11 @@
-"""
-eval.sandbox - Encapsulates all Docker Sandbox (sbx) interactions.
-
-Provides SandboxClient with exec(), exec_python_json(), and lifecycle methods.
-"""
-
 import json
 import os
+from pathlib import Path
 import re
-import subprocess
 import sys
 from typing import Any
 
-from eval.common import setup_logger
+from eval.common import setup_logger, run_cmd
 from eval.config import DEFAULT_WORKER_SANDBOX_NAME, DEFAULT_TEMPLATE_TAG, DEFAULT_OPENCODE_PORT, REPO_ROOT
 
 __all__ = ["SandboxClient"]
@@ -29,16 +23,12 @@ class SandboxClient:
 
     def exec(self, cmd: str) -> tuple[int, str, str]:
         """Execute a bash command inside the sandbox."""
-        res = subprocess.run(
-            ["sbx", "exec", self.name, "bash", "-c", cmd],
-            capture_output=True, text=True,
-        )
+        res = run_cmd("sbx", "exec", self.name, "bash", "-c", cmd)
         return res.returncode, res.stdout.strip(), res.stderr.strip()
 
-    def exec_python(self, script: str, *, stdin: str | None = None) -> subprocess.CompletedProcess:
+    def exec_python(self, script: str, *, stdin: str | None = None) -> Any:
         """Run a Python script inside the sandbox, optionally piping stdin."""
-        cmd = ["sbx", "exec", self.name, "python3", "-c", script]
-        return subprocess.run(cmd, input=stdin, capture_output=True, text=True)
+        return run_cmd("sbx", "exec", self.name, "python3", "-c", script, input=stdin)
 
     def exec_python_json(
         self,
@@ -60,16 +50,15 @@ class SandboxClient:
 
     def ensure(self, template: str = DEFAULT_TEMPLATE_TAG, workspace: str | None = None) -> None:
         """Provision a clean ephemeral sandbox from the base template."""
-        subprocess.run(["sbx", "rm", "-f", self.name], capture_output=True, text=True)
+        run_cmd("sbx", "rm", "-f", self.name)
         logger.info("Provisioning sandbox '%s' from template '%s'...", self.name, template)
-        create_cmd = [
+        res = run_cmd(
             "sbx", "create",
             "--name", self.name,
             "--template", template,
             "-p", f"{DEFAULT_OPENCODE_PORT}:{DEFAULT_OPENCODE_PORT}",
             "shell", str(workspace or REPO_ROOT),
-        ]
-        res = subprocess.run(create_cmd, capture_output=True, text=True)
+        )
         if res.returncode != 0:
             logger.error("Error creating sandbox:\n%s\n%s", res.stderr, res.stdout)
             sys.exit(1)
@@ -78,50 +67,40 @@ class SandboxClient:
     def remove(self) -> None:
         """Clean up and remove the sandbox container."""
         logger.info("Cleaning up sandbox '%s'...", self.name)
-        subprocess.run(["sbx", "rm", "-f", self.name], capture_output=True, text=True)
+        run_cmd("sbx", "rm", "-f", self.name)
 
     def exists(self) -> bool:
         """Check if sandbox exists."""
-        res = subprocess.run(["sbx", "ls"], capture_output=True, text=True)
+        res = run_cmd("sbx", "ls")
         return res.returncode == 0 and self.name in res.stdout
 
     def stop(self) -> None:
         """Stop sandbox if running."""
-        subprocess.run(["sbx", "stop", self.name], capture_output=True, text=True)
+        run_cmd("sbx", "stop", self.name)
 
     # ----- File transfer -----
 
-    def extract_artifacts(self, workspace_dir: str, dest_dir: str) -> None:
+    def extract_artifacts(self, workspace_dir: str, dest_dir: str | Path) -> None:
         """Extract workspace files (excluding .git) from sandbox to a local directory."""
-        os.makedirs(dest_dir, exist_ok=True)
+        Path(dest_dir).mkdir(parents=True, exist_ok=True)
         tar_cmd = f"cd {workspace_dir} && tar --exclude='.git' -cf - ."
-        res = subprocess.run(
-            ["sbx", "exec", self.name, "bash", "-c", tar_cmd],
-            capture_output=True,
-        )
+        res = run_cmd("sbx", "exec", self.name, "bash", "-c", tar_cmd)
         if res.returncode == 0 and res.stdout:
-            subprocess.run(
-                ["tar", "-xf", "-", "-C", dest_dir],
-                input=res.stdout, capture_output=True,
-            )
+            run_cmd("tar", "-xf", "-", "-C", str(dest_dir), input=res.stdout)
 
-    def extract_file(self, remote_path: str, local_path: str) -> bool:
+    def extract_file(self, remote_path: str, local_path: str | Path) -> bool:
         """Copy a single file from sandbox to local filesystem."""
-        res = subprocess.run(
-            ["sbx", "exec", self.name, "cat", remote_path],
-            capture_output=True, text=True,
-        )
+        res = run_cmd("sbx", "exec", self.name, "cat", remote_path)
         if res.returncode == 0 and res.stdout:
-            os.makedirs(os.path.dirname(local_path), exist_ok=True)
-            with open(local_path, "w", encoding="utf-8") as f:
-                f.write(res.stdout)
+            target = Path(local_path)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(res.stdout, encoding="utf-8")
             return True
         return False
 
     def read_file(self, remote_path: str, max_lines: int = 500) -> str:
         """Read content from a file inside the sandbox."""
-        cmd = ["sbx", "exec", self.name, "tail", "-n", str(max_lines), remote_path]
-        res = subprocess.run(cmd, capture_output=True, text=True)
+        res = run_cmd("sbx", "exec", self.name, "tail", "-n", str(max_lines), remote_path)
         return res.stdout if res.returncode == 0 else ""
 
     # ----- Workspace setup -----

@@ -25,7 +25,7 @@ from eval.config import (
     REMOTE_VLLM_DIR,
     REPO_ROOT,
 )
-from eval.common import setup_logger, load_json_config
+from eval.common import setup_logger, load_json_config, run_cmd, http_json
 
 logger = setup_logger("launch_model")
 
@@ -57,7 +57,7 @@ def parse_model_config(cfg: dict[str, Any]) -> tuple[str, str]:
 def run_remote(cmd: str, host: str = REMOTE_HOST) -> subprocess.CompletedProcess:
     """Execute a command on the remote host via SSH."""
     logger.debug("Executing remote command on %s: %s", host, cmd)
-    return subprocess.run(["ssh", host, cmd], capture_output=True, text=True)
+    return run_cmd("ssh", host, cmd)
 
 
 def stop_model(host: str = REMOTE_HOST) -> bool:
@@ -88,19 +88,14 @@ def launch_model(model_name: str, vllm_cmd: str, host: str = REMOTE_HOST) -> boo
 
 def is_server_ready(expected_weight: str | None = None, base_url: str = API_BASE_URL) -> bool:
     """Check if /v1/models responds with HTTP 200 and has expected_model loaded."""
-    try:
-        req = urllib.request.Request(f"{base_url}/v1/models")
-        with urllib.request.urlopen(req, timeout=3) as resp:
-            if resp.status != 200:
-                return False
-            if expected_weight:
-                data = json.loads(resp.read().decode("utf-8"))
-                loaded_ids = [item.get("id") for item in data.get("data", [])]
-                logger.debug("Loaded model IDs on server: %s (looking for '%s')", loaded_ids, expected_weight)
-                return expected_weight in loaded_ids
-            return True
-    except Exception as e:
+    data = http_json(f"{base_url}/v1/models", timeout=3)
+    if not data:
         return False
+    if expected_weight:
+        loaded_ids = [item.get("id") for item in data.get("data", [])]
+        logger.debug("Loaded model IDs on server: %s (looking for '%s')", loaded_ids, expected_weight)
+        return expected_weight in loaded_ids
+    return True
 
 
 def wait_for_server_ready(expected_weight: str | None = None, base_url: str = API_BASE_URL, timeout_seconds: int = 600, verbose: bool = False, host: str = REMOTE_HOST) -> bool:
@@ -138,33 +133,24 @@ def run_sanity_test(model_id: str, base_url: str = API_BASE_URL) -> bool:
     prompt = "What is the capital of Japan? Answer with the city name only."
     logger.debug("Running Sanity Test on %s with prompt: \"%s\"", model_id, prompt)
 
-    payload = json.dumps({
-        "model": model_id,
-        "messages": [{"role": "user", "content": prompt}],
-        "max_tokens": 512,
-    }).encode("utf-8")
-    req = urllib.request.Request(f"{base_url}/v1/chat/completions", data=payload, headers={"Content-Type": "application/json"})
-
-    try:
-        with urllib.request.urlopen(req, timeout=60) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-            msg = data.get("choices", [{}])[0].get("message", {})
-            content = (msg.get("content") or "").strip()
-            reasoning = (msg.get("reasoning_content") or "").strip()
-            answer = content or reasoning
-
-            logger.debug("Sanity test response: \"%s\"", answer)
-            if reasoning and content:
-                logger.debug("Reasoning tokens: %d words", len(reasoning.split()))
-
-            if "tokyo" in answer.lower():
-                logger.info("✓ Sanity test PASSED!")
-                return True
-            logger.error("✗ Sanity test FAILED: Expected 'Tokyo', got '%s'", answer)
-            return False
-    except Exception as e:
-        logger.error("✗ Sanity test FAILED with error: %s", e)
+    data = http_json(
+        f"{base_url}/v1/chat/completions",
+        method="POST",
+        data={"model": model_id, "messages": [{"role": "user", "content": prompt}], "max_tokens": 512},
+        timeout=60,
+    )
+    if not data:
+        logger.error("✗ Sanity test FAILED: No response from server")
         return False
+
+    msg = data.get("choices", [{}])[0].get("message", {})
+    answer = (msg.get("content") or msg.get("reasoning_content") or "").strip()
+    logger.debug("Sanity test response: \"%s\"", answer)
+    if "tokyo" in answer.lower():
+        logger.info("✓ Sanity test PASSED!")
+        return True
+    logger.error("✗ Sanity test FAILED: Expected 'Tokyo', got '%s'", answer)
+    return False
 
 
 def run_model_pipeline(

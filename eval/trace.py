@@ -5,7 +5,7 @@ All harness drivers produce these types, ensuring consistent full_trace.json
 output regardless of which agent (OpenCode, pi.dev, etc.) ran the evaluation.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, asdict
 from typing import Any
 
 __all__ = [
@@ -15,7 +15,7 @@ __all__ = [
 ]
 
 
-@dataclass
+@dataclass(slots=True)
 class ToolCallEvent:
     """A single tool invocation within a turn."""
     tool: str
@@ -28,16 +28,12 @@ class ToolCallEvent:
     duration_ms: int | None = None
 
     def to_dict(self) -> dict[str, Any]:
-        return {k: v for k, v in self.__dict__.items() if v is not None}
+        return {k: v for k, v in asdict(self).items() if v is not None}
 
 
-@dataclass
+@dataclass(slots=True)
 class TurnData:
-    """Normalized turn data — consistent across all harness drivers.
-
-    Each driver parses its own response format but must produce a TurnData,
-    guaranteeing the orchestrator and full_trace.json stay harness-agnostic.
-    """
+    """Normalized turn data — consistent across all harness drivers."""
     tool_calls: list[ToolCallEvent] = field(default_factory=list)
     reasoning: list[str] = field(default_factory=list)
     text: list[str] = field(default_factory=list)
@@ -47,7 +43,7 @@ class TurnData:
     raw_messages: list[dict[str, Any]] = field(default_factory=list)
 
 
-@dataclass
+@dataclass(slots=True)
 class StepTrace:
     """A single step's trace record for full_trace.json."""
     step_index: int
@@ -69,4 +65,4 @@ class StepTrace:
     duration_seconds: float
 
     def to_dict(self) -> dict[str, Any]:
-        return self.__dict__
+        return asdict(self)

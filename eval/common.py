@@ -2,9 +2,12 @@
 eval.common - Shared helpers, logging formatters, and utility functions.
 """
 
+import json
 import logging
 import os
+import subprocess
 import sys
+import urllib.request
 
 class ColorFormatter(logging.Formatter):
     """Zero-dependency ANSI terminal color formatter for structured logging."""
@@ -49,9 +52,27 @@ def setup_logger(name: str, level: int = logging.INFO) -> logging.Logger:
 
 def load_json_config(path: str | os.PathLike, label: str = "config") -> dict:
     """Load a JSON config file, exiting with an error if not found."""
-    import json
     if not os.path.exists(path):
         print(f"[ERROR] {label} file not found: {path}", file=sys.stderr)
         sys.exit(1)
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
+
+
+def run_cmd(*cmd: str, input: str | None = None, check: bool = False, timeout: int | None = None, cwd: str | None = None) -> subprocess.CompletedProcess:
+    """Execute a command via subprocess, capturing output as text."""
+    return subprocess.run(cmd, input=input, capture_output=True, text=True, check=check, timeout=timeout, cwd=cwd)
+
+
+def http_json(url: str, method: str = "GET", data: dict | None = None, timeout: int = 5) -> dict | None:
+    """Perform an HTTP request and parse JSON response, returning None on failure."""
+    try:
+        payload = json.dumps(data).encode("utf-8") if data else None
+        headers = {"Content-Type": "application/json"} if payload else {}
+        req = urllib.request.Request(url, data=payload, headers=headers, method=method)
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            if resp.status == 200:
+                return json.loads(resp.read().decode("utf-8"))
+    except Exception:
+        pass
+    return None

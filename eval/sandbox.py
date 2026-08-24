@@ -2,7 +2,6 @@
 eval.sandbox - Encapsulates all Docker Sandbox (sbx) interactions.
 
 Provides SandboxClient with exec(), exec_python_json(), and lifecycle methods.
-Replaces the duplicated exec_in_sandbox functions from run_harness.py and create_harness.py.
 """
 
 import json
@@ -48,11 +47,7 @@ class SandboxClient:
         stdin: str | None = None,
         label: str = "sandbox",
     ) -> Any:
-        """Run Python inside sandbox and extract JSON from __JSON_START__...__JSON_END__ markers.
-
-        This replaces the repeated pattern used by send_message, get_session_messages,
-        get_session_info, and evaluate_step functions.
-        """
+        """Run Python inside sandbox and extract JSON from __JSON_START__...__JSON_END__ markers."""
         res = self.exec_python(script, stdin=stdin)
         if res.returncode != 0:
             raise RuntimeError(f"{label} error (code {res.returncode}): {res.stderr}\n{res.stdout}")

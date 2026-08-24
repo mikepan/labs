@@ -17,7 +17,7 @@ import subprocess
 import sys
 from typing import Any
 
-from eval.common import setup_logger
+from eval.common import setup_logger, load_json_config
 from eval.config import (
     DEFAULT_BUILDER_SANDBOX_NAME,
     DEFAULT_TEMPLATE_TAG,
@@ -38,11 +38,7 @@ def ensure_sbx_policy() -> None:
 
 def load_harness_config(config_path: str = HARNESSES_CONFIG_FILE) -> dict[str, Any]:
     """Load harnesses configuration from JSON."""
-    if not os.path.exists(config_path):
-        logger.error("Config file not found at %s", config_path)
-        sys.exit(1)
-    with open(config_path, "r", encoding="utf-8") as f:
-        return json.load(f)
+    return load_json_config(config_path, label="Harnesses config")
 
 
 def save_harness_config(config: dict[str, Any], config_path: str = HARNESSES_CONFIG_FILE) -> None:

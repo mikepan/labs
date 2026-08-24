@@ -32,6 +32,7 @@ from eval.config import (
     HARNESSES_CONFIG_FILE,
     REPO_ROOT,
     RESULTS_DIR,
+    TESTS_DIR,
 )
 from eval.drivers import HarnessDriver, get_driver
 from eval.results import get_vllm_model_info, save_evaluation_results
@@ -52,7 +53,7 @@ def load_test_spec(test_name_or_path: str):
     elif os.path.isfile(test_name_or_path):
         target_file = test_name_or_path
     else:
-        candidate = os.path.join(REPO_ROOT, "tests", test_name_or_path, "run.py")
+        candidate = str(TESTS_DIR / test_name_or_path / "run.py")
         if os.path.isfile(candidate):
             target_file = candidate
         else:
@@ -93,8 +94,8 @@ res = evaluate_step(step, '{workspace_dir}')
 output = {{
     "step_name": res.step_name,
     "passed": res.passed,
-    "point": getattr(res, "point", getattr(step, "point", 1)),
-    "score": getattr(res, "score", (getattr(step, "point", 1) if res.passed else 0)),
+    "point": res.point,
+    "score": res.score,
     "duration_seconds": res.duration_seconds,
     "check_results": [
         {{"passed": c.passed, "message": c.message, "details": c.details}}
@@ -109,7 +110,7 @@ print("__JSON_START__" + json.dumps(output) + "__JSON_END__")
         return {
             "step_name": f"Step {step_idx}",
             "passed": False,
-            "point": 1,
+            "point": 0,
             "score": 0,
             "duration_seconds": 0.0,
             "check_results": [{"passed": False, "message": str(e)}],
@@ -160,15 +161,15 @@ def run_test_suite_on_agent(
         test_start = time.time()
         step_traces: list[dict] = []
         passed_steps = 0
-        max_score = sum(getattr(s, "point", 1) for s in test_obj.steps)
+        max_score = sum(s.point for s in test_obj.steps)
         earned_score = 0
         total_tokens_in = 0
         total_tokens_out = 0
 
         for idx, step in enumerate(test_obj.steps):
             step_name = step.name or f"Step {idx + 1}"
-            step_point = getattr(step, "point", 1)
-            step_timeout = getattr(step, "timeout", 1800)
+            step_point = step.point
+            step_timeout = step.timeout
             logger.info("--- [Step %d/%d] %s (point=%d, timeout=%ds) ---", idx + 1, len(test_obj.steps), step_name, step_point, step_timeout)
             logger.debug("Prompt: %s...", step.prompt.strip()[:100])
 
@@ -385,13 +386,12 @@ def main():
     # Discover tests
     test_specs = []
     if args.test == "all":
-        tests_dir = os.path.join(REPO_ROOT, "tests")
-        for item in sorted(os.listdir(tests_dir)):
-            run_file = os.path.join(tests_dir, item, "run.py")
+        for item in sorted(os.listdir(TESTS_DIR)):
+            run_file = str(TESTS_DIR / item / "run.py")
             if os.path.isfile(run_file):
                 test_specs.append((run_file, load_test_spec(run_file)))
     else:
-        test_file = os.path.join(REPO_ROOT, "tests", args.test, "run.py")
+        test_file = str(TESTS_DIR / args.test / "run.py")
         test_specs.append((test_file, load_test_spec(test_file)))
 
     # Select driver

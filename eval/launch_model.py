@@ -25,18 +25,14 @@ from eval.config import (
     REMOTE_VLLM_DIR,
     REPO_ROOT,
 )
-from eval.common import setup_logger
+from eval.common import setup_logger, load_json_config
 
 logger = setup_logger("launch_model")
 
 
 def load_models(config_path: str = MODELS_CONFIG_FILE) -> dict[str, Any]:
     """Load model definitions from JSON file."""
-    if not os.path.exists(config_path):
-        logger.error("Config file not found at %s", config_path)
-        sys.exit(1)
-    with open(config_path, "r", encoding="utf-8") as f:
-        return json.load(f)
+    return load_json_config(config_path, label="Models config")
 
 
 def parse_model_config(cfg: dict[str, Any]) -> tuple[str, str]:

@@ -243,12 +243,7 @@ except Exception:
         raise RuntimeError("OpenCode server failed to start inside sandbox.")
 
     def _parse_turn(self, step_messages: list[dict], step_start_iso: str) -> TurnData:
-        """Parse OpenCode messages into normalized TurnData.
-
-        This is the extracted 60-line message-parsing block from the old
-        run_test_suite_on_agent, now encapsulated in the driver where it belongs
-        since the parsing logic is OpenCode-specific.
-        """
+        """Parse OpenCode messages into normalized TurnData."""
         turn = TurnData(raw_messages=step_messages)
 
         for msg in step_messages:

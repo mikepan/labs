@@ -1,8 +1,5 @@
 """
 eval.results - Evaluation results saving, model metadata, and benchmark dataset management.
-
-Consolidates get_model_metadata, calculate_model_memory_gb, save_evaluation_results,
-and the merged /v1/models API call into a single module.
 """
 
 import json
@@ -15,7 +12,6 @@ from typing import Any
 from eval.common import setup_logger
 from eval.config import (
     BENCHMARK_DATA_FILE,
-    DEFAULT_LLM_BASE_URL,
     MODELS_CONFIG_FILE,
     REMOTE_HOST,
     RESULTS_DIR,
@@ -31,12 +27,8 @@ __all__ = [
 logger = setup_logger("results")
 
 
-def get_vllm_model_info(base_url: str = DEFAULT_LLM_BASE_URL) -> dict[str, Any] | None:
-    """Fetch model info from /v1/models in a single call.
-
-    Replaces the separate get_active_api_model() and get_model_context_length()
-    functions that both hit the same endpoint.
-    """
+def get_vllm_model_info(base_url: str) -> dict[str, Any] | None:
+    """Fetch model info from /v1/models in a single call."""
     try:
         import requests
         url = f"{base_url}/models" if not base_url.endswith("/models") else base_url
@@ -91,7 +83,7 @@ def calculate_model_memory_gb(host: str = REMOTE_HOST) -> float:
     return 0.0
 
 
-def get_model_metadata(model_name: str, base_url: str = DEFAULT_LLM_BASE_URL) -> dict[str, Any]:
+def get_model_metadata(model_name: str, base_url: str) -> dict[str, Any]:
     """Build model metadata from models.json and live server endpoints."""
     launch_cfg = "vllm serve"
     spec_type = "off"
@@ -154,11 +146,7 @@ def _build_benchmark_fields(
     task_speed: float,
     intel_density: float,
 ) -> dict[str, Any]:
-    """Build the common field set shared by suite_trace and benchmark record.
-
-    Eliminates the duplication where the same 16 key-value pairs were
-    constructed independently in two places.
-    """
+    """Build the common field set shared by suite_trace and benchmark record."""
     return {
         "eval_id": eval_id,
         "name": meta["display_name"],
@@ -185,7 +173,7 @@ def save_evaluation_results(
     harness_name: str,
     harness_version: str,
     evaluation_output: dict[str, Any],
-    base_url: str = DEFAULT_LLM_BASE_URL,
+    base_url: str,
 ) -> str:
     """Save full results, trace, artifacts and update benchmark-data.json."""
     eval_id = evaluation_output["eval_id"]

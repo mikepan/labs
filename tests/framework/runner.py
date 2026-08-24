@@ -3,7 +3,6 @@ runner.py - Execution engine for running test steps and assertions in a workspac
 """
 
 from dataclasses import dataclass, field
-import os
 import subprocess
 import time
 from typing import Any
@@ -13,8 +12,6 @@ from tests.framework.spec import Step, Test
 
 __all__ = [
     "StepEvaluationResult",
-    "TestEvaluationResult",
-    "setup_workspace",
     "commit_step_workspace",
     "evaluate_step",
 ]
@@ -28,34 +25,6 @@ class StepEvaluationResult:
     score: int | float = 0
     check_results: list[CheckResult] = field(default_factory=list)
     duration_seconds: float = 0.0
-
-
-@dataclass
-class TestEvaluationResult:
-    test_name: str
-    passed: bool
-    earned_score: int | float = 0
-    max_score: int | float = 0
-    step_results: list[StepEvaluationResult] = field(default_factory=list)
-    duration_seconds: float = 0.0
-
-
-
-def setup_workspace(test: Test, workspace_dir: str) -> None:
-    """Execute test setup commands (e.g. copying files) and automatically initialize git baseline."""
-    # 1. Run any test-specific setup commands (e.g. copying fixture files)
-    for cmd in test.setup:
-        subprocess.run(cmd, shell=True, cwd=workspace_dir, check=True, capture_output=True)
-
-    # 2. Automatically ensure git repo is initialized with clean baseline commit
-    git_dir = os.path.join(workspace_dir, ".git")
-    if not os.path.exists(git_dir):
-        subprocess.run(["git", "init"], cwd=workspace_dir, check=True, capture_output=True)
-        subprocess.run(["git", "config", "user.email", "eval@example.com"], cwd=workspace_dir, check=True, capture_output=True)
-        subprocess.run(["git", "config", "user.name", "Eval Runner"], cwd=workspace_dir, check=True, capture_output=True)
-
-    subprocess.run(["git", "add", "-A"], cwd=workspace_dir, check=False, capture_output=True)
-    subprocess.run(["git", "commit", "-m", "initial commit", "--allow-empty"], cwd=workspace_dir, check=False, capture_output=True)
 
 
 
@@ -89,7 +58,7 @@ def evaluate_step(step: Step, workspace_dir: str, auto_commit: bool = True) -> S
             all_passed = False
 
     step_title = step.name or f"Step ({step.prompt[:30]}...)"
-    step_point = getattr(step, "point", 1)
+    step_point = step.point
     earned_score = step_point if all_passed else 0
 
     if auto_commit:

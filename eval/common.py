@@ -3,6 +3,7 @@ eval.common - Shared helpers, logging formatters, and utility functions.
 """
 
 import logging
+import os
 import sys
 
 class ColorFormatter(logging.Formatter):
@@ -44,3 +45,13 @@ def setup_logger(name: str, level: int = logging.INFO) -> logging.Logger:
         logger.addHandler(handler)
     logger.propagate = False
     return logger
+
+
+def load_json_config(path: str | os.PathLike, label: str = "config") -> dict:
+    """Load a JSON config file, exiting with an error if not found."""
+    import json
+    if not os.path.exists(path):
+        print(f"[ERROR] {label} file not found: {path}", file=sys.stderr)
+        sys.exit(1)
+    with open(path, "r", encoding="utf-8") as f:
+        return json.load(f)

@@ -16,10 +16,8 @@ from .assertions import (
 )
 from .runner import (
     StepEvaluationResult,
-    TestEvaluationResult,
     commit_step_workspace,
     evaluate_step,
-    setup_workspace,
 )
 from .spec import Step, Test
 
@@ -40,8 +38,6 @@ __all__ = [
     "custom_check",
     # Runner
     "StepEvaluationResult",
-    "TestEvaluationResult",
-    "setup_workspace",
     "commit_step_workspace",
     "evaluate_step",
 ]

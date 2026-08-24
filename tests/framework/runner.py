@@ -28,11 +28,12 @@ class StepEvaluationResult:
 
 
 
-def commit_step_workspace(step_name: str, workspace_dir: str) -> None:
+def commit_step_workspace(step_name: str, workspace_dir: str) -> bool:
     """Commit workspace changes after evaluating a step to ensure clean diff status for subsequent steps."""
-    subprocess.run(["git", "add", "-A"], cwd=workspace_dir, check=False, capture_output=True)
+    add_res = subprocess.run(["git", "add", "-A"], cwd=workspace_dir, check=False, capture_output=True)
     msg = f"eval-step: {step_name}"
-    subprocess.run(["git", "commit", "-m", msg, "--allow-empty"], cwd=workspace_dir, check=False, capture_output=True)
+    commit_res = subprocess.run(["git", "commit", "-m", msg, "--allow-empty"], cwd=workspace_dir, check=False, capture_output=True)
+    return add_res.returncode == 0 and commit_res.returncode == 0
 
 
 def evaluate_step(step: Step, workspace_dir: str, auto_commit: bool = True) -> StepEvaluationResult:

@@ -127,3 +127,9 @@ python3 eval/run_harness.py Qwen3.6-27B-FP8-NoThink --test test0 --v
 python3 -m http.server 8080 --directory site
 # Open http://localhost:8080
 ```
+
+### Analyze Cross-Model Results & Defect Detection (`test_analyzer.py`)
+```bash
+# Scan evaluation traces, print step pass-rate matrix, and flag 0% pass steps
+python3 eval/test_analyzer.py
+```

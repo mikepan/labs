@@ -55,6 +55,19 @@ class GitChangeAssert(BaseAssertion):
     def evaluate(self, workspace_dir: str) -> CheckResult:
         full_path = os.path.join(workspace_dir, self.filepath)
 
+        # 0. Verify workspace is a valid git repository
+        git_check = subprocess.run(
+            ["git", "rev-parse", "--is-inside-work-tree"],
+            cwd=workspace_dir,
+            capture_output=True,
+            text=True,
+        )
+        if git_check.returncode != 0:
+            return CheckResult(
+                False,
+                f"Workspace '{workspace_dir}' is not a valid git repository ('.git' directory was removed or damaged).",
+            )
+
         # Normalize status code (support "A", "ADD", "M", "MODIFY", "D", "DELETE")
         is_delete = self.status in ("D", "DELETE")
 

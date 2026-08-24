@@ -3,4 +3,9 @@
 *.pyc
 __pycache__/
 *.egg-info/
-results/
+unittests/
+
+
+# Ignore evaluation run directories, but keep benchmark-data.json
+site/results/*/
+!site/results/benchmark-data.json

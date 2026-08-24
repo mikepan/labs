@@ -29,6 +29,7 @@ from typing import Any
 from eval.common import setup_logger
 from eval.config import (
     DEFAULT_LLM_BASE_URL,
+    DEFAULT_STEP_TIMEOUT_MINUTES,
     DEFAULT_WORKER_SANDBOX_NAME,
     HARNESSES_CONFIG_FILE,
     RESULTS_DIR,
@@ -221,8 +222,9 @@ def run_test_suite_on_agent(
         for idx, step in enumerate(test_obj.steps):
             step_name = step.name or f"Step {idx + 1}"
             step_point = step.point
-            step_timeout = step.timeout
-            logger.info("--- [Step %d/%d] %s (point=%d, timeout=%ds) ---", idx + 1, len(test_obj.steps), step_name, step_point, step_timeout)
+            step_timeout_minutes = step.timeout_minutes if step.timeout_minutes is not None else DEFAULT_STEP_TIMEOUT_MINUTES
+            step_timeout_seconds = int(step_timeout_minutes * 60)
+            logger.info("--- [Step %d/%d] %s (point=%d, timeout=%s min) ---", idx + 1, len(test_obj.steps), step_name, step_point, step_timeout_minutes)
             logger.debug("Prompt: %s...", step.prompt.strip()[:100])
 
             step_t0 = time.time()
@@ -237,7 +239,7 @@ def run_test_suite_on_agent(
 
             # Send prompt through the driver — returns normalized TurnData
             try:
-                turn = driver.send_prompt(sandbox, session_id, step.prompt, active_model, timeout=step_timeout)
+                turn = driver.send_prompt(sandbox, session_id, step.prompt, active_model, timeout=step_timeout_seconds)
             except Exception as e:
                 step_elapsed = round(time.time() - step_t0, 2)
                 step_end_iso = datetime.now(timezone.utc).isoformat()
@@ -375,6 +377,9 @@ def run_test_suite_on_agent(
         log_filename = driver.server_log_filename
         log_content = driver.get_server_log(sandbox)
         if log_content:
+            test_log_path = os.path.join(local_artifacts, log_filename)
+            with open(test_log_path, "w", encoding="utf-8") as f:
+                f.write(log_content)
             with open(os.path.join(stage_dir, log_filename), "w", encoding="utf-8") as f:
                 f.write(log_content)
 
@@ -411,28 +416,29 @@ def run_test_suite_on_agent(
 # Main Entry Point
 # =====================================================================
 
+def load_harnesses_config() -> dict[str, Any]:
+    """Load harnesses configuration dictionary."""
+    if os.path.exists(HARNESSES_CONFIG_FILE):
+        try:
+            with open(HARNESSES_CONFIG_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception as e:
+            logger.debug("Failed to read harnesses from %s: %s", HARNESSES_CONFIG_FILE, e)
+    return {"pi": {}, "opencode cli": {}}
+
+
 def main():
     parser = argparse.ArgumentParser(description="Drive evaluation harness inside isolated Docker sandbox")
-    parser.add_argument("model", help="Model name (e.g. qwen/Qwen3.6-27B-FP8)")
-    parser.add_argument("--test", default="test0", help="Specific test to run (e.g. 'test0' or 'all')")
-    parser.add_argument("--harness", default="opencode", help="Harness name (default: opencode)")
+    parser.add_argument("--model", required=True, help="Model name (e.g. qwen/Qwen3.6-27B-FP8)")
+    parser.add_argument("--test", default="all", help="Specific test to run (e.g. 'test0' or 'all', default: all)")
+    parser.add_argument("--harness", default="all", help="Harness name (e.g. 'pi', 'opencode', or 'all', default: all)")
     parser.add_argument("--v", dest="verbose", action="store_true", help="Verbose debug logging")
     args = parser.parse_args()
 
     if args.verbose:
         logger.setLevel(logging.DEBUG)
 
-    # Determine harness version
-    harness_version = "unknown"
-    if os.path.exists(HARNESSES_CONFIG_FILE):
-        try:
-            with open(HARNESSES_CONFIG_FILE, "r", encoding="utf-8") as f:
-                h_info = json.load(f)
-                for k, v in h_info.items():
-                    if args.harness.lower() in k.lower():
-                        harness_version = v.get("version", harness_version)
-        except Exception as e:
-            logger.debug("Failed to read harness version from %s: %s", HARNESSES_CONFIG_FILE, e)
+    harnesses_cfg = load_harnesses_config()
 
     # Discover tests
     test_specs = []
@@ -445,32 +451,50 @@ def main():
         test_file = str(TESTS_DIR / args.test / "run.py")
         test_specs.append((test_file, load_test_spec(test_file)))
 
-    # Select driver
-    driver = get_driver(args.harness)
-    logger.info("RUNNING %s HARNESS (%s) FOR MODEL: %s (Tests: %s)",
-                args.harness.upper(), type(driver).__name__, args.model,
-                [t[1].name for t in test_specs])
+    # Determine target harnesses to evaluate
+    if args.harness == "all":
+        target_harnesses = list(harnesses_cfg.keys())
+    else:
+        target_harnesses = [args.harness]
 
-    # Provision sandbox
-    sandbox = SandboxClient()
-    sandbox.ensure()
-    try:
-        evaluation_output = run_test_suite_on_agent(
-            model_name=args.model,
-            test_specs=test_specs,
-            driver=driver,
-            sandbox=sandbox,
-        )
+    logger.info("Evaluating model '%s' across %d harness(es): %s",
+                args.model, len(target_harnesses), target_harnesses)
 
-        save_evaluation_results(
-            model_name=args.model,
-            harness_name=args.harness,
-            harness_version=harness_version,
-            evaluation_output=evaluation_output,
-            base_url=DEFAULT_LLM_BASE_URL,
-        )
-    finally:
-        sandbox.remove()
+    for harness_name in target_harnesses:
+        # Determine harness version
+        harness_version = "unknown"
+        for k, v in harnesses_cfg.items():
+            if harness_name.lower() in k.lower() or k.lower() in harness_name.lower():
+                harness_version = v.get("version", harness_version)
+
+        # Select driver
+        driver = get_driver(harness_name)
+        logger.info("==================================================")
+        logger.info("STARTING %s HARNESS (%s) FOR MODEL: %s (Tests: %s)",
+                    harness_name.upper(), type(driver).__name__, args.model,
+                    [t[1].name for t in test_specs])
+        logger.info("==================================================")
+
+        # Provision sandbox
+        sandbox = SandboxClient()
+        sandbox.ensure()
+        try:
+            evaluation_output = run_test_suite_on_agent(
+                model_name=args.model,
+                test_specs=test_specs,
+                driver=driver,
+                sandbox=sandbox,
+            )
+
+            save_evaluation_results(
+                model_name=args.model,
+                harness_name=harness_name,
+                harness_version=harness_version,
+                evaluation_output=evaluation_output,
+                base_url=DEFAULT_LLM_BASE_URL,
+            )
+        finally:
+            sandbox.remove()
 
 
 if __name__ == "__main__":

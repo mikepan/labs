@@ -2,6 +2,45 @@
   "$schema": "../../eval/benchmark-data.schema.json",
   "evaluations": [
     {
+      "eval_id": "df010ec8-5e31-4b48-830f-4e1f631c5342",
+      "name": "diffusiongemma-26B-A4B-IT-NVFP4-Reasoning",
+      "company": "nvidia",
+      "base_model": "diffusiongemma-26B-A4B-IT-NVFP4",
+      "kv_quant": "FP16",
+      "context_length": 262144,
+      "memory_gb": 29.3,
+      "benchmark_date": "2026-08-24",
+      "llm_server": "vLLM",
+      "speculative_decoding": "on",
+      "harness": "pi",
+      "harness_version": "0.84.2",
+      "reasoning": "max",
+      "launch_config": "vllm serve nvidia/diffusiongemma-26B-A4B-IT-NVFP4 --enable-prefix-caching --max-num-batched-tokens 16384 --trust-remote-code --attention-backend TRITON_ATTN  --chat-template /root/.cache/vllm/tool_chat_template_gemma4.jinja --enable-auto-tool-choice --tool-call-parser gemma4 --reasoning-parser gemma4 --override-generation-config '{\"max_new_tokens\": null}' --default-chat-template-kwargs '{\"enable_thinking\":true}'",
+      "intelligence": 62.5,
+      "task_speed": 7.8,
+      "intelligence_density": 2.133,
+      "test_results": {
+        "multilingual_science_presentation": {
+          "name": "Multi-step multilingual content creation with translation, HTML presentation, and iterative refinement",
+          "earned_score": 6,
+          "max_score": 8,
+          "run_time_sec": 348.03,
+          "tokens_in": 31540,
+          "tokens_out": 5490,
+          "context_used_pct": 14.13
+        },
+        "data_analytics": {
+          "name": "Multi-step data analytics and business intelligence evaluation on bookstore orders dataset",
+          "earned_score": 6,
+          "max_score": 12,
+          "run_time_sec": 577.03,
+          "tokens_in": 270907,
+          "tokens_out": 3766,
+          "context_used_pct": 104.78
+        }
+      }
+    },
+    {
       "eval_id": "109db2af-8bb1-4f53-ab01-dd73b691fe76",
       "name": "diffusiongemma-26B-A4B-IT-NVFP4-Reasoning",
       "company": "nvidia",

@@ -11,8 +11,6 @@ Usage:
 """
 
 import json
-import logging
-import os
 import shutil
 import subprocess
 import sys
@@ -64,8 +62,13 @@ def install_harness(
 
     if not install_cmd:
         if "pi" in norm_name:
-            install_cmd = "curl -fsSL https://pi.dev/install.sh | sh"
-            version_cmd = "pi --version"
+            install_cmd = (
+                "(curl -fsSL https://pi.dev/install.sh | bash || "
+                "curl -fsSL https://pi.dev/install.sh | sh || "
+                "npm install -g @earendil-works/pi-coding-agent) && "
+                "mkdir -p ~/.local/bin && (ln -sf ~/.pi/bin/pi ~/.local/bin/pi 2>/dev/null || true)"
+            )
+            version_cmd = "export PATH=$HOME/.pi/bin:$HOME/.local/bin:/usr/local/bin:$PATH; pi --version"
         elif "opencode" in norm_name:
             install_cmd = (
                 "curl -fsSL https://opencode.ai/install | bash && "
@@ -77,7 +80,7 @@ def install_harness(
             return None
 
     if not version_cmd:
-        version_cmd = f"{norm_name} --version"
+        version_cmd = f"export PATH=$HOME/.pi/bin:$HOME/.opencode/bin:$HOME/.local/bin:/usr/local/bin:$PATH; {norm_name} --version"
 
     logger.debug("Executing install command: %s", install_cmd)
     code, stdout, stderr = sandbox.exec(install_cmd)
@@ -125,16 +128,16 @@ def save_as_template(sandbox: SandboxClient, template_tag: str) -> bool:
 
 
 def install_evaluation_dependencies(sandbox: SandboxClient) -> None:
-    """Install core evaluation dependencies (git, python3, pip, langdetect, html5lib, etc.)."""
-    logger.info("Installing base evaluation dependencies (git, python, langdetect, etc.)...")
+    """Install core evaluation dependencies (git, python3, pip, nodejs, npm, langdetect, html5lib, etc.)."""
+    logger.info("Installing base evaluation dependencies (git, python, nodejs, langdetect, etc.)...")
 
     setup_script = """
     set -e
     if command -v apt-get >/dev/null 2>&1; then
         export DEBIAN_FRONTEND=noninteractive
-        apt-get update -qq && apt-get install -y -qq git python3 python3-pip python3-venv curl jq
+        apt-get update -qq && apt-get install -y -qq git python3 python3-pip python3-venv curl jq nodejs npm
     elif command -v apk >/dev/null 2>&1; then
-        apk update && apk add --no-cache git python3 py3-pip curl jq
+        apk update && apk add --no-cache git python3 py3-pip curl jq nodejs npm
     fi
 
     # Install Python evaluation packages

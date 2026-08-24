@@ -857,6 +857,18 @@ footer a:hover {
   gap: 0.75rem;
 }
 
+.summary-title-group h1 .title-separator {
+  font-weight: 300;
+  color: #94a3b8;
+  margin: 0 0.4rem;
+  font-size: 1.3rem;
+}
+
+.summary-title-group h1 .title-harness {
+  font-weight: 400;
+  color: #64748b;
+}
+
 .summary-meta-badges {
   display: flex;
   align-items: center;

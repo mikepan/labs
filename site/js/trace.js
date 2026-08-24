@@ -157,10 +157,12 @@ function renderExecutiveSummary(data) {
     ? `${(totalTimeSec / 60).toFixed(1)} min`
     : 'N/A';
 
+  document.title = `${modelName} x ${harness} | Evaluation Trace`;
+
   container.innerHTML = `
     <div class="summary-title-group">
       <h1>
-        <span>${escapeHtml(modelName)}</span>
+        <span>${escapeHtml(modelName)}<span class="title-separator">x</span><span class="title-harness">${escapeHtml(harness)}</span></span>
       </h1>
       <div class="summary-meta-badges">
         <span class="badge">LLM: ${escapeHtml(llmDisplay)}</span>

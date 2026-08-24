@@ -1,21 +1,18 @@
 #!/usr/bin/env python3
 """
-launch_model.py - Minimal vLLM model evaluation runner and cluster orchestrator.
+launch_model.py - Dedicated vLLM model lifecycle manager and cluster orchestrator.
+
+Handles remote container startup, readiness probing, sanity queries, and teardown.
 
 Usage:
-    python3 eval/launch_model.py [model_name] [--test test_name] [--fast] [--v]
+    python3 eval/launch_model.py [--model model_name] [--stop] [--fast] [--v]
 """
 
 import argparse
-import json
 import logging
-import os
-from pathlib import Path
 import subprocess
 import sys
 import time
-import urllib.error
-import urllib.request
 from typing import Any
 
 from eval.config import (
@@ -23,11 +20,22 @@ from eval.config import (
     MODELS_CONFIG_FILE,
     REMOTE_HOST,
     REMOTE_VLLM_DIR,
-    REPO_ROOT,
 )
 from eval.common import setup_logger, load_json_config, run_cmd, http_json
 
 logger = setup_logger("launch_model")
+
+__all__ = [
+    "load_models",
+    "parse_model_config",
+    "run_remote",
+    "stop_model",
+    "launch_model",
+    "is_server_ready",
+    "wait_for_server_ready",
+    "run_sanity_test",
+    "ensure_model_running",
+]
 
 
 def load_models(config_path: str = MODELS_CONFIG_FILE) -> dict[str, Any]:
@@ -61,7 +69,7 @@ def run_remote(cmd: str, host: str = REMOTE_HOST) -> subprocess.CompletedProcess
 
 
 def stop_model(host: str = REMOTE_HOST) -> bool:
-    """Stop the running model container."""
+    """Stop the running model container on the remote cluster."""
     logger.info("Stopping running model container on %s...", host)
     res = run_remote(f"cd {REMOTE_VLLM_DIR} && ./launch-cluster.sh --solo stop", host=host)
     if res.stdout and res.stdout.strip():
@@ -98,7 +106,13 @@ def is_server_ready(expected_weight: str | None = None, base_url: str = API_BASE
     return True
 
 
-def wait_for_server_ready(expected_weight: str | None = None, base_url: str = API_BASE_URL, timeout_seconds: int = 600, verbose: bool = False, host: str = REMOTE_HOST) -> bool:
+def wait_for_server_ready(
+    expected_weight: str | None = None,
+    base_url: str = API_BASE_URL,
+    timeout_seconds: int = 600,
+    verbose: bool = False,
+    host: str = REMOTE_HOST,
+) -> bool:
     """Poll endpoint until the vLLM server is responsive with expected_model."""
     logger.info("Waiting for vLLM server at %s (timeout: %ds)...", base_url, timeout_seconds)
     start_time = time.time()
@@ -107,7 +121,12 @@ def wait_for_server_ready(expected_weight: str | None = None, base_url: str = AP
     if verbose:
         logger.info("Streaming live logs from %s:vllm_node...", host)
         try:
-            log_proc = subprocess.Popen(["ssh", host, "docker logs -f vllm_node"], stdout=sys.stdout, stderr=sys.stderr, text=True)
+            log_proc = subprocess.Popen(
+                ["ssh", host, "docker logs -f vllm_node"],
+                stdout=sys.stdout,
+                stderr=sys.stderr,
+                text=True,
+            )
         except Exception as e:
             logger.warning("Could not stream logs: %s", e)
 
@@ -153,76 +172,63 @@ def run_sanity_test(model_id: str, base_url: str = API_BASE_URL) -> bool:
     return False
 
 
-def run_model_pipeline(
+def ensure_model_running(
     model_name: str,
     model_config: dict[str, Any],
     host: str = REMOTE_HOST,
     base_url: str = API_BASE_URL,
     fast: bool = False,
     verbose: bool = False,
-    test_name: str = "all",
-) -> bool:
-    """Run full lifecycle: launch -> wait -> sanity test -> harness -> stop."""
-    logger.info("STARTING PIPELINE FOR: %s", model_name)
+) -> tuple[bool, str]:
+    """Ensure target model is running on the cluster, ready, and sanity-tested.
 
+    Returns (success, weight_name).
+    """
     weight_name, vllm_cmd = parse_model_config(model_config)
-    need_launch = True
     if fast and is_server_ready(expected_weight=weight_name, base_url=base_url):
         logger.info("Fast mode: '%s' is already UP. Skipping launch.", weight_name)
-        need_launch = False
+        return True, weight_name
 
-    success = False
-    try:
-        if need_launch:
-            if not launch_model(model_name, vllm_cmd, host=host):
-                return False
-            if not wait_for_server_ready(expected_weight=weight_name, base_url=base_url, verbose=verbose, host=host):
-                return False
+    if not launch_model(model_name, vllm_cmd, host=host):
+        return False, weight_name
+    if not wait_for_server_ready(expected_weight=weight_name, base_url=base_url, verbose=verbose, host=host):
+        return False, weight_name
+    if not run_sanity_test(weight_name, base_url=base_url):
+        return False, weight_name
 
-        if not run_sanity_test(weight_name, base_url=base_url):
-            return False
-
-        logger.info("Executing Evaluation Harness for %s (test: %s)...", model_name, test_name)
-        harness_script = REPO_ROOT / "eval" / "run_harness.py"
-        cmd = [sys.executable, str(harness_script), model_name, "--test", test_name]
-        if verbose:
-            cmd.append("--v")
-        res = subprocess.run(cmd)
-        if res.returncode != 0:
-            logger.error("Evaluation harness failed with exit code %d", res.returncode)
-            return False
-
-        success = True
-    finally:
-        if not fast:
-            stop_model(host=host)
-        else:
-            logger.info("Fast mode enabled: leaving vLLM server running.")
-
-    status_str = "SUCCESS" if success else "FAILED"
-    logger.info("FINISHED PIPELINE FOR: %s (Status: %s)", model_name, status_str)
-    return success
+    return True, weight_name
 
 
 def main():
     models = load_models()
-    parser = argparse.ArgumentParser(description="Run vLLM model evaluation pipeline.")
-    parser.add_argument("model", nargs="?", default=None, choices=list(models.keys()), help="Model to evaluate (runs all if omitted)")
-    parser.add_argument("--test", default="all", help="Test to run (default: all)")
-    parser.add_argument("--fast", action="store_true", help="Fast mode: skip launch and teardown")
+    parser = argparse.ArgumentParser(description="Launch, manage, or test vLLM models on remote cluster.")
+    parser.add_argument("--model", default="all", help="Model to launch or 'all'")
+    parser.add_argument("--stop", action="store_true", help="Stop running model container")
+    parser.add_argument("--fast", action="store_true", help="Fast mode: skip launch if already ready")
     parser.add_argument("--v", dest="verbose", action="store_true", help="Verbose log streaming")
 
     args = parser.parse_args()
     if args.verbose:
         logger.setLevel(logging.DEBUG)
 
-    target_models = [args.model] if args.model else list(models.keys())
-    logger.info("Running '%s' test(s) on %d model(s)...", args.test, len(target_models))
+    if args.stop:
+        ok = stop_model()
+        sys.exit(0 if ok else 1)
 
-    for model_name in target_models:
-        ok = run_model_pipeline(model_name, models[model_name], fast=args.fast, verbose=args.verbose, test_name=args.test)
+    chosen_model = args.model
+    if chosen_model in (None, "all"):
+        target_models = list(models.keys())
+    elif chosen_model in models:
+        target_models = [chosen_model]
+    else:
+        available = ", ".join(models.keys())
+        logger.error("Unknown model '%s'. Available models: %s", chosen_model, available)
+        sys.exit(1)
+
+    for m_name in target_models:
+        ok, _ = ensure_model_running(m_name, models[m_name], fast=args.fast, verbose=args.verbose)
         if not ok:
-            logger.error("Pipeline stopped on failure for model: %s", model_name)
+            logger.error("Failed to start model: %s", m_name)
             sys.exit(1)
 
     sys.exit(0)

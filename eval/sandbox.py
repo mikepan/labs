@@ -8,7 +8,7 @@ import tempfile
 from typing import Any
 
 from eval.common import setup_logger, run_cmd
-from eval.config import DEFAULT_WORKER_SANDBOX_NAME, DEFAULT_TEMPLATE_TAG, DEFAULT_OPENCODE_PORT
+from eval.config import DEFAULT_WORKER_SANDBOX_NAME, DEFAULT_TEMPLATE_TAG, DEFAULT_OPENCODE_PORT, DEFAULT_PI_PORT
 
 __all__ = ["SandboxClient"]
 
@@ -70,6 +70,7 @@ class SandboxClient:
             "--name", self.name,
             "--template", template,
             "-p", f"{DEFAULT_OPENCODE_PORT}:{DEFAULT_OPENCODE_PORT}",
+            "-p", f"{DEFAULT_PI_PORT}:{DEFAULT_PI_PORT}",
             "shell", ws_path,
         )
         if res.returncode != 0:
@@ -137,9 +138,12 @@ class SandboxClient:
             return True
         return False
 
-    def read_file(self, remote_path: str, max_lines: int = 500) -> str:
+    def read_file(self, remote_path: str, max_lines: int | None = None) -> str:
         """Read content from a file inside the sandbox."""
-        res = run_cmd("sbx", "exec", self.name, "tail", "-n", str(max_lines), remote_path)
+        if max_lines is not None:
+            res = run_cmd("sbx", "exec", self.name, "tail", "-n", str(max_lines), remote_path)
+        else:
+            res = run_cmd("sbx", "exec", self.name, "cat", remote_path)
         return res.stdout if res.returncode == 0 else ""
 
     # ----- Workspace setup -----

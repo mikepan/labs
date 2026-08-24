@@ -85,6 +85,7 @@ def get_driver(harness_name: str) -> HarnessDriver:
     # Lazy-import known driver modules so they self-register
     if not _DRIVERS:
         import eval.drivers.opencode  # noqa: F401
+        import eval.drivers.pi  # noqa: F401
 
     key = harness_name.lower().strip()
     # Fuzzy match: 'opencode cli' -> 'opencode'

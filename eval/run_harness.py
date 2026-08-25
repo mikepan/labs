@@ -377,9 +377,6 @@ def run_test_suite_on_agent(
         log_filename = driver.server_log_filename
         log_content = driver.get_server_log(sandbox)
         if log_content:
-            test_log_path = os.path.join(local_artifacts, log_filename)
-            with open(test_log_path, "w", encoding="utf-8") as f:
-                f.write(log_content)
             with open(os.path.join(stage_dir, log_filename), "w", encoding="utf-8") as f:
                 f.write(log_content)
 

@@ -334,6 +334,7 @@ class PiSession:
             start_time = time.time()
             step_start_iso = datetime.now(timezone.utc).isoformat()
 
+            agent_started = False
             while True:
                 elapsed = time.time() - start_time
                 if elapsed > timeout:
@@ -380,6 +381,9 @@ class PiSession:
                         err_msg = event.get("error", "Prompt command failed")
                         sys.stderr.write(f"[pi_server] Pi prompt error: {{err_msg}}\\n")
                         raise RuntimeError(f"Pi prompt command rejected: {{err_msg}}")
+
+                elif e_type == "agent_start":
+                    agent_started = True
 
                 elif e_type == "message_update":
                     ame = event.get("assistantMessageEvent", {{}})
@@ -451,14 +455,28 @@ class PiSession:
                     gen_msgs = event.get("messages", [])
                     if gen_msgs:
                         raw_messages.extend(gen_msgs)
-                    if not event.get("willRetry"):
+                    if agent_started and not event.get("willRetry"):
                         sys.stderr.write(f"[pi_server] Received agent_end (willRetry=False). Turn complete.\\n")
                         break
 
                 elif e_type == "agent_settled":
-                    # Fully settled, exit collection loop
-                    sys.stderr.write(f"[pi_server] Received agent_settled. Turn complete.\\n")
+                    if agent_started:
+                        sys.stderr.write(f"[pi_server] Received agent_settled. Turn complete.\\n")
+                        break
+                    else:
+                        sys.stderr.write(f"[pi_server] Ignored trailing agent_settled before agent_start.\\n")
+
+            # Drain trailing events (e.g. agent_settled after agent_end) so subsequent turns start clean
+            while True:
+                rlist, _, _ = select.select([self.proc.stdout], [], [], 0.05)
+                if not rlist:
                     break
+                line = self.proc.stdout.readline()
+                if not line:
+                    break
+                line_str = line.strip()
+                if line_str:
+                    sys.stderr.write(f"[pi_rpc_drain] {{line_str[:200]}}\\n")
 
             full_text = "".join(text_chunks).strip()
             full_reasoning = "".join(reasoning_chunks).strip()

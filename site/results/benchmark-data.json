@@ -2,236 +2,392 @@
   "$schema": "../../eval/benchmark-data.schema.json",
   "evaluations": [
     {
-      "eval_id": "df010ec8-5e31-4b48-830f-4e1f631c5342",
+      "eval_id": "4a5c7901-0df9-4ad4-8f0e-330c43d57994",
       "name": "diffusiongemma-26B-A4B-IT-NVFP4-Reasoning",
       "company": "nvidia",
       "base_model": "diffusiongemma-26B-A4B-IT-NVFP4",
       "kv_quant": "FP16",
       "context_length": 262144,
-      "memory_gb": 29.3,
-      "benchmark_date": "2026-08-24",
+      "memory_gb": 29.0,
+      "benchmark_date": "2026-08-25",
+      "llm_server": "vLLM",
+      "speculative_decoding": "on",
+      "harness": "opencode cli",
+      "harness_version": "1.18.18",
+      "reasoning": "max",
+      "launch_config": "vllm serve nvidia/diffusiongemma-26B-A4B-IT-NVFP4 --enable-prefix-caching --max-num-batched-tokens 16384 --trust-remote-code --attention-backend TRITON_ATTN  --chat-template /root/.cache/vllm/tool_chat_template_gemma4.jinja --enable-auto-tool-choice --tool-call-parser gemma4 --reasoning-parser gemma4 --override-generation-config '{\"max_new_tokens\": null}' --default-chat-template-kwargs '{\"enable_thinking\":true}'",
+      "intelligence": 91.7,
+      "task_speed": 10.9,
+      "intelligence_density": 3.162,
+      "test_results": {
+        "multilingual_science_presentation": {
+          "name": "Multi-step multilingual content creation with translation, HTML presentation, and iterative refinement",
+          "earned_score": 8,
+          "max_score": 8,
+          "run_time_sec": 293.84,
+          "tokens_in": 464298,
+          "tokens_out": 22533,
+          "context_used_pct": 185.71
+        },
+        "data_analytics": {
+          "name": "Multi-step data analytics and business intelligence evaluation on bookstore orders dataset",
+          "earned_score": 10,
+          "max_score": 12,
+          "run_time_sec": 364.21,
+          "tokens_in": 1978934,
+          "tokens_out": 8978,
+          "context_used_pct": 758.33
+        }
+      }
+    },
+    {
+      "eval_id": "011c1df5-7f50-4820-9107-d76756138ed1",
+      "name": "diffusiongemma-26B-A4B-IT-NVFP4-Reasoning",
+      "company": "nvidia",
+      "base_model": "diffusiongemma-26B-A4B-IT-NVFP4",
+      "kv_quant": "FP16",
+      "context_length": 262144,
+      "memory_gb": 29.0,
+      "benchmark_date": "2026-08-25",
       "llm_server": "vLLM",
       "speculative_decoding": "on",
       "harness": "pi",
       "harness_version": "0.84.2",
       "reasoning": "max",
       "launch_config": "vllm serve nvidia/diffusiongemma-26B-A4B-IT-NVFP4 --enable-prefix-caching --max-num-batched-tokens 16384 --trust-remote-code --attention-backend TRITON_ATTN  --chat-template /root/.cache/vllm/tool_chat_template_gemma4.jinja --enable-auto-tool-choice --tool-call-parser gemma4 --reasoning-parser gemma4 --override-generation-config '{\"max_new_tokens\": null}' --default-chat-template-kwargs '{\"enable_thinking\":true}'",
-      "intelligence": 62.5,
-      "task_speed": 7.8,
-      "intelligence_density": 2.133,
-      "test_results": {
-        "multilingual_science_presentation": {
-          "name": "Multi-step multilingual content creation with translation, HTML presentation, and iterative refinement",
-          "earned_score": 6,
-          "max_score": 8,
-          "run_time_sec": 348.03,
-          "tokens_in": 31540,
-          "tokens_out": 5490,
-          "context_used_pct": 14.13
-        },
-        "data_analytics": {
-          "name": "Multi-step data analytics and business intelligence evaluation on bookstore orders dataset",
-          "earned_score": 6,
-          "max_score": 12,
-          "run_time_sec": 577.03,
-          "tokens_in": 270907,
-          "tokens_out": 3766,
-          "context_used_pct": 104.78
-        }
-      }
-    },
-    {
-      "eval_id": "109db2af-8bb1-4f53-ab01-dd73b691fe76",
-      "name": "diffusiongemma-26B-A4B-IT-NVFP4-Reasoning",
-      "company": "nvidia",
-      "base_model": "diffusiongemma-26B-A4B-IT-NVFP4",
-      "kv_quant": "FP16",
-      "context_length": 262144,
-      "memory_gb": 28.6,
-      "benchmark_date": "2026-08-24",
-      "llm_server": "vLLM",
-      "speculative_decoding": "on",
-      "harness": "opencode",
-      "harness_version": "1.18.18",
-      "reasoning": "max",
-      "launch_config": "vllm serve nvidia/diffusiongemma-26B-A4B-IT-NVFP4 --enable-prefix-caching --max-num-batched-tokens 16384 --trust-remote-code --attention-backend TRITON_ATTN  --chat-template /root/.cache/vllm/tool_chat_template_gemma4.jinja --enable-auto-tool-choice --tool-call-parser gemma4 --reasoning-parser gemma4 --override-generation-config '{\"max_new_tokens\": null}' --default-chat-template-kwargs '{\"enable_thinking\":true}'",
       "intelligence": 91.7,
-      "task_speed": 22.4,
-      "intelligence_density": 3.206,
+      "task_speed": 12.9,
+      "intelligence_density": 3.162,
       "test_results": {
         "multilingual_science_presentation": {
           "name": "Multi-step multilingual content creation with translation, HTML presentation, and iterative refinement",
           "earned_score": 8,
           "max_score": 8,
-          "run_time_sec": 172.36,
-          "tokens_in": 333965,
-          "tokens_out": 14642,
-          "context_used_pct": 132.98
+          "run_time_sec": 116.76,
+          "tokens_in": 227834,
+          "tokens_out": 11477,
+          "context_used_pct": 91.29
         },
         "data_analytics": {
           "name": "Multi-step data analytics and business intelligence evaluation on bookstore orders dataset",
           "earned_score": 10,
           "max_score": 12,
-          "run_time_sec": 149.1,
-          "tokens_in": 796788,
-          "tokens_out": 7058,
-          "context_used_pct": 306.64
+          "run_time_sec": 440.13,
+          "tokens_in": 555433,
+          "tokens_out": 10370,
+          "context_used_pct": 215.84
         }
       }
     },
     {
-      "eval_id": "016f9755-4c30-4ac7-869b-459424bd8ddc",
+      "eval_id": "4109d4d7-e0a3-4e9f-b38e-153210568106",
       "name": "Qwen3.6-35B-A3B-NVFP4",
       "company": "nvidia",
       "base_model": "Qwen3.6-35B-A3B-NVFP4",
       "kv_quant": "FP8",
       "context_length": 262144,
-      "memory_gb": 68.0,
-      "benchmark_date": "2026-08-24",
+      "memory_gb": 67.6,
+      "benchmark_date": "2026-08-25",
       "llm_server": "vLLM",
       "speculative_decoding": "mtp",
-      "harness": "opencode",
+      "harness": "opencode cli",
       "harness_version": "1.18.18",
       "reasoning": "on",
       "launch_config": "vllm serve nvidia/Qwen3.6-35B-A3B-NVFP4 --enable-prefix-caching --max-num-batched-tokens 16384 --trust-remote-code --reasoning-parser qwen3 --enable-auto-tool-choice --tool-call-parser qwen3_coder --generation-config auto --override-generation-config '{\"temperature\": 0.6, \"top_p\": 0.95, \"top_k\": 20, \"min_p\": 0.0, \"presence_penalty\": 0.0, \"repetition_penalty\": 1.0}'",
-      "intelligence": 91.7,
-      "task_speed": 17.5,
-      "intelligence_density": 1.349,
+      "intelligence": 100.0,
+      "task_speed": 18.9,
+      "intelligence_density": 1.479,
       "test_results": {
         "multilingual_science_presentation": {
           "name": "Multi-step multilingual content creation with translation, HTML presentation, and iterative refinement",
           "earned_score": 8,
           "max_score": 8,
-          "run_time_sec": 332.6,
-          "tokens_in": 582179,
-          "tokens_out": 25874,
-          "context_used_pct": 231.95
+          "run_time_sec": 248.75,
+          "tokens_in": 728677,
+          "tokens_out": 22685,
+          "context_used_pct": 286.62
+        },
+        "data_analytics": {
+          "name": "Multi-step data analytics and business intelligence evaluation on bookstore orders dataset",
+          "earned_score": 12,
+          "max_score": 12,
+          "run_time_sec": 131.33,
+          "tokens_in": 1301053,
+          "tokens_out": 7680,
+          "context_used_pct": 499.24
+        }
+      }
+    },
+    {
+      "eval_id": "46752376-89b7-4d9e-9c60-f7abb3feebd3",
+      "name": "Qwen3.6-35B-A3B-NVFP4",
+      "company": "nvidia",
+      "base_model": "Qwen3.6-35B-A3B-NVFP4",
+      "kv_quant": "FP8",
+      "context_length": 262144,
+      "memory_gb": 67.6,
+      "benchmark_date": "2026-08-25",
+      "llm_server": "vLLM",
+      "speculative_decoding": "mtp",
+      "harness": "pi",
+      "harness_version": "0.84.2",
+      "reasoning": "on",
+      "launch_config": "vllm serve nvidia/Qwen3.6-35B-A3B-NVFP4 --enable-prefix-caching --max-num-batched-tokens 16384 --trust-remote-code --reasoning-parser qwen3 --enable-auto-tool-choice --tool-call-parser qwen3_coder --generation-config auto --override-generation-config '{\"temperature\": 0.6, \"top_p\": 0.95, \"top_k\": 20, \"min_p\": 0.0, \"presence_penalty\": 0.0, \"repetition_penalty\": 1.0}'",
+      "intelligence": 91.7,
+      "task_speed": 18.5,
+      "intelligence_density": 1.357,
+      "test_results": {
+        "multilingual_science_presentation": {
+          "name": "Multi-step multilingual content creation with translation, HTML presentation, and iterative refinement",
+          "earned_score": 8,
+          "max_score": 8,
+          "run_time_sec": 287.41,
+          "tokens_in": 560029,
+          "tokens_out": 28977,
+          "context_used_pct": 224.69
         },
         "data_analytics": {
           "name": "Multi-step data analytics and business intelligence evaluation on bookstore orders dataset",
           "earned_score": 10,
           "max_score": 12,
-          "run_time_sec": 79.09,
-          "tokens_in": 436972,
-          "tokens_out": 5192,
-          "context_used_pct": 168.67
+          "run_time_sec": 101.48,
+          "tokens_in": 433972,
+          "tokens_out": 8323,
+          "context_used_pct": 168.72
         }
       }
     },
     {
-      "eval_id": "23eb0fb3-b647-4e05-8dce-4929a2293eb9",
+      "eval_id": "301d0560-77fb-402e-8562-fafafbe89b74",
       "name": "Qwen3.6-27B-NVFP4",
       "company": "nvidia",
       "base_model": "Qwen3.6-27B-NVFP4",
       "kv_quant": "FP8",
       "context_length": 262144,
-      "memory_gb": 56.9,
-      "benchmark_date": "2026-08-24",
+      "memory_gb": 57.1,
+      "benchmark_date": "2026-08-25",
       "llm_server": "vLLM",
       "speculative_decoding": "dflash",
-      "harness": "opencode",
+      "harness": "opencode cli",
       "harness_version": "1.18.18",
       "reasoning": "on",
       "launch_config": "vllm serve nvidia/Qwen3.6-27B-NVFP4 --enable-prefix-caching --max-num-batched-tokens 16384 --trust-remote-code --reasoning-parser qwen3 --enable-auto-tool-choice --tool-call-parser qwen3_coder",
-      "intelligence": 93.8,
-      "task_speed": 5.7,
-      "intelligence_density": 1.649,
+      "intelligence": 77.1,
+      "task_speed": 6.7,
+      "intelligence_density": 1.35,
       "test_results": {
         "multilingual_science_presentation": {
           "name": "Multi-step multilingual content creation with translation, HTML presentation, and iterative refinement",
           "earned_score": 7,
           "max_score": 8,
-          "run_time_sec": 917.53,
-          "tokens_in": 988678,
-          "tokens_out": 31434,
-          "context_used_pct": 389.14
+          "run_time_sec": 901.29,
+          "tokens_in": 991290,
+          "tokens_out": 26341,
+          "context_used_pct": 388.2
+        },
+        "data_analytics": {
+          "name": "Multi-step data analytics and business intelligence evaluation on bookstore orders dataset",
+          "earned_score": 8,
+          "max_score": 12,
+          "run_time_sec": 170.57,
+          "tokens_in": 277029,
+          "tokens_out": 3351,
+          "context_used_pct": 106.96
+        }
+      }
+    },
+    {
+      "eval_id": "7b99b376-70f9-4be5-a027-d99294781b8f",
+      "name": "Qwen3.6-27B-NVFP4",
+      "company": "nvidia",
+      "base_model": "Qwen3.6-27B-NVFP4",
+      "kv_quant": "FP8",
+      "context_length": 262144,
+      "memory_gb": 57.1,
+      "benchmark_date": "2026-08-25",
+      "llm_server": "vLLM",
+      "speculative_decoding": "dflash",
+      "harness": "pi",
+      "harness_version": "0.84.2",
+      "reasoning": "on",
+      "launch_config": "vllm serve nvidia/Qwen3.6-27B-NVFP4 --enable-prefix-caching --max-num-batched-tokens 16384 --trust-remote-code --reasoning-parser qwen3 --enable-auto-tool-choice --tool-call-parser qwen3_coder",
+      "intelligence": 93.8,
+      "task_speed": 6.6,
+      "intelligence_density": 1.643,
+      "test_results": {
+        "multilingual_science_presentation": {
+          "name": "Multi-step multilingual content creation with translation, HTML presentation, and iterative refinement",
+          "earned_score": 7,
+          "max_score": 8,
+          "run_time_sec": 818.21,
+          "tokens_in": 213768,
+          "tokens_out": 15489,
+          "context_used_pct": 87.45
         },
         "data_analytics": {
           "name": "Multi-step data analytics and business intelligence evaluation on bookstore orders dataset",
           "earned_score": 12,
           "max_score": 12,
-          "run_time_sec": 346.34,
-          "tokens_in": 641051,
-          "tokens_out": 7980,
-          "context_used_pct": 247.59
+          "run_time_sec": 267.59,
+          "tokens_in": 385893,
+          "tokens_out": 7424,
+          "context_used_pct": 150.04
         }
       }
     },
     {
-      "eval_id": "e8d5c781-9406-44c3-baec-753f3006a0d3",
+      "eval_id": "75a13541-3b89-448b-8246-7b1e9210f25a",
       "name": "Qwen3.6-27B-FP8-Thinking",
       "company": "qwen",
       "base_model": "Qwen3.6-27B-FP8",
       "kv_quant": "FP8",
       "context_length": 262144,
-      "memory_gb": 62.0,
-      "benchmark_date": "2026-08-24",
+      "memory_gb": 62.5,
+      "benchmark_date": "2026-08-25",
       "llm_server": "vLLM",
       "speculative_decoding": "dflash",
-      "harness": "opencode",
+      "harness": "opencode cli",
       "harness_version": "1.18.18",
       "reasoning": "on",
       "launch_config": "vllm serve qwen/Qwen3.6-27B-FP8  --enable-prefix-caching --max-num-batched-tokens 16384 --trust-remote-code --reasoning-parser qwen3 --enable-auto-tool-choice --tool-call-parser qwen3_coder",
-      "intelligence": 100.0,
-      "task_speed": 4.3,
-      "intelligence_density": 1.613,
+      "intelligence": 93.8,
+      "task_speed": 4.5,
+      "intelligence_density": 1.501,
       "test_results": {
         "multilingual_science_presentation": {
           "name": "Multi-step multilingual content creation with translation, HTML presentation, and iterative refinement",
-          "earned_score": 8,
+          "earned_score": 7,
           "max_score": 8,
-          "run_time_sec": 1312.4,
-          "tokens_in": 1188616,
-          "tokens_out": 31125,
-          "context_used_pct": 465.29
+          "run_time_sec": 1085.27,
+          "tokens_in": 778805,
+          "tokens_out": 19394,
+          "context_used_pct": 304.49
         },
         "data_analytics": {
           "name": "Multi-step data analytics and business intelligence evaluation on bookstore orders dataset",
           "earned_score": 12,
           "max_score": 12,
-          "run_time_sec": 348.39,
-          "tokens_in": 385628,
-          "tokens_out": 5421,
-          "context_used_pct": 149.17
+          "run_time_sec": 526.67,
+          "tokens_in": 694167,
+          "tokens_out": 7426,
+          "context_used_pct": 267.64
         }
       }
     },
     {
-      "eval_id": "562cb0f8-3252-4938-a7db-1481ed1470e5",
+      "eval_id": "97480c27-0d32-48bb-995b-a50d1a91f3c4",
+      "name": "Qwen3.6-27B-FP8-Thinking",
+      "company": "qwen",
+      "base_model": "Qwen3.6-27B-FP8",
+      "kv_quant": "FP8",
+      "context_length": 262144,
+      "memory_gb": 62.5,
+      "benchmark_date": "2026-08-25",
+      "llm_server": "vLLM",
+      "speculative_decoding": "dflash",
+      "harness": "pi",
+      "harness_version": "0.84.2",
+      "reasoning": "on",
+      "launch_config": "vllm serve qwen/Qwen3.6-27B-FP8  --enable-prefix-caching --max-num-batched-tokens 16384 --trust-remote-code --reasoning-parser qwen3 --enable-auto-tool-choice --tool-call-parser qwen3_coder",
+      "intelligence": 87.5,
+      "task_speed": 4.6,
+      "intelligence_density": 1.4,
+      "test_results": {
+        "multilingual_science_presentation": {
+          "name": "Multi-step multilingual content creation with translation, HTML presentation, and iterative refinement",
+          "earned_score": 6,
+          "max_score": 8,
+          "run_time_sec": 1112.98,
+          "tokens_in": 257242,
+          "tokens_out": 18838,
+          "context_used_pct": 105.32
+        },
+        "data_analytics": {
+          "name": "Multi-step data analytics and business intelligence evaluation on bookstore orders dataset",
+          "earned_score": 12,
+          "max_score": 12,
+          "run_time_sec": 462.59,
+          "tokens_in": 697176,
+          "tokens_out": 8118,
+          "context_used_pct": 269.05
+        }
+      }
+    },
+    {
+      "eval_id": "315d94a6-4787-4fd7-b6e7-77560a41efd9",
       "name": "Qwen3.6-27B-FP8-NoThink",
       "company": "qwen",
       "base_model": "Qwen3.6-27B-FP8",
       "kv_quant": "FP8",
       "context_length": 262144,
-      "memory_gb": 62.4,
+      "memory_gb": 62.2,
       "benchmark_date": "2026-08-24",
       "llm_server": "vLLM",
       "speculative_decoding": "dflash",
-      "harness": "opencode",
+      "harness": "opencode cli",
       "harness_version": "1.18.18",
       "reasoning": "off",
       "launch_config": "vllm serve qwen/Qwen3.6-27B-FP8  --enable-prefix-caching --max-num-batched-tokens 16384 --trust-remote-code --reasoning-parser qwen3 --enable-auto-tool-choice --tool-call-parser qwen3_coder --default-chat-template-kwargs '{\"enable_thinking\":false}'",
       "intelligence": 100.0,
-      "task_speed": 6.9,
-      "intelligence_density": 1.603,
+      "task_speed": 6.6,
+      "intelligence_density": 1.608,
       "test_results": {
         "multilingual_science_presentation": {
           "name": "Multi-step multilingual content creation with translation, HTML presentation, and iterative refinement",
           "earned_score": 8,
           "max_score": 8,
-          "run_time_sec": 821.83,
-          "tokens_in": 779283,
-          "tokens_out": 20612,
-          "context_used_pct": 305.14
+          "run_time_sec": 762.33,
+          "tokens_in": 656400,
+          "tokens_out": 17310,
+          "context_used_pct": 257.0
         },
         "data_analytics": {
           "name": "Multi-step data analytics and business intelligence evaluation on bookstore orders dataset",
           "earned_score": 12,
           "max_score": 12,
-          "run_time_sec": 223.82,
-          "tokens_in": 367646,
-          "tokens_out": 3295,
-          "context_used_pct": 141.5
+          "run_time_sec": 326.67,
+          "tokens_in": 831924,
+          "tokens_out": 4393,
+          "context_used_pct": 319.03
+        }
+      }
+    },
+    {
+      "eval_id": "ad090feb-f9b2-498b-8448-f798b2b53224",
+      "name": "Qwen3.6-27B-FP8-NoThink",
+      "company": "qwen",
+      "base_model": "Qwen3.6-27B-FP8",
+      "kv_quant": "FP8",
+      "context_length": 262144,
+      "memory_gb": 62.2,
+      "benchmark_date": "2026-08-24",
+      "llm_server": "vLLM",
+      "speculative_decoding": "dflash",
+      "harness": "pi",
+      "harness_version": "0.84.2",
+      "reasoning": "off",
+      "launch_config": "vllm serve qwen/Qwen3.6-27B-FP8  --enable-prefix-caching --max-num-batched-tokens 16384 --trust-remote-code --reasoning-parser qwen3 --enable-auto-tool-choice --tool-call-parser qwen3_coder --default-chat-template-kwargs '{\"enable_thinking\":false}'",
+      "intelligence": 87.5,
+      "task_speed": 6.4,
+      "intelligence_density": 1.407,
+      "test_results": {
+        "multilingual_science_presentation": {
+          "name": "Multi-step multilingual content creation with translation, HTML presentation, and iterative refinement",
+          "earned_score": 6,
+          "max_score": 8,
+          "run_time_sec": 746.72,
+          "tokens_in": 75971,
+          "tokens_out": 10767,
+          "context_used_pct": 33.09
+        },
+        "data_analytics": {
+          "name": "Multi-step data analytics and business intelligence evaluation on bookstore orders dataset",
+          "earned_score": 12,
+          "max_score": 12,
+          "run_time_sec": 375.39,
+          "tokens_in": 800831,
+          "tokens_out": 5684,
+          "context_used_pct": 307.66
         }
       }
     }

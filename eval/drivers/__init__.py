@@ -9,6 +9,7 @@ so the orchestrator and full_trace.json stay harness-agnostic.
 from abc import ABC, abstractmethod
 from typing import Any
 
+from eval.config import DEFAULT_IDLE_TIMEOUT_MINUTES, DEFAULT_MAX_STEP_TIMEOUT_MINUTES
 from eval.sandbox import SandboxClient
 from eval.trace import TurnData
 
@@ -42,7 +43,8 @@ class HarnessDriver(ABC):
         session_id: str,
         prompt: str,
         model_name: str,
-        timeout: int,
+        timeout: int = int(DEFAULT_MAX_STEP_TIMEOUT_MINUTES * 60),
+        idle_timeout: int = int(DEFAULT_IDLE_TIMEOUT_MINUTES * 60),
     ) -> TurnData:
         """Send a prompt, wait for completion, return normalized TurnData."""
 

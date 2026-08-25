@@ -28,12 +28,14 @@ class StepEvaluationResult:
 
 
 
+import shlex
+
 def commit_step_workspace(step_name: str, workspace_dir: str) -> bool:
     """Commit workspace changes after evaluating a step to ensure clean diff status for subsequent steps."""
-    add_res = subprocess.run(["git", "add", "-A"], cwd=workspace_dir, check=False, capture_output=True)
-    msg = f"eval-step: {step_name}"
-    commit_res = subprocess.run(["git", "commit", "-m", msg, "--allow-empty"], cwd=workspace_dir, check=False, capture_output=True)
-    return add_res.returncode == 0 and commit_res.returncode == 0
+    cmd = f"git add -A && git commit -m {shlex.quote(f'eval-step: {step_name}')} --allow-empty"
+    res = subprocess.run(["bash", "-c", cmd], cwd=workspace_dir, check=False, capture_output=True)
+    return res.returncode == 0
+
 
 
 def evaluate_step(step: Step, workspace_dir: str, auto_commit: bool = True) -> StepEvaluationResult:
@@ -42,9 +44,17 @@ def evaluate_step(step: Step, workspace_dir: str, auto_commit: bool = True) -> S
     results: list[CheckResult] = []
     all_passed = True
 
+    # Collect all expected file paths declared in GitChangeAssert checks for this step
+    expected_step_files = {
+        getattr(c, "filepath") for c in step.checks if hasattr(c, "filepath") and getattr(c, "filepath")
+    }
+
     for check in step.checks:
         if isinstance(check, BaseAssertion):
-            res = check.evaluate(workspace_dir)
+            try:
+                res = check.evaluate(workspace_dir, allowed_files=expected_step_files)
+            except TypeError:
+                res = check.evaluate(workspace_dir)
         elif callable(check):
             try:
                 r = check(workspace_dir)

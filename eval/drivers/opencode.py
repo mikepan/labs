@@ -12,8 +12,12 @@ import time
 from datetime import datetime, timezone
 from typing import Any
 
-from eval.common import setup_logger
-from eval.config import DEFAULT_OPENCODE_PORT
+from eval.common import setup_logger, get_active_api_model
+from eval.config import (
+    DEFAULT_IDLE_TIMEOUT_MINUTES,
+    DEFAULT_MAX_STEP_TIMEOUT_MINUTES,
+    DEFAULT_OPENCODE_PORT,
+)
 from eval.drivers import HarnessDriver, register_driver
 from eval.sandbox import SandboxClient
 from eval.trace import ToolCallEvent, TurnData
@@ -21,21 +25,6 @@ from eval.trace import ToolCallEvent, TurnData
 __all__ = ["OpenCodeDriver"]
 
 logger = setup_logger("driver.opencode")
-
-
-def _get_active_api_model(base_url: str) -> str | None:
-    """Query /v1/models on LLM server and return the first active model ID."""
-    try:
-        import requests
-        url = f"{base_url}/models" if not base_url.endswith("/models") else base_url
-        res = requests.get(url, timeout=3)
-        if res.status_code == 200:
-            models_list = res.json().get("data", [])
-            if models_list and "id" in models_list[0]:
-                return models_list[0]["id"]
-    except Exception as e:
-        logger.debug("Failed to query active API model: %s", e)
-    return None
 
 
 @register_driver("opencode")
@@ -57,7 +46,8 @@ class OpenCodeDriver(HarnessDriver):
         llm_base_url: str,
     ) -> str:
         """Configure OpenCode and start its server in the sandbox workspace."""
-        active_model = _get_active_api_model(llm_base_url) or model_name
+        active_model = get_active_api_model(llm_base_url) or model_name
+
         logger.info(
             "Configured OpenCode with API model ID: '%s' (config alias: '%s')",
             active_model, model_name,
@@ -92,9 +82,10 @@ print(data.get('id', ''))
         session_id: str,
         prompt: str,
         model_name: str,
-        timeout: int,
+        timeout: int = int(DEFAULT_MAX_STEP_TIMEOUT_MINUTES * 60),
+        idle_timeout: int = int(DEFAULT_IDLE_TIMEOUT_MINUTES * 60),
     ) -> TurnData:
-        """Send prompt to OpenCode, wait for response, return normalized TurnData."""
+        """Send prompt to OpenCode, monitor activity with idle timeout, and return normalized TurnData."""
         # Get message count before sending
         msgs_before = self._get_messages(sandbox, session_id)
         prev_count = len(msgs_before)
@@ -109,19 +100,76 @@ print(data.get('id', ''))
                 "modelID": model_name,
             },
         })
-        script = f"""import urllib.request, json, sys
+        script = f"""import urllib.request, urllib.error, socket, json, sys, os, time, threading
 payload = sys.stdin.read().encode('utf-8')
 req = urllib.request.Request(
     'http://127.0.0.1:{self.port}/session/{session_id}/message',
     data=payload,
     headers={{'Content-Type': 'application/json'}}
 )
-try:
-    res = urllib.request.urlopen(req, timeout={timeout})
-    print("__JSON_START__" + res.read().decode('utf-8') + "__JSON_END__")
-except urllib.error.HTTPError as e:
-    err_body = e.read().decode('utf-8', errors='replace')
-    print(f"HTTP_ERROR:{{e.code}}:{{err_body}}", file=sys.stderr)
+
+result = {{}}
+err_result = {{}}
+done_event = threading.Event()
+
+def worker():
+    try:
+        res = urllib.request.urlopen(req, timeout={timeout})
+        result['data'] = res.read().decode('utf-8')
+    except urllib.error.HTTPError as e:
+        err_body = e.read().decode('utf-8', errors='replace')
+        err_result['type'] = 'http'
+        err_result['code'] = e.code
+        err_result['msg'] = err_body
+    except Exception as e:
+        err_result['type'] = 'exc'
+        err_result['msg'] = str(e)
+    finally:
+        done_event.set()
+
+t = threading.Thread(target=worker, daemon=True)
+t.start()
+
+start_time = time.time()
+last_activity_time = time.time()
+log_path = '{self._log_path}'
+last_log_size = 0
+if os.path.exists(log_path):
+    try:
+        last_log_size = os.path.getsize(log_path)
+    except Exception:
+        pass
+
+while not done_event.wait(timeout=1.0):
+    now = time.time()
+    if os.path.exists(log_path):
+        try:
+            curr_size = os.path.getsize(log_path)
+            if curr_size > last_log_size:
+                last_activity_time = now
+                last_log_size = curr_size
+        except Exception:
+            pass
+
+    idle_elapsed = now - last_activity_time
+    total_elapsed = now - start_time
+
+    if total_elapsed > {timeout}:
+        print(f"TIMEOUT:Step execution exceeded maximum ceiling of {{int({timeout} // 60)}} minutes ({{total_elapsed:.1f}}s elapsed)", file=sys.stderr)
+        sys.exit(1)
+
+    if idle_elapsed > {idle_timeout}:
+        print(f"TIMEOUT:Agent stalled: No activity received for {{idle_elapsed:.1f}}s (idle timeout of {{int({idle_timeout})}}s based on max prefill)", file=sys.stderr)
+        sys.exit(1)
+
+if 'data' in result:
+    print("__JSON_START__" + result['data'] + "__JSON_END__")
+    sys.exit(0)
+elif 'type' in err_result:
+    if err_result['type'] == 'http':
+        print(f"HTTP_ERROR:{{err_result['code']}}:{{err_result['msg']}}", file=sys.stderr)
+    else:
+        print(f"ERROR:{{err_result['msg']}}", file=sys.stderr)
     sys.exit(1)
 """
         agent_response = sandbox.exec_python_json(script, stdin=payload_json, label="OpenCode message")

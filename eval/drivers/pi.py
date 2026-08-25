@@ -11,8 +11,12 @@ import time
 from datetime import datetime, timezone
 from typing import Any
 
-from eval.common import setup_logger
-from eval.config import DEFAULT_PI_PORT
+from eval.common import setup_logger, get_active_api_model
+from eval.config import (
+    DEFAULT_IDLE_TIMEOUT_MINUTES,
+    DEFAULT_MAX_STEP_TIMEOUT_MINUTES,
+    DEFAULT_PI_PORT,
+)
 from eval.drivers import HarnessDriver, register_driver
 from eval.sandbox import SandboxClient
 from eval.trace import ToolCallEvent, TurnData
@@ -22,24 +26,9 @@ __all__ = ["PiDriver"]
 logger = setup_logger("driver.pi")
 
 
-def _get_active_api_model(base_url: str) -> str | None:
-    """Query /v1/models on LLM server and return the first active model ID."""
-    try:
-        import requests
-        url = f"{base_url}/models" if not base_url.endswith("/models") else base_url
-        res = requests.get(url, timeout=3)
-        if res.status_code == 200:
-            models_list = res.json().get("data", [])
-            if models_list and "id" in models_list[0]:
-                return models_list[0]["id"]
-    except Exception as e:
-        logger.debug("Failed to query active API model: %s", e)
-    return None
-
-
 @register_driver("pi")
 class PiDriver(HarnessDriver):
-    """Driver for Pi coding agent harness (RPC mode)."""
+    """Driver for Pi coding agent harness (https://pi.dev/docs/latest/rpc)."""
 
     def __init__(self, port: int = DEFAULT_PI_PORT, provider_id: str = "sparky"):
         self.port = port
@@ -56,29 +45,26 @@ class PiDriver(HarnessDriver):
         model_name: str,
         llm_base_url: str,
     ) -> str:
-        """Configure Pi models.json, settings, and start the Pi bridge server in the sandbox workspace."""
-        active_model = _get_active_api_model(llm_base_url) or model_name
+        """Configure Pi and start the Pi RPC bridge server inside the sandbox."""
+        active_model = get_active_api_model(llm_base_url) or model_name
         logger.info(
             "Configured Pi with API model ID: '%s' (config alias: '%s')",
             active_model, model_name,
         )
 
-        # Build ~/.pi/agent/models.json and settings.json
+        # Write ~/.pi/agent configs (models.json, settings.json, trust.json)
         self._write_config(sandbox, active_model, model_name, llm_base_url)
 
-        # Deploy and start pi_server bridge
+        # Start bridge server
         self._start_server(sandbox, workspace, active_model)
 
         return active_model
 
+
     def create_session(self, sandbox: SandboxClient) -> str:
         """Create a new Pi session via the bridge server."""
         script = f"""import urllib.request, json
-req = urllib.request.Request(
-    'http://127.0.0.1:{self.port}/session',
-    data=b'{{}}',
-    headers={{'Content-Type': 'application/json'}}
-)
+req = urllib.request.Request('http://127.0.0.1:{self.port}/session', data=b'{{}}', headers={{'Content-Type': 'application/json'}})
 res = urllib.request.urlopen(req, timeout=15)
 data = json.loads(res.read().decode('utf-8'))
 print(data.get('id', ''))
@@ -96,7 +82,8 @@ print(data.get('id', ''))
         session_id: str,
         prompt: str,
         model_name: str,
-        timeout: int,
+        timeout: int = int(DEFAULT_MAX_STEP_TIMEOUT_MINUTES * 60),
+        idle_timeout: int = int(DEFAULT_IDLE_TIMEOUT_MINUTES * 60),
     ) -> TurnData:
         """Send prompt to Pi, wait for completion, return normalized TurnData."""
         step_start_iso = datetime.now(timezone.utc).isoformat()
@@ -104,8 +91,9 @@ print(data.get('id', ''))
             "prompt": prompt,
             "model": model_name,
             "timeout": timeout,
+            "idle_timeout": idle_timeout,
         })
-        script = f"""import urllib.request, urllib.error, json, sys
+        script = f"""import urllib.request, urllib.error, socket, json, sys
 payload = sys.stdin.read().encode('utf-8')
 req = urllib.request.Request(
     'http://127.0.0.1:{self.port}/session/{session_id}/message',
@@ -115,9 +103,21 @@ req = urllib.request.Request(
 try:
     res = urllib.request.urlopen(req, timeout={timeout + 30})
     print("__JSON_START__" + res.read().decode('utf-8') + "__JSON_END__")
+except (TimeoutError, socket.timeout):
+    print(f"TIMEOUT:Step timed out after {timeout}s", file=sys.stderr)
+    sys.exit(1)
 except urllib.error.HTTPError as e:
     err_body = e.read().decode('utf-8', errors='replace')
-    print(f"HTTP_ERROR:{{e.code}}:{{err_body}}", file=sys.stderr)
+    if e.code == 504:
+        print(f"TIMEOUT:{{err_body}}", file=sys.stderr)
+    else:
+        print(f"HTTP_ERROR:{{e.code}}:{{err_body}}", file=sys.stderr)
+    sys.exit(1)
+except urllib.error.URLError as e:
+    if isinstance(e.reason, (TimeoutError, socket.timeout)) or "timed out" in str(e).lower():
+        print(f"TIMEOUT:Step timed out after {timeout}s", file=sys.stderr)
+    else:
+        print(f"ERROR:{{e}}", file=sys.stderr)
     sys.exit(1)
 except Exception as e:
     print(f"ERROR:{{e}}", file=sys.stderr)
@@ -309,14 +309,14 @@ class PiSession:
             env=env,
         )
 
-    def send_prompt(self, prompt, timeout=120):
+    def send_prompt(self, prompt, timeout=7200, idle_timeout=360):
         with self.lock:
             if not self.proc or self.proc.poll() is not None:
                 sys.stderr.write(f"[pi_server] Respawning died pi process\\n")
                 self._start_process()
 
             req = {{"type": "prompt", "message": prompt}}
-            sys.stderr.write(f"[pi_server] Sending prompt (timeout={{timeout}}s): {{prompt[:80]}}...\\n")
+            sys.stderr.write(f"[pi_server] Sending prompt (timeout={{timeout}}s, idle_timeout={{idle_timeout}}s): {{prompt[:80]}}...\\n")
             try:
                 self.proc.stdin.write(json.dumps(req) + "\\n")
                 self.proc.stdin.flush()
@@ -332,20 +332,32 @@ class PiSession:
             tokens_out = 0
             raw_messages = []
             start_time = time.time()
+            last_activity_time = time.time()
             step_start_iso = datetime.now(timezone.utc).isoformat()
 
             agent_started = False
             while True:
                 elapsed = time.time() - start_time
+                idle_elapsed = time.time() - last_activity_time
                 if elapsed > timeout:
-                    sys.stderr.write(f"[pi_server] Timeout reached ({{elapsed:.1f}}s > {{timeout}}s), aborting and resetting\\n")
+                    sys.stderr.write(f"[pi_server] Max timeout reached ({{elapsed:.1f}}s > {{timeout}}s), aborting and resetting\\n")
                     try:
                         self.proc.stdin.write(json.dumps({{"type": "abort"}}) + "\\n")
                         self.proc.stdin.flush()
                     except Exception:
                         pass
                     self._start_process()
-                    raise TimeoutError(f"Pi execution timed out after {{timeout}} seconds.")
+                    raise TimeoutError(f"Pi execution exceeded maximum ceiling of {{timeout // 60}} minutes ({{elapsed:.1f}}s elapsed).")
+
+                if idle_elapsed > idle_timeout:
+                    sys.stderr.write(f"[pi_server] Idle timeout reached ({{idle_elapsed:.1f}}s > {{idle_timeout}}s with no progress), aborting and resetting\\n")
+                    try:
+                        self.proc.stdin.write(json.dumps({{"type": "abort"}}) + "\\n")
+                        self.proc.stdin.flush()
+                    except Exception:
+                        pass
+                    self._start_process()
+                    raise TimeoutError(f"Agent stalled: No activity received for {{idle_elapsed:.1f}}s (idle timeout of {{idle_timeout}}s based on max prefill).")
 
                 # Non-blocking or timed read
                 rlist, _, _ = select.select([self.proc.stdout], [], [], 1.0)
@@ -363,6 +375,9 @@ class PiSession:
                 line_str = line.strip()
                 if not line_str:
                     continue
+
+                # Any line received indicates active progress from agent
+                last_activity_time = time.time()
 
                 # Log raw line to stderr for logging
                 sys.stderr.write(f"[pi_rpc] {{line_str[:200]}}\\n")
@@ -574,10 +589,11 @@ class RequestHandler(http.server.BaseHTTPRequestHandler):
             prompt = data.get("prompt")
             if not prompt and "parts" in data:
                 prompt = "\\n".join(p.get("text", "") for p in data.get("parts", []) if p.get("type") == "text")
-            timeout = int(data.get("timeout", 120))
+            timeout = int(data.get("timeout", 7200))
+            idle_timeout = int(data.get("idle_timeout", 360))
 
             try:
-                turn = session.send_prompt(prompt, timeout=timeout)
+                turn = session.send_prompt(prompt, timeout=timeout, idle_timeout=idle_timeout)
                 self._send_json({{"status": "ok", "turn": turn}})
             except TimeoutError as te:
                 self.send_error(504, str(te))

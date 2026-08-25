@@ -19,12 +19,11 @@ from typing import Any
 
 from eval.config import (
     API_BASE_URL,
-    HARNESSES_CONFIG_FILE,
     REMOTE_HOST,
     REPO_ROOT,
     TESTS_DIR,
 )
-from eval.common import setup_logger
+from eval.common import setup_logger, get_available_tests, load_harnesses_config
 from eval.drivers import get_driver
 from eval.launch_model import (
     ensure_model_running,
@@ -35,25 +34,10 @@ from eval.launch_model import (
 logger = setup_logger("launch_eval")
 
 
-def get_available_tests() -> list[str]:
-    """Discover all valid test suites containing run.py under TESTS_DIR."""
-    if not TESTS_DIR.exists():
-        return []
-    return [
-        item for item in sorted(os.listdir(TESTS_DIR))
-        if (TESTS_DIR / item / "run.py").is_file()
-    ]
-
-
 def get_available_harnesses() -> list[str]:
-    """Retrieve all configured harness names from harnesses.json."""
-    if HARNESSES_CONFIG_FILE.exists():
-        try:
-            with open(HARNESSES_CONFIG_FILE, "r", encoding="utf-8") as f:
-                return list(json.load(f).keys())
-        except Exception as e:
-            logger.debug("Failed to read harnesses: %s", e)
-    return ["pi", "opencode cli"]
+    """Retrieve all configured harness names from harnesses configuration."""
+    return list(load_harnesses_config().keys())
+
 
 
 def validate_arguments(

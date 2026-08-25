@@ -95,16 +95,17 @@ function initDashboard(data) {
   });
 
   let currentScatterView = 'time';
+  let currentScatterColor = 'base_model';
 
-  renderTopScatterChart(evaluations, currentScatterView);
+  renderTopScatterChart(evaluations, currentScatterView, currentScatterColor);
   renderModelSpeedChart(evaluations);
   renderModelDensityChart(evaluations);
   renderLeaderboard(models);
 
   // Bind toggle buttons for Top Scatter Chart (Time View vs Size View)
-  const toggleGroup = document.getElementById('scatter-toggle-group');
-  if (toggleGroup) {
-    toggleGroup.addEventListener('click', (e) => {
+  const viewToggleGroup = document.getElementById('scatter-view-toggle') || document.getElementById('scatter-toggle-group');
+  if (viewToggleGroup) {
+    viewToggleGroup.addEventListener('click', (e) => {
       const btn = e.target.closest('.toggle-btn');
       if (!btn) return;
 
@@ -112,10 +113,28 @@ function initDashboard(data) {
       if (!view || view === currentScatterView) return;
 
       currentScatterView = view;
-      toggleGroup.querySelectorAll('.toggle-btn').forEach(b => b.classList.remove('active'));
+      viewToggleGroup.querySelectorAll('.toggle-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
 
-      renderTopScatterChart(evaluations, currentScatterView);
+      renderTopScatterChart(evaluations, currentScatterView, currentScatterColor);
+    });
+  }
+
+  // Bind toggle buttons for Color By (Base Model vs Harness)
+  const colorToggleGroup = document.getElementById('scatter-color-toggle');
+  if (colorToggleGroup) {
+    colorToggleGroup.addEventListener('click', (e) => {
+      const btn = e.target.closest('.toggle-btn');
+      if (!btn) return;
+
+      const colorMode = btn.getAttribute('data-color');
+      if (!colorMode || colorMode === currentScatterColor) return;
+
+      currentScatterColor = colorMode;
+      colorToggleGroup.querySelectorAll('.toggle-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+
+      renderTopScatterChart(evaluations, currentScatterView, currentScatterColor);
     });
   }
 }
@@ -291,7 +310,62 @@ function renderModelDensityChart(evaluations) {
   });
 }
 
-function renderTopScatterChart(evaluations, viewMode = 'time') {
+/**
+ * Converts HSL values to a 6-digit Hex color (#rrggbb).
+ */
+function hslToHex(h, s, l) {
+  l /= 100;
+  const a = (s * Math.min(l, 1 - l)) / 100;
+  const f = n => {
+    const k = (n + h / 30) % 12;
+    const color = l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
+    return Math.round(255 * color).toString(16).padStart(2, '0');
+  };
+  return `#${f(0)}${f(8)}${f(4)}`;
+}
+
+/**
+ * Converts a Hex color string (#rrggbb) to rgba(r, g, b, alpha).
+ */
+function hexToRgba(hex, alpha = 0.35) {
+  if (!hex || hex[0] !== '#') return `rgba(100, 116, 139, ${alpha})`;
+  const r = parseInt(hex.slice(1, 3), 16) || 0;
+  const g = parseInt(hex.slice(3, 5), 16) || 0;
+  const b = parseInt(hex.slice(5, 7), 16) || 0;
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+/**
+ * Smart deterministic string-to-color hashing algorithm.
+ * Uses FNV-1a with Murmur3 fmix32 avalanche finalizer to map any arbitrary dynamic string
+ * (base model or harness) to a distinct, vibrant, and visually pleasing HSL/Hex color.
+ */
+function stringToColor(str) {
+  if (!str) return '#64748b';
+  const s = String(str).trim().toLowerCase();
+
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+
+  // Murmur3 32-bit avalanche mixing finalizer
+  h ^= h >>> 16;
+  h = Math.imul(h, 0x85ebca6b);
+  h ^= h >>> 13;
+  h = Math.imul(h, 0xc2b2ae35);
+  h ^= h >>> 16;
+  h = h >>> 0;
+
+  const hue = h % 360;
+  const sat = 70 + ((h >>> 8) % 15); // 70% - 84%
+  const light = 46 + ((h >>> 16) % 8); // 46% - 53%
+
+  return hslToHex(hue, sat, light);
+}
+
+function renderTopScatterChart(evaluations, viewMode = 'time', colorMode = 'base_model') {
   const chartEl = document.getElementById('chart-top-scatter');
   const chart = getOrCreateChart(chartEl);
   if (!chart) return;
@@ -308,6 +382,8 @@ function renderTopScatterChart(evaluations, viewMode = 'time') {
         x: xVal,
         y: yVal,
         name: m.modelName,
+        baseModel: m.baseModel,
+        harnessName: m.harnessName,
         rawEval: e
       });
     }
@@ -315,71 +391,62 @@ function renderTopScatterChart(evaluations, viewMode = 'time') {
 
   if (rawPoints.length === 0) return;
 
-  // 2. Identify Pareto Frontier Points
-  const paretoPoints = [];
-  const dominatedPoints = [];
-
+  // 2. Group points dynamically by colorMode (base_model or harness)
+  const groupsMap = new Map();
   rawPoints.forEach(p => {
-    let isDominated = false;
-    for (let other of rawPoints) {
-      if (other.id === p.id) continue;
-      if (other.x <= p.x && other.y >= p.y && (other.x < p.x || other.y > p.y)) {
-        isDominated = true;
-        break;
-      }
+    const groupKey = (colorMode === 'harness'
+      ? (p.harnessName || 'Unknown')
+      : (p.baseModel || 'Unknown')
+    ).trim();
+
+    if (!groupsMap.has(groupKey)) {
+      groupsMap.set(groupKey, []);
     }
-    if (!isDominated) {
-      paretoPoints.push(p);
-    } else {
-      dominatedPoints.push(p);
-    }
-  });
-
-  paretoPoints.sort((a, b) => a.x - b.x);
-
-  // 3. Classify points & assign tier label
-  const pointClassifications = new Map();
-  paretoPoints.forEach(p => {
-    pointClassifications.set(p.id, { tier: 'Best-In-Class', color: '#059669' });
-  });
-
-  dominatedPoints.forEach(p => {
-    let frontierY = 0;
-    if (p.x <= paretoPoints[0].x) {
-      frontierY = paretoPoints[0].y;
-    } else if (p.x >= paretoPoints[paretoPoints.length - 1].x) {
-      frontierY = paretoPoints[paretoPoints.length - 1].y;
-    } else {
-      for (let i = 0; i < paretoPoints.length - 1; i++) {
-        if (paretoPoints[i].x <= p.x && paretoPoints[i + 1].x >= p.x) {
-          const t = (p.x - paretoPoints[i].x) / (paretoPoints[i + 1].x - paretoPoints[i].x);
-          frontierY = paretoPoints[i].y + t * (paretoPoints[i + 1].y - paretoPoints[i].y);
-          break;
-        }
-      }
-    }
-
-    const deficit = frontierY - p.y;
-    pointClassifications.set(p.id, {
-      tier: deficit <= 12.0 ? 'Average' : 'Below Average',
-      color: deficit <= 12.0 ? '#d97706' : '#e11d48'
-    });
-  });
-
-  const tierConfigs = [
-    { name: 'Best-In-Class', color: '#059669', shadow: 'rgba(5, 150, 105, 0.3)', data: [] },
-    { name: 'Average', color: '#d97706', shadow: 'rgba(217, 119, 6, 0.3)', data: [] },
-    { name: 'Below Average', color: '#e11d48', shadow: 'rgba(225, 29, 72, 0.3)', data: [] }
-  ];
-  const tierMap = Object.fromEntries(tierConfigs.map(t => [t.name, t.data]));
-
-  rawPoints.forEach(p => {
-    const cls = pointClassifications.get(p.id);
-    tierMap[cls.tier]?.push({
+    groupsMap.get(groupKey).push({
       name: p.name,
       value: [p.x, p.y],
       rawEval: p.rawEval
     });
+  });
+
+  const sortedGroupKeys = Array.from(groupsMap.keys()).sort((a, b) => a.localeCompare(b));
+
+  // 3. Build series configuration for each group
+  const series = sortedGroupKeys.map(groupName => {
+    const color = stringToColor(groupName);
+    const shadow = hexToRgba(color, 0.35);
+    const data = groupsMap.get(groupName);
+
+    return {
+      name: groupName,
+      type: 'scatter',
+      symbolSize: 22,
+      data: data,
+      itemStyle: {
+        color: color,
+        borderWidth: 1.5,
+        borderColor: 'rgba(255, 255, 255, 0.9)',
+        shadowColor: shadow,
+        shadowBlur: 10
+      },
+      emphasis: {
+        focus: 'series',
+        scale: 1.4,
+        itemStyle: {
+          borderColor: '#ffffff',
+          borderWidth: 3.5,
+          shadowBlur: 28,
+          shadowColor: color,
+          opacity: 1
+        }
+      },
+      blur: {
+        itemStyle: {
+          opacity: 0.2,
+          shadowBlur: 0
+        }
+      }
+    };
   });
 
   const xAxisName = viewMode === 'time' ? 'Total Completion Time (min)' : 'Memory / VRAM Size (GB)';
@@ -394,15 +461,22 @@ function renderTopScatterChart(evaluations, viewMode = 'time') {
       shadowColor: 'rgba(0, 0, 0, 0.08)',
       shadowBlur: 12,
       textStyle: { color: '#0f172a', fontFamily: 'system-ui, -apple-system, sans-serif' },
-      formatter: (params) => formatModelCardTooltip(params.data.rawEval)
+      formatter: (params) => formatModelCardTooltip(params.data?.rawEval)
     },
     legend: {
-      data: ['Best-In-Class', 'Average', 'Below Average'],
+      type: 'scroll',
+      data: sortedGroupKeys,
       top: 0,
-      right: '5%',
-      textStyle: { color: '#64748b', fontFamily: 'system-ui, -apple-system, sans-serif' }
+      right: '4%',
+      textStyle: { color: '#64748b', fontFamily: 'system-ui, -apple-system, sans-serif', fontSize: 12 },
+      itemWidth: 10,
+      itemHeight: 10,
+      icon: 'circle',
+      pageIconColor: '#ea580c',
+      pageIconInactiveColor: '#cbd5e1',
+      pageTextStyle: { color: '#64748b' }
     },
-    grid: { left: '4%', right: '5%', bottom: '12%', top: '12%', containLabel: true },
+    grid: { left: '4%', right: '5%', bottom: '12%', top: '14%', containLabel: true },
     xAxis: {
       type: 'value',
       name: xAxisName,
@@ -421,25 +495,7 @@ function renderTopScatterChart(evaluations, viewMode = 'time') {
       splitLine: { lineStyle: { color: '#f1f5f9' } },
       axisLabel: { color: '#64748b', fontFamily: 'system-ui, -apple-system, sans-serif' }
     },
-    series: tierConfigs.map(t => ({
-      name: t.name,
-      type: 'scatter',
-      symbolSize: 22,
-      data: t.data,
-      itemStyle: {
-        color: t.color,
-        borderWidth: 1.5,
-        borderColor: 'rgba(255, 255, 255, 0.9)',
-        shadowColor: t.shadow,
-        shadowBlur: 10
-      },
-      emphasis: {
-        focus: 'self',
-        scale: 1.5,
-        itemStyle: { borderColor: '#ffffff', borderWidth: 3.5, shadowBlur: 35, shadowColor: t.color, opacity: 1 }
-      },
-      blur: { itemStyle: { opacity: 0.2, shadowBlur: 0 } }
-    }))
+    series: series
   };
 
   chart.setOption(option, true);

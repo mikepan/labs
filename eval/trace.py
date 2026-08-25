@@ -54,15 +54,16 @@ class StepTrace:
     max_score: int | float
     start_time: str
     end_time: str
-    tokens_in: int
-    tokens_out: int
-    events: list[dict[str, Any]]
-    tool_calls: list[dict[str, Any]]
-    reasoning_blocks: list[str]
-    response_text: str
-    messages: list[dict[str, Any]]
-    evaluation: dict[str, Any]
-    duration_seconds: float
+    tokens_in: int = 0
+    tokens_out: int = 0
+    events: list[dict[str, Any]] = field(default_factory=list)
+    tool_calls: list[dict[str, Any]] = field(default_factory=list)
+    reasoning_blocks: list[str] = field(default_factory=list)
+    response_text: str = ""
+    messages: list[dict[str, Any]] = field(default_factory=list)
+    evaluation: dict[str, Any] = field(default_factory=dict)
+    duration_seconds: float = 0.0
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
+

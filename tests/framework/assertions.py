@@ -46,13 +46,15 @@ class GitChangeAssert(BaseAssertion):
         status: str = "A",
         total_lines: tuple[int, int] | int | None = None,
         diff_lines: tuple[int, int] | int | None = None,
+        allow_extra: bool = False,
     ):
         self.filepath = filepath
         self.status = status.strip().upper() if status else "A"
         self.total_lines = total_lines
         self.diff_lines = diff_lines
+        self.allow_extra = allow_extra
 
-    def evaluate(self, workspace_dir: str) -> CheckResult:
+    def evaluate(self, workspace_dir: str, allowed_files: set[str] | None = None) -> CheckResult:
         full_path = os.path.join(workspace_dir, self.filepath)
 
         # 0. Verify workspace is a valid git repository
@@ -68,10 +70,41 @@ class GitChangeAssert(BaseAssertion):
                 f"Workspace '{workspace_dir}' is not a valid git repository ('.git' directory was removed or damaged).",
             )
 
+        # 1. Check for unexpected extra files when allow_extra is False
+        if not self.allow_extra:
+            status_res = subprocess.run(
+                ["git", "status", "--porcelain", "-uall"],
+                cwd=workspace_dir,
+                capture_output=True,
+                text=True,
+            )
+            if status_res.returncode == 0 and status_res.stdout:
+                expected_paths = {os.path.normpath(f) for f in (allowed_files or {self.filepath})}
+                changed_files = set()
+                for line in status_res.stdout.splitlines():
+                    line = line.strip()
+                    if not line or len(line) < 3:
+                        continue
+                    path_part = line[2:].strip()
+                    if " -> " in path_part:
+                        old_p, new_p = path_part.split(" -> ", 1)
+                        changed_files.add(os.path.normpath(old_p.strip('"\' ')))
+                        changed_files.add(os.path.normpath(new_p.strip('"\' ')))
+                    else:
+                        changed_files.add(os.path.normpath(path_part.strip('"\' ')))
+
+                extra_files = changed_files - expected_paths
+                if extra_files:
+                    return CheckResult(
+                        False,
+                        f"Unexpected extra modified or untracked file(s) found in workspace: {sorted(extra_files)} (allow_extra=False).",
+                        {"extra_files": sorted(extra_files), "allowed_files": sorted(expected_paths)},
+                    )
+
         # Normalize status code (support "A", "ADD", "M", "MODIFY", "D", "DELETE")
         is_delete = self.status in ("D", "DELETE")
 
-        # 1. Check file existence according to status
+        # 2. Check file existence according to status
         if is_delete:
             if os.path.exists(full_path):
                 return CheckResult(
@@ -86,7 +119,7 @@ class GitChangeAssert(BaseAssertion):
                     f"Expected file '{self.filepath}' to exist, but was not found. (Files present in workspace: {available_files})",
                 )
 
-        # 2. Check total lines count if specified
+        # 3. Check total lines count if specified
         line_count = 0
         if os.path.exists(full_path):
             with open(full_path, "r", encoding="utf-8", errors="ignore") as f:
@@ -246,12 +279,14 @@ def git_changes(
     status: str = "A",
     total_lines: tuple[int, int] | int | None = None,
     diff_lines: tuple[int, int] | int | None = None,
+    allow_extra: bool = False,
 ) -> GitChangeAssert:
     return GitChangeAssert(
         filepath=filepath,
         status=status,
         total_lines=total_lines,
         diff_lines=diff_lines,
+        allow_extra=allow_extra,
     )
 
 

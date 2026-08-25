@@ -26,12 +26,11 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any
 
-from eval.common import setup_logger
+from eval.common import setup_logger, load_harnesses_config, get_available_tests
 from eval.config import (
+    DEFAULT_IDLE_TIMEOUT_MINUTES,
     DEFAULT_LLM_BASE_URL,
-    DEFAULT_STEP_TIMEOUT_MINUTES,
-    DEFAULT_WORKER_SANDBOX_NAME,
-    HARNESSES_CONFIG_FILE,
+    DEFAULT_MAX_STEP_TIMEOUT_MINUTES,
     RESULTS_DIR,
     TESTS_DIR,
 )
@@ -39,6 +38,7 @@ from eval.drivers import HarnessDriver, get_driver
 from eval.results import get_vllm_model_info, save_evaluation_results
 from eval.sandbox import SandboxClient
 from eval.trace import StepTrace, TurnData
+
 
 logger = setup_logger("run_harness")
 
@@ -222,9 +222,11 @@ def run_test_suite_on_agent(
         for idx, step in enumerate(test_obj.steps):
             step_name = step.name or f"Step {idx + 1}"
             step_point = step.point
-            step_timeout_minutes = step.timeout_minutes if step.timeout_minutes is not None else DEFAULT_STEP_TIMEOUT_MINUTES
+            step_timeout_minutes = step.timeout_minutes if step.timeout_minutes is not None else DEFAULT_MAX_STEP_TIMEOUT_MINUTES
             step_timeout_seconds = int(step_timeout_minutes * 60)
-            logger.info("--- [Step %d/%d] %s (point=%d, timeout=%s min) ---", idx + 1, len(test_obj.steps), step_name, step_point, step_timeout_minutes)
+            step_idle_seconds = int(DEFAULT_IDLE_TIMEOUT_MINUTES * 60)
+            logger.info("--- [Step %d/%d] %s (point=%d, max_timeout=%s min, idle_timeout=%s min) ---",
+                        idx + 1, len(test_obj.steps), step_name, step_point, step_timeout_minutes, DEFAULT_IDLE_TIMEOUT_MINUTES)
             logger.debug("Prompt: %s...", step.prompt.strip()[:100])
 
             step_t0 = time.time()
@@ -239,15 +241,33 @@ def run_test_suite_on_agent(
 
             # Send prompt through the driver — returns normalized TurnData
             try:
-                turn = driver.send_prompt(sandbox, session_id, step.prompt, active_model, timeout=step_timeout_seconds)
+                turn = driver.send_prompt(
+                    sandbox,
+                    session_id,
+                    step.prompt,
+                    active_model,
+                    timeout=step_timeout_seconds,
+                    idle_timeout=step_idle_seconds,
+                )
             except Exception as e:
                 step_elapsed = round(time.time() - step_t0, 2)
                 step_end_iso = datetime.now(timezone.utc).isoformat()
-                error_msg = str(e)
-                is_timeout = "timeout" in error_msg.lower() or "timed out" in error_msg.lower()
+                is_timeout = isinstance(e, TimeoutError) or "timeout" in str(e).lower() or "timed out" in str(e).lower()
                 fail_reason = "TIMEOUT" if is_timeout else "ERROR"
+                if is_timeout:
+                    err_str = str(e)
+                    if "stalled" in err_str.lower() or "idle" in err_str.lower() or "activity" in err_str.lower():
+                        friendly_msg = err_str
+                    else:
+                        friendly_msg = f"Step execution exceeded max ceiling of {step_timeout_minutes} min ({step_elapsed}s elapsed)"
+                else:
+                    raw_err = str(e)
+                    if "Traceback (most recent call last):" in raw_err:
+                        raw_err = raw_err.strip().splitlines()[-1]
+                    friendly_msg = f"Driver error: {raw_err}"
+
                 logger.warning("  ✗ Step %d %s (0/%d pts) (%.2fs): %s",
-                               idx + 1, fail_reason, step_point, step_elapsed, error_msg[:200])
+                               idx + 1, fail_reason, step_point, step_elapsed, friendly_msg)
 
                 # Recover partial messages from the session to capture what the agent did
                 partial_messages: list[dict] = []
@@ -279,7 +299,7 @@ def run_test_suite_on_agent(
 
                 # Build step trace with recovered partial data
                 response_parts = partial_text or []
-                response_parts.append(f"[{fail_reason}] {error_msg}")
+                response_parts.append(f"[{fail_reason}] {friendly_msg}")
                 step_traces.append(StepTrace(
                     step_index=idx,
                     step_name=step_name,
@@ -302,7 +322,7 @@ def run_test_suite_on_agent(
                         "point": step_point,
                         "score": 0,
                         "duration_seconds": step_elapsed,
-                        "check_results": [{"passed": False, "message": f"Driver {fail_reason}: {error_msg}"}],
+                        "check_results": [{"passed": False, "message": friendly_msg}],
                     },
                     duration_seconds=step_elapsed,
                 ).to_dict())
@@ -409,21 +429,6 @@ def run_test_suite_on_agent(
     }
 
 
-# =====================================================================
-# Main Entry Point
-# =====================================================================
-
-def load_harnesses_config() -> dict[str, Any]:
-    """Load harnesses configuration dictionary."""
-    if os.path.exists(HARNESSES_CONFIG_FILE):
-        try:
-            with open(HARNESSES_CONFIG_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except Exception as e:
-            logger.debug("Failed to read harnesses from %s: %s", HARNESSES_CONFIG_FILE, e)
-    return {"pi": {}, "opencode cli": {}}
-
-
 def main():
     parser = argparse.ArgumentParser(description="Drive evaluation harness inside isolated Docker sandbox")
     parser.add_argument("--model", required=True, help="Model name (e.g. qwen/Qwen3.6-27B-FP8)")
@@ -438,15 +443,13 @@ def main():
     harnesses_cfg = load_harnesses_config()
 
     # Discover tests
+    available_tests = get_available_tests()
+    target_tests = available_tests if args.test == "all" else [args.test]
     test_specs = []
-    if args.test == "all":
-        for item in sorted(os.listdir(TESTS_DIR)):
-            run_file = str(TESTS_DIR / item / "run.py")
-            if os.path.isfile(run_file):
-                test_specs.append((run_file, load_test_spec(run_file)))
-    else:
-        test_file = str(TESTS_DIR / args.test / "run.py")
-        test_specs.append((test_file, load_test_spec(test_file)))
+    for t_name in target_tests:
+        run_file = str(TESTS_DIR / t_name / "run.py") if not os.path.isfile(t_name) else t_name
+        test_specs.append((run_file, load_test_spec(run_file)))
+
 
     # Determine target harnesses to evaluate
     if args.harness == "all":

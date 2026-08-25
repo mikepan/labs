@@ -17,7 +17,7 @@ import sys
 import tempfile
 from typing import Any
 
-from eval.common import setup_logger, load_json_config
+from eval.common import setup_logger, run_cmd, load_harnesses_config
 from eval.config import (
     DEFAULT_BUILDER_SANDBOX_NAME,
     DEFAULT_TEMPLATE_TAG,
@@ -30,14 +30,9 @@ logger = setup_logger("create_harness")
 
 def ensure_sbx_policy() -> None:
     """Ensure global network policy is initialized in sbx."""
-    res = subprocess.run(["sbx", "policy", "init", "allow-all"], capture_output=True, text=True)
+    res = run_cmd("sbx", "policy", "init", "allow-all")
     if res.returncode == 0 and res.stdout.strip():
         logger.debug("[sbx policy] %s", res.stdout.strip())
-
-
-def load_harness_config(config_path: str = HARNESSES_CONFIG_FILE) -> dict[str, Any]:
-    """Load harnesses configuration from JSON."""
-    return load_json_config(config_path, label="Harnesses config")
 
 
 def save_harness_config(config: dict[str, Any], config_path: str = HARNESSES_CONFIG_FILE) -> None:
@@ -46,6 +41,7 @@ def save_harness_config(config: dict[str, Any], config_path: str = HARNESSES_CON
         json.dump(config, f, indent=4)
         f.write("\n")
     logger.info("Updated %s with detected harness versions.", config_path)
+
 
 
 def install_harness(
@@ -165,7 +161,7 @@ def install_evaluation_dependencies(sandbox: SandboxClient) -> None:
 def main():
     ensure_sbx_policy()
 
-    harnesses = load_harness_config()
+    harnesses = load_harnesses_config()
     logger.info("Loaded %d harness(es) from %s:", len(harnesses), HARNESSES_CONFIG_FILE)
     for h in harnesses:
         logger.info("  - %s", h)

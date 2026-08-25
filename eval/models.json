@@ -15,7 +15,14 @@
     "model-arg-env": "VLLM_USE_DEEP_GEMM=0",
     "reasoning_effort": "on"
   },
-  "Qwen3.6-27B-NVFP4": {
+  "Qwen3.6-27B-NVFP4-NoThink": {
+    "model-arg": "vllm serve nvidia/Qwen3.6-27B-NVFP4 --enable-prefix-caching --max-num-batched-tokens 16384 --trust-remote-code --reasoning-parser qwen3 --enable-auto-tool-choice --tool-call-parser qwen3_coder --default-chat-template-kwargs '{\"enable_thinking\":false}'",
+    "model-arg-speculative": "--speculative-config '{\"method\": \"dflash\", \"model\": \"z-lab/Qwen3.6-27B-DFlash\", \"num_speculative_tokens\": 10}'",
+    "model-arg-kv-quant": "--kv-cache-dtype fp8",
+    "model-arg-platform": "--load-format fastsafetensors  --gpu-memory-utilization 0.7",
+    "reasoning_effort": "off"
+  },
+  "Qwen3.6-27B-NVFP4-Thinking": {
     "model-arg": "vllm serve nvidia/Qwen3.6-27B-NVFP4 --enable-prefix-caching --max-num-batched-tokens 16384 --trust-remote-code --reasoning-parser qwen3 --enable-auto-tool-choice --tool-call-parser qwen3_coder",
     "model-arg-speculative": "--speculative-config '{\"method\": \"dflash\", \"model\": \"z-lab/Qwen3.6-27B-DFlash\", \"num_speculative_tokens\": 10}'",
     "model-arg-kv-quant": "--kv-cache-dtype fp8",
@@ -29,12 +36,12 @@
     "model-arg-platform": "--load-format fastsafetensors  --gpu-memory-utilization 0.7",
     "reasoning_effort": "on"
   },
-  "diffusiongemma-26B-A4B-IT-NVFP4-Reasoning": {
+  "diffusiongemma-26B-A4B-IT-NVFP4-Thinking": {
     "model-arg": "vllm serve nvidia/diffusiongemma-26B-A4B-IT-NVFP4 --enable-prefix-caching --max-num-batched-tokens 16384 --trust-remote-code --attention-backend TRITON_ATTN  --chat-template /root/.cache/vllm/tool_chat_template_gemma4.jinja --enable-auto-tool-choice --tool-call-parser gemma4 --reasoning-parser gemma4 --override-generation-config '{\"max_new_tokens\": null}' --default-chat-template-kwargs '{\"enable_thinking\":true}'",
     "model-arg-speculative": "--diffusion-config '{\"canvas_length\":256}'",
     "model-arg-kv-quant": "",
     "model-arg-platform": "--load-format fastsafetensors  --gpu-memory-utilization 0.7",
     "model-arg-env": "VLLM_USE_V2_MODEL_RUNNER=1",
-    "reasoning_effort": "max"
+    "reasoning_effort": "on"
   }
 }

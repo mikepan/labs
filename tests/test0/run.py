@@ -80,8 +80,7 @@ TEST = Test(
     description="Multi-step multilingual content creation with translation, HTML presentation, and iterative refinement",
     steps=[
         Step(
-            prompt="""Why is the sky blue?
-Explain it at 3 different levels (3 yearsold, teenager, science PhD) and produce a markdown file called 'sky.md' with a headings for each of those levels.""",
+            prompt="""Why is the sky blue? Explain it at 3 different levels (3 yearsold, teenager, science PhD) and produce a markdown file called 'sky.md' with a headings for each of those levels.""",
             checks=[
                 git_changes("sky.md", "A", total_lines=(6, 100)),
                 lang_detect("sky.md", lang="en"),
@@ -132,6 +131,18 @@ Explain it at 3 different levels (3 yearsold, teenager, science PhD) and produce
                 git_changes("sky.md", "D"),
                 git_changes("sky2.md", "D"),
                 check_bilingual_merge(),
+            ],
+        ),
+        Step(
+            prompt="""ok lets create a rich, beautiful html presentation on the inner layers of the earth geology. use diagrams if you can. make it in Arabic and name the final html "earth.htm".  Ensure it's single page, no external js/css/images.""",
+            checks=[
+                git_changes("earth.htm", "A", total_lines=(100, 2000)),
+            ],
+        ),
+        Step(
+            prompt="""make another rich, beautiful html presentation on the topic of cell biology. use diagrams if you can. make it in Arabic and name the final html "cell.htm".  Ensure it's single page, no external js/css/images.""",
+            checks=[
+                git_changes("cell.htm", "A", total_lines=(100, 2000)),
             ],
         ),
     ],

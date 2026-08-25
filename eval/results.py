@@ -9,7 +9,7 @@ import shutil
 import subprocess
 from typing import Any
 
-from eval.common import setup_logger, run_cmd, http_json
+from eval.common import setup_logger, run_cmd, http_json, load_json_config
 from eval.config import (
     BENCHMARK_DATA_FILE,
     MODELS_CONFIG_FILE,
@@ -86,30 +86,26 @@ def get_model_metadata(model_name: str, base_url: str) -> dict[str, Any]:
     base_model = model_name
 
     if os.path.exists(MODELS_CONFIG_FILE):
-        with open(MODELS_CONFIG_FILE, "r", encoding="utf-8") as f:
-            models = json.load(f)
-            if model_name in models:
-                cfg = models[model_name]
-                spec_arg = cfg.get("model-arg-speculative", "")
-                kv_arg = cfg.get("model-arg-kv-quant", "")
-                launch_cfg = cfg.get("model-arg", "")
-                reasoning_effort = cfg.get("reasoning_effort", "off")
+        models = load_json_config(MODELS_CONFIG_FILE)
+        if model_name in models:
+            cfg = models[model_name]
+            spec_arg = cfg.get("model-arg-speculative", "")
+            kv_arg = cfg.get("model-arg-kv-quant", "")
+            launch_cfg = cfg.get("model-arg", "")
+            reasoning_effort = cfg.get("reasoning_effort", "off")
 
-                m_serve = re.search(r"vllm\s+serve\s+([^\s]+)", launch_cfg)
-                if m_serve:
-                    full_path = m_serve.group(1)
-                    if "/" in full_path:
-                        company, base_model = full_path.split("/", 1)
-                    else:
-                        base_model = full_path
+            m_serve = re.search(r"vllm\s+serve\s+([^\s]+)", launch_cfg)
+            if m_serve:
+                full_path = m_serve.group(1)
+                company, _, base_model = full_path.rpartition("/") if "/" in full_path else ("Community", "", full_path)
 
-                if spec_arg:
-                    m = re.search(r'"method":\s*"([^"]+)"', spec_arg)
-                    spec_type = m.group(1) if m else "on"
+            if spec_arg:
+                m = re.search(r'"method":\s*"([^"]+)"', spec_arg)
+                spec_type = m.group(1) if m else "on"
 
-                if kv_arg:
-                    m = re.search(r"--kv-cache-dtype\s+(\S+)", kv_arg)
-                    kv_type = m.group(1).upper() if m else kv_arg
+            if kv_arg:
+                m = re.search(r"--kv-cache-dtype\s+(\S+)", kv_arg)
+                kv_type = m.group(1).upper() if m else kv_arg
 
     # Single API call for both model ID and context length
     vllm_info = get_vllm_model_info(base_url=base_url)
@@ -127,6 +123,7 @@ def get_model_metadata(model_name: str, base_url: str) -> dict[str, Any]:
         "reasoning": reasoning_effort,
         "launch_config": launch_cfg,
     }
+
 
 
 def _build_benchmark_fields(

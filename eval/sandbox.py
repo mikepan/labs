@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 import re
 import shutil
+import subprocess
 import sys
 import tempfile
 from typing import Any
@@ -43,7 +44,16 @@ class SandboxClient:
         """Run Python inside sandbox and extract JSON from __JSON_START__...__JSON_END__ markers."""
         res = self.exec_python(script, stdin=stdin)
         if res.returncode != 0:
-            raise RuntimeError(f"{label} error (code {res.returncode}): {res.stderr}\n{res.stdout}")
+            err_text = res.stderr.strip() or res.stdout.strip()
+            if "TIMEOUT:" in err_text:
+                clean_timeout = err_text.split("TIMEOUT:", 1)[1].strip()
+                raise TimeoutError(clean_timeout)
+            if "HTTP_ERROR:504" in err_text or "timed out" in err_text.lower():
+                raise TimeoutError(f"{label} timed out")
+            if "Traceback (most recent call last):" in err_text:
+                last_line = err_text.strip().splitlines()[-1]
+                raise RuntimeError(f"{label} error: {last_line}")
+            raise RuntimeError(f"{label} error (code {res.returncode}): {err_text}")
         match = re.search(r"__JSON_START__(.*?)__JSON_END__", res.stdout, re.DOTALL)
         if not match:
             raise RuntimeError(f"Could not parse JSON from {label}: {res.stdout}\nStderr: {res.stderr}")
@@ -53,10 +63,7 @@ class SandboxClient:
 
     def ensure(self, template: str = DEFAULT_TEMPLATE_TAG, workspace: str | None = None) -> None:
         """Provision a clean ephemeral sandbox from the base template with an isolated workspace."""
-        run_cmd("sbx", "rm", "-f", self.name)
-        if self._ephemeral_dir and os.path.exists(self._ephemeral_dir):
-            shutil.rmtree(self._ephemeral_dir, ignore_errors=True)
-            self._ephemeral_dir = None
+        self.remove()
 
         if workspace:
             ws_path = workspace
@@ -97,70 +104,86 @@ class SandboxClient:
 
     # ----- File transfer -----
 
+    def write_file(self, remote_path: str, content: str | bytes) -> bool:
+        """Write string or byte content directly to a remote path inside the sandbox."""
+        if isinstance(content, bytes):
+            import base64
+            b64 = base64.b64encode(content).decode("ascii")
+            cmd = f"mkdir -p \"$(dirname '{remote_path}')\" && base64 -d > '{remote_path}'"
+            return run_cmd("sbx", "exec", self.name, "bash", "-c", cmd, input=b64).returncode == 0
+        cmd = f"mkdir -p \"$(dirname '{remote_path}')\" && cat > '{remote_path}'"
+        return run_cmd("sbx", "exec", self.name, "bash", "-c", cmd, input=content).returncode == 0
+
     def upload_file(self, local_path: str | Path, remote_path: str) -> bool:
         """Upload a local file from host to a remote path inside the sandbox."""
         p = Path(local_path)
         if not p.is_file():
             return False
         try:
-            content = p.read_text(encoding="utf-8")
-            cmd = f"mkdir -p \"$(dirname '{remote_path}')\" && cat > '{remote_path}'"
-            res = run_cmd("sbx", "exec", self.name, "bash", "-c", cmd, input=content)
-            return res.returncode == 0
+            return self.write_file(remote_path, p.read_text(encoding="utf-8"))
         except UnicodeDecodeError:
-            import base64
-            b64 = base64.b64encode(p.read_bytes()).decode("ascii")
-            cmd = f"mkdir -p \"$(dirname '{remote_path}')\" && base64 -d > '{remote_path}'"
-            res = run_cmd("sbx", "exec", self.name, "bash", "-c", cmd, input=b64)
-            return res.returncode == 0
-
-    def write_file(self, remote_path: str, content: str) -> bool:
-        """Write string content directly to a remote path inside the sandbox."""
-        cmd = f"mkdir -p \"$(dirname '{remote_path}')\" && cat > '{remote_path}'"
-        res = run_cmd("sbx", "exec", self.name, "bash", "-c", cmd, input=content)
-        return res.returncode == 0
+            return self.write_file(remote_path, p.read_bytes())
 
     def extract_artifacts(self, workspace_dir: str, dest_dir: str | Path) -> None:
         """Extract workspace files (excluding .git) from sandbox to a local directory."""
-        Path(dest_dir).mkdir(parents=True, exist_ok=True)
+        dest = Path(dest_dir)
+        dest.mkdir(parents=True, exist_ok=True)
         tar_cmd = f"cd {workspace_dir} && tar --exclude='.git' -cf - ."
-        res = run_cmd("sbx", "exec", self.name, "bash", "-c", tar_cmd)
-        if res.returncode == 0 and res.stdout:
-            run_cmd("tar", "-xf", "-", "-C", str(dest_dir), input=res.stdout)
-
-    def extract_file(self, remote_path: str, local_path: str | Path) -> bool:
-        """Copy a single file from sandbox to local filesystem."""
-        res = run_cmd("sbx", "exec", self.name, "cat", remote_path)
-        if res.returncode == 0 and res.stdout:
-            target = Path(local_path)
-            target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_text(res.stdout, encoding="utf-8")
-            return True
-        return False
+        try:
+            p1 = subprocess.Popen(
+                ["sbx", "exec", self.name, "bash", "-c", tar_cmd],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            p2 = subprocess.Popen(
+                ["tar", "-xf", "-", "-C", str(dest)],
+                stdin=p1.stdout,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            if p1.stdout:
+                p1.stdout.close()
+            _, p2_err = p2.communicate()
+            _, p1_err = p1.communicate()
+            if p2.returncode != 0:
+                logger.warning("Artifact extraction warning (tar -xf): %s", p2_err.decode(errors="replace").strip())
+            if p1.returncode != 0:
+                logger.warning("Artifact extraction warning (sbx exec): %s", p1_err.decode(errors="replace").strip())
+        except Exception as e:
+            logger.error("Failed to extract artifacts from %s to %s: %s", workspace_dir, dest_dir, e)
 
     def read_file(self, remote_path: str, max_lines: int | None = None) -> str:
         """Read content from a file inside the sandbox."""
-        if max_lines is not None:
-            res = run_cmd("sbx", "exec", self.name, "tail", "-n", str(max_lines), remote_path)
-        else:
-            res = run_cmd("sbx", "exec", self.name, "cat", remote_path)
+        cmd = ["sbx", "exec", self.name, "tail", "-n", str(max_lines), remote_path] if max_lines is not None else ["sbx", "exec", self.name, "cat", remote_path]
+        res = run_cmd(*cmd)
         return res.stdout if res.returncode == 0 else ""
+
+    def extract_file(self, remote_path: str, local_path: str | Path) -> bool:
+        """Copy a single file from sandbox to local filesystem."""
+        content = self.read_file(remote_path)
+        if content:
+            target = Path(local_path)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(content, encoding="utf-8")
+            return True
+        return False
 
     # ----- Workspace setup -----
 
     def setup_test_workspace(self, workspace_dir: str, setup_cmds: list[str]) -> None:
-        """Create and initialize a test workspace with git baseline."""
-        self.exec(f"rm -rf {workspace_dir} && mkdir -p {workspace_dir}")
-        for cmd in setup_cmds:
-            self.exec(f"cd {workspace_dir} && {cmd}")
-
-        git_setup = (
-            f"cd {workspace_dir} && "
-            "git init && "
-            "git config user.email 'eval@example.com' && "
-            "git config user.name 'Eval Runner' && "
-            "git add -A && "
-            "git commit --allow-empty -m 'initial commit'"
-        )
-        self.exec(git_setup)
+        """Create and initialize a test workspace with git baseline in a single execution."""
+        cmds = [
+            f"rm -rf {workspace_dir}",
+            f"mkdir -p {workspace_dir}",
+            f"cd {workspace_dir}",
+            *setup_cmds,
+            "git init",
+            "git config user.email 'eval@example.com'",
+            "git config user.name 'Eval Runner'",
+            "git add -A",
+            "git commit --allow-empty -m 'initial commit'",
+        ]
+        combined_script = " && ".join(cmds)
+        self.exec(combined_script)
         logger.debug("Initialized workspace: %s", workspace_dir)
+

@@ -20,8 +20,9 @@ DEFAULT_TEMPLATE_TAG = "eval-base-harness:latest"
 DEFAULT_OPENCODE_PORT = 4096
 DEFAULT_PI_PORT = 4097
 
-# Timeout Defaults
-DEFAULT_STEP_TIMEOUT_MINUTES = 5
+# Timeout Defaults (in minutes)
+DEFAULT_MAX_STEP_TIMEOUT_MINUTES = 120  # Safety maximum ceiling per step
+DEFAULT_IDLE_TIMEOUT_MINUTES = 5        # Max cold prefill baseline at 260k context
 
 # Data & Config Paths (Path objects)
 MODELS_CONFIG_FILE = REPO_ROOT / "eval" / "models.json"
@@ -42,7 +43,8 @@ __all__ = [
     "DEFAULT_TEMPLATE_TAG",
     "DEFAULT_OPENCODE_PORT",
     "DEFAULT_PI_PORT",
-    "DEFAULT_STEP_TIMEOUT_MINUTES",
+    "DEFAULT_MAX_STEP_TIMEOUT_MINUTES",
+    "DEFAULT_IDLE_TIMEOUT_MINUTES",
     "MODELS_CONFIG_FILE",
     "HARNESSES_CONFIG_FILE",
     "BENCHMARK_DATA_FILE",

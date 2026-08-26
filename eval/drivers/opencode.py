@@ -111,6 +111,13 @@ req = urllib.request.Request(
 result = {{}}
 err_result = {{}}
 done_event = threading.Event()
+activity_lock = threading.Lock()
+last_activity_time = time.time()
+
+def mark_activity():
+    global last_activity_time
+    with activity_lock:
+        last_activity_time = time.time()
 
 def worker():
     try:
@@ -127,13 +134,33 @@ def worker():
     finally:
         done_event.set()
 
-t = threading.Thread(target=worker, daemon=True)
-t.start()
+def sse_watcher():
+    url = 'http://127.0.0.1:{self.port}/event'
+    while not done_event.is_set():
+        try:
+            req_sse = urllib.request.Request(url, headers={{'Accept': 'text/event-stream'}})
+            with urllib.request.urlopen(req_sse, timeout=5) as stream:
+                while not done_event.is_set():
+                    line = stream.readline()
+                    if not line:
+                        break
+                    if line.strip():
+                        mark_activity()
+        except Exception:
+            time.sleep(1.0)
+
+t_worker = threading.Thread(target=worker, daemon=True)
+t_worker.start()
+
+t_sse = threading.Thread(target=sse_watcher, daemon=True)
+t_sse.start()
 
 start_time = time.time()
-last_activity_time = time.time()
 log_path = '{self._log_path}'
 last_log_size = 0
+last_msg_fingerprint = ""
+last_poll_time = 0
+
 if os.path.exists(log_path):
     try:
         last_log_size = os.path.getsize(log_path)
@@ -142,16 +169,33 @@ if os.path.exists(log_path):
 
 while not done_event.wait(timeout=1.0):
     now = time.time()
+
+    # 1. Check server log growth
     if os.path.exists(log_path):
         try:
             curr_size = os.path.getsize(log_path)
             if curr_size > last_log_size:
-                last_activity_time = now
+                mark_activity()
                 last_log_size = curr_size
         except Exception:
             pass
 
-    idle_elapsed = now - last_activity_time
+    # 2. Periodic poll of session messages to detect in-flight state / deltas
+    if now - last_poll_time >= 2.0:
+        last_poll_time = now
+        try:
+            req_m = urllib.request.Request('http://127.0.0.1:{self.port}/session/{session_id}/message')
+            with urllib.request.urlopen(req_m, timeout=2.0) as resp:
+                m_data = resp.read()
+                m_fp = f"{{len(m_data)}}:{{hash(m_data)}}"
+                if m_fp != last_msg_fingerprint:
+                    mark_activity()
+                    last_msg_fingerprint = m_fp
+        except Exception:
+            pass
+
+    with activity_lock:
+        idle_elapsed = now - last_activity_time
     total_elapsed = now - start_time
 
     if total_elapsed > {timeout}:

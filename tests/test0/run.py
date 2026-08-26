@@ -71,6 +71,91 @@ def check_bilingual_merge():
     return custom_check(_validate)
 
 
+def check_html_metadata_standards():
+    """Verify all 3 HTML presentations have standard charset, html lang tag, and author footer."""
+
+    def _validate(workspace_dir: str) -> tuple[bool, str]:
+        # Robust regex for footer: handles single/double quotes, extra whitespace, newlines, and attribute ordering
+        footer_pattern = re.compile(
+            r'<footer\b[^>]*\bid=["\']author["\'][^>]*>\s*Created\s+by\s+Dr\.\s+Jennifer\s+Robins,\s*Ph\.D\.\s*-\s*2026\s*<\/footer>',
+            re.IGNORECASE | re.DOTALL,
+        )
+        # Robust regex for charset: handles <meta charset="utf-8"> and <meta http-equiv=... charset=utf-8>
+        charset_pattern = re.compile(
+            r'<meta\b[^>]*\bcharset=["\']?utf-8["\']?',
+            re.IGNORECASE,
+        )
+        # Robust regex for <html lang="...">
+        html_lang_pattern = re.compile(
+            r'<html\b[^>]*\blang=["\']?([a-zA-Z0-9_\-]+)["\']?',
+            re.IGNORECASE,
+        )
+
+        expected_langs = {
+            "index.htm": "en",
+            "earth.htm": "ar",
+            "cell.htm": "ar",
+        }
+
+        for fname, expected_lang in expected_langs.items():
+            path = os.path.join(workspace_dir, fname)
+            if not os.path.exists(path):
+                return False, f"Expected file '{fname}' not found."
+
+            with open(path, "r", encoding="utf-8", errors="ignore") as f:
+                content = f.read()
+
+            # Check footer
+            if not footer_pattern.search(content):
+                return False, f"File '{fname}' is missing or has malformed footer: expected '<footer id=\"author\">Created by Dr. Jennifer Robins, Ph.D. - 2026</footer>'."
+
+            # Check meta charset
+            if not charset_pattern.search(content):
+                return False, f"File '{fname}' is missing valid <meta charset=\"utf-8\">."
+
+            # Check html lang
+            lang_match = html_lang_pattern.search(content)
+            if not lang_match or not lang_match.group(1).lower().startswith(expected_lang):
+                actual_lang = lang_match.group(1) if lang_match else "none"
+                return False, f"File '{fname}' has incorrect html lang attribute '{actual_lang}' (expected '{expected_lang}')."
+
+        return True, "All HTML files adhere to required metadata, lang, and footer standards."
+
+    return custom_check(_validate)
+
+
+def check_rebrand():
+    """Verify that all occurrences of 'Jennifer Robins' have been replaced with 'Prof. J. Robins'."""
+
+    def _validate(workspace_dir: str) -> tuple[bool, str]:
+        unreplaced_pattern = re.compile(r'\bJennifer\s+Robins\b', re.IGNORECASE)
+        rebranded_pattern = re.compile(r'Prof\.\s*J\.\s*Robins', re.IGNORECASE)
+
+        html_files = ["index.htm", "earth.htm", "cell.htm"]
+        for root, _, files in os.walk(workspace_dir):
+            if ".git" in root:
+                continue
+            for f in files:
+                if f.endswith((".htm", ".html", ".md")):
+                    fpath = os.path.join(root, f)
+                    with open(fpath, "r", encoding="utf-8", errors="ignore") as file_obj:
+                        content = file_obj.read()
+                    if unreplaced_pattern.search(content):
+                        return False, f"Found unreplaced 'Jennifer Robins' in file '{f}'."
+
+        for fname in html_files:
+            fpath = os.path.join(workspace_dir, fname)
+            if os.path.exists(fpath):
+                with open(fpath, "r", encoding="utf-8", errors="ignore") as file_obj:
+                    content = file_obj.read()
+                if not rebranded_pattern.search(content):
+                    return False, f"File '{fname}' does not contain the rebranded name 'Prof. J. Robins'."
+
+        return True, "Rebranding verified: 'Jennifer Robins' successfully replaced with 'Prof. J. Robins'."
+
+    return custom_check(_validate)
+
+
 # ==============================================================================
 # Test Definition
 # ==============================================================================
@@ -142,7 +227,25 @@ TEST = Test(
         Step(
             prompt="""make another rich, beautiful html presentation on the topic of cell biology. use diagrams if you can. make it in Arabic and name the final html "cell.htm".  Ensure it's single page, no external js/css/images.""",
             checks=[
-                git_changes("cell.htm", "A", total_lines=(100, 2000)),
+                git_changes("cell.htm", "A", total_lines=(100, 4000)),
+            ],
+        ),
+        Step(
+            prompt="""Audit all 3 HTML presentations (index.htm, earth.htm, cell.htm). Ensure every HTML file includes: (1) an appropriate <html lang="..."> attribute for its language ("en" for index.htm, "ar" for earth.htm and cell.htm), (2) a <meta charset="utf-8"> tag, and (3) an author footer at the bottom: <footer id="author">Created by Dr. Jennifer Robins, Ph.D. - 2026</footer>. Update any of these HTML files that are missing these elements.""",
+            checks=[
+                git_changes("index.htm", "M"),
+                git_changes("earth.htm", "M"),
+                git_changes("cell.htm", "M"),
+                check_html_metadata_standards(),
+            ],
+        ),
+        Step(
+            prompt="""We are rebranding: search across all files in the workspace (including .md and .htm files) for any occurrence of "Jennifer Robins" or "Dr. Jennifer Robins, Ph.D." and replace them with "Prof. J. Robins". Ensure no occurrences of "Jennifer Robins" remain in any file in the workspace.""",
+            checks=[
+                git_changes("index.htm", "M"),
+                git_changes("earth.htm", "M"),
+                git_changes("cell.htm", "M"),
+                check_rebrand(),
             ],
         ),
     ],

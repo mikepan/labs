@@ -1,0 +1,291 @@
+#!/usr/bin/env python3
+"""
+launch_benchmark.py - High-throughput LLM serving benchmark across configured models.
+
+Usage:
+    python3 eval/launch_benchmark.py [--model model_name] [--runs 2] [--fast] [--v]
+"""
+
+import argparse
+import json
+import logging
+import sys
+import time
+import urllib.request
+from datetime import datetime
+from pathlib import Path
+from typing import Any
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from eval.common import setup_logger, load_json_config
+from eval.config import (
+    API_BASE_URL,
+    BENCHMARK_RESULT_FILE,
+    MODELS_CONFIG_FILE,
+    REMOTE_HOST,
+    TESTS_DIR,
+)
+from eval.launch_model import ensure_model_running, stop_model
+from eval.results import calculate_model_memory_gb
+
+logger = setup_logger("launch_benchmark")
+DEFAULT_PROMPT_FILE = TESTS_DIR / "benchmark" / "long-prompt.kt"
+
+
+def load_prompt(prompt_file: Path | str = DEFAULT_PROMPT_FILE) -> str:
+    """Load benchmark prompt text from file."""
+    path = Path(prompt_file)
+    if not path.is_file():
+        path = REPO_ROOT / "tests" / "benchmark" / "long-prompt.kt"
+    return f"Describe what this file does:\n\n```kotlin\n{path.read_text(encoding='utf-8', errors='ignore')}\n```"
+
+
+def wait_until_idle(base_url: str = API_BASE_URL, timeout_sec: int = 30) -> None:
+    """Pause until vLLM server has 0 active running requests."""
+    start = time.perf_counter()
+    while time.perf_counter() - start < timeout_sec:
+        try:
+            req = urllib.request.Request(f"{base_url}/metrics")
+            with urllib.request.urlopen(req, timeout=2.0) as res:
+                text = res.read().decode("utf-8", errors="ignore")
+                for line in text.splitlines():
+                    if line.startswith(("vllm:num_requests_running", "vllm_num_requests_running")):
+                        if float(line.split()[-1]) == 0:
+                            return
+        except Exception:
+            pass
+        time.sleep(1.5)
+
+
+def run_stream_benchmark(
+    model: str,
+    prompt: str,
+    base_url: str = API_BASE_URL,
+    verbose: bool = False,
+) -> dict[str, Any] | None:
+    """Send streaming request to vLLM and calculate throughput metrics."""
+    req = urllib.request.Request(
+        f"{base_url}/v1/chat/completions",
+        data=json.dumps({
+            "model": model,
+            "messages": [{"role": "user", "content": prompt}],
+            "stream": True,
+            "stream_options": {"include_usage": True},
+        }).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+    )
+
+    t0 = time.perf_counter()
+    t_first = None
+    prompt_tokens = completion_tokens = 0
+    chunks: list[str] = []
+
+    try:
+        with urllib.request.urlopen(req, timeout=600) as resp:
+            for raw_line in resp:
+                line = raw_line.decode("utf-8").strip()
+                if not line.startswith("data:"):
+                    continue
+                data_str = line[5:].strip()
+                if data_str == "[DONE]":
+                    break
+                try:
+                    chunk = json.loads(data_str)
+                except Exception:
+                    continue
+
+                for choice in chunk.get("choices", []):
+                    delta = choice.get("delta", {})
+                    token = delta.get("content") or delta.get("reasoning_content") or delta.get("reasoning")
+                    if token:
+                        if t_first is None:
+                            t_first = time.perf_counter()
+                        if verbose:
+                            sys.stdout.write(token)
+                            sys.stdout.flush()
+                        chunks.append(token)
+
+                if chunk.get("usage"):
+                    prompt_tokens = chunk["usage"].get("prompt_tokens", prompt_tokens)
+                    completion_tokens = chunk["usage"].get("completion_tokens", completion_tokens)
+
+        t_end = time.perf_counter()
+        if verbose:
+            sys.stdout.write("\n\n")
+    except Exception as e:
+        logger.error("Benchmark stream request failed: %s", e)
+        return None
+
+    ttft = (t_first - t0) if t_first else (t_end - t0)
+    decode_time = (t_end - t_first) if t_first else (t_end - t0)
+    total_time = t_end - t0
+    completion_tokens = completion_tokens or len(chunks)
+
+    return {
+        "prompt_tokens": prompt_tokens,
+        "completion_tokens": completion_tokens,
+        "ttft": ttft,
+        "decode_time": decode_time,
+        "total_elapsed": total_time,
+        "prefill_tps": prompt_tokens / ttft if ttft > 0 else 0,
+        "decode_tps": completion_tokens / decode_time if decode_time > 0 else 0,
+        "eff_gen_tps": completion_tokens / total_time if total_time > 0 else 0,
+    }
+
+
+def format_table(headers: list[str], rows: list[list[str]], title: str = "") -> str:
+    """Render a clean ASCII table."""
+    widths = [len(h) for h in headers]
+    for row in rows:
+        if row != ["---"]:
+            for i, cell in enumerate(row):
+                widths[i] = max(widths[i], len(str(cell)))
+
+    def format_row(cols):
+        return " | ".join(str(c).ljust(widths[i]) for i, c in enumerate(cols))
+
+    sep = "-" * (sum(widths) + 3 * (len(headers) - 1))
+    dsep = "=" * len(sep)
+
+    lines = []
+    if title:
+        lines.extend([dsep, title])
+    lines.extend([dsep, format_row(headers), sep])
+    for row in rows:
+        if row == ["---"]:
+            lines.append(sep)
+        else:
+            lines.append(format_row(row))
+    lines.append(dsep)
+    return "\n".join(lines)
+
+
+def benchmark_model(
+    model_name: str,
+    cfg: dict[str, Any],
+    prompt: str,
+    runs: int = 1,
+) -> dict[str, Any] | None:
+    """Run benchmark lifecycle for a single model."""
+    logger.info("=" * 70)
+    logger.info("BENCHMARKING: %s (%d runs)", model_name, runs)
+    logger.info("=" * 70)
+
+    try:
+        ok, weight = ensure_model_running(model_name, cfg, host=REMOTE_HOST, base_url=API_BASE_URL, verbose=True)
+        if not ok:
+            return None
+
+        memory_gb = calculate_model_memory_gb(host=REMOTE_HOST)
+        session_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+        bench_prompt = f"[Session: {session_id}]\n" + prompt
+        run_data = []
+
+        for idx in range(1, runs + 1):
+            wait_until_idle(base_url=API_BASE_URL)
+            logger.info("--- Starting Run %d/%d for '%s' ---", idx, runs, model_name)
+            res = run_stream_benchmark(weight, bench_prompt, base_url=API_BASE_URL, verbose=True)
+            if res:
+                run_data.append(res)
+                logger.info(
+                    "Run %d: Prefill=%.2f tok/s (TTFT=%.3fs), Decode=%.2f tok/s, Gen=%d tok",
+                    idx, res["prefill_tps"], res["ttft"], res["decode_tps"], res["completion_tokens"]
+                )
+
+        if not run_data:
+            return None
+
+        # Build run summary table
+        headers = ["Run", "Prompt Tok", "Gen Tok", "TTFT (s)", "Decode (s)", "Total (s)", "Prefill tps", "Decode tps", "Eff Gen tps"]
+        rows = [
+            [
+                str(i + 1), str(r["prompt_tokens"]), str(r["completion_tokens"]),
+                f"{r['ttft']:.3f}", f"{r['decode_time']:.3f}", f"{r['total_elapsed']:.3f}",
+                f"{r['prefill_tps']:.2f}", f"{r['decode_tps']:.2f}", f"{r['eff_gen_tps']:.2f}",
+            ]
+            for i, r in enumerate(run_data)
+        ]
+        avg = {k: sum(r[k] for r in run_data) / len(run_data) for k in run_data[0].keys()}
+        rows.append(["---"])
+        rows.append([
+            "AVG", f"{avg['prompt_tokens']:.1f}", f"{avg['completion_tokens']:.1f}",
+            f"{avg['ttft']:.3f}", f"{avg['decode_time']:.3f}", f"{avg['total_elapsed']:.3f}",
+            f"{avg['prefill_tps']:.2f}", f"{avg['decode_tps']:.2f}", f"{avg['eff_gen_tps']:.2f}",
+        ])
+
+        size_label = f" | Runtime Size: {memory_gb:.1f} GB" if memory_gb > 0 else ""
+        print("\n" + format_table(headers, rows, title=f"BENCHMARK SUMMARY: {model_name} ({len(run_data)} RUNS{size_label})") + "\n")
+
+        return {
+            "model": model_name,
+            "memory_gb": memory_gb,
+            "fresh_prefill_tps": run_data[0]["prefill_tps"],
+            "cached_prefill_tps": sum(r["prefill_tps"] for r in run_data[1:]) / len(run_data[1:]) if len(run_data) > 1 else run_data[0]["prefill_tps"],
+            "decode_tps": avg["decode_tps"],
+            "eff_gen_tps": avg["eff_gen_tps"],
+            "ttft": avg["ttft"],
+            "gen_tokens": avg["completion_tokens"],
+        }
+    finally:
+        stop_model(host=REMOTE_HOST)
+
+
+def format_leaderboard(summaries: list[dict[str, Any]]) -> str:
+    """Render overall serving benchmark leaderboard table."""
+    headers = ["Model Name", "Runtime Size", "Fresh Prefill", "Cached Prefill", "Decode tps", "Eff Gen tps", "Avg TTFT (s)", "Gen Tok"]
+    rows = [
+        [
+            s["model"],
+            f"{s['memory_gb']:.1f} GB" if s["memory_gb"] > 0 else "N/A",
+            f"{s['fresh_prefill_tps']:.2f}",
+            f"{s['cached_prefill_tps']:.2f}",
+            f"{s['decode_tps']:.2f}",
+            f"{s['eff_gen_tps']:.2f}",
+            f"{s['ttft']:.3f}",
+            f"{s['gen_tokens']:.1f}",
+        ]
+        for s in summaries
+    ]
+    return format_table(headers, rows, title="OVERALL SERVING BENCHMARK LEADERBOARD")
+
+
+def write_results_file(summaries: list[dict[str, Any]], filepath: Path = BENCHMARK_RESULT_FILE) -> None:
+    """Write benchmark leaderboard table to results file."""
+    if not summaries:
+        return
+    table = format_leaderboard(summaries)
+    filepath.write_text(table + "\n", encoding="utf-8")
+    logger.info("Updated benchmark results: %s", filepath)
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Run serving benchmark across configured vLLM models.")
+    parser.add_argument("--model", default="all", help="Model name or 'all' (default: all)")
+    parser.add_argument("--runs", type=int, default=1, help="Number of benchmark runs per model (default: 1)")
+    args = parser.parse_args()
+
+    models = load_json_config(MODELS_CONFIG_FILE)
+    targets = list(models.keys()) if args.model in ("all", None) else [args.model]
+    if any(t not in models for t in targets):
+        logger.error("Unknown model. Available: %s", ", ".join(models.keys()))
+        sys.exit(1)
+
+    prompt = load_prompt()
+    logger.info("Starting benchmark across %d model(s): %s", len(targets), targets)
+
+    summaries = []
+    for m in targets:
+        res = benchmark_model(m, models[m], prompt, runs=args.runs)
+        if res:
+            summaries.append(res)
+            write_results_file(summaries)
+
+    if summaries:
+        print("\n" + format_leaderboard(summaries) + "\n")
+
+
+if __name__ == "__main__":
+    main()

@@ -19,15 +19,15 @@ from typing import Any
 
 from eval.config import (
     API_BASE_URL,
+    MODELS_CONFIG_FILE,
     REMOTE_HOST,
     REPO_ROOT,
     TESTS_DIR,
 )
-from eval.common import setup_logger, get_available_tests, load_harnesses_config
+from eval.common import setup_logger, get_available_tests, load_harnesses_config, load_json_config
 from eval.drivers import get_driver
 from eval.launch_model import (
     ensure_model_running,
-    load_models,
     stop_model,
 )
 
@@ -132,7 +132,7 @@ def run_model_pipeline(
 
 
 def main():
-    models = load_models()
+    models = load_json_config(MODELS_CONFIG_FILE)
     parser = argparse.ArgumentParser(description="Run vLLM model evaluation pipeline across models, tests, and harnesses.")
     parser.add_argument("--model", default="all", help="Model to evaluate (e.g. 'all' or specific model, default: all)")
     parser.add_argument("--harness", default="all", help="Harness to run (e.g. 'pi', 'opencode', or 'all', default: all)")

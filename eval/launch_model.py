@@ -26,7 +26,6 @@ from eval.common import setup_logger, load_json_config, run_cmd, http_json
 logger = setup_logger("launch_model")
 
 __all__ = [
-    "load_models",
     "parse_model_config",
     "run_remote",
     "stop_model",
@@ -36,11 +35,6 @@ __all__ = [
     "run_sanity_test",
     "ensure_model_running",
 ]
-
-
-def load_models(config_path: str = MODELS_CONFIG_FILE) -> dict[str, Any]:
-    """Load model definitions from JSON file."""
-    return load_json_config(config_path, label="Models config")
 
 
 def parse_model_config(cfg: dict[str, Any]) -> tuple[str, str]:
@@ -200,7 +194,7 @@ def ensure_model_running(
 
 
 def main():
-    models = load_models()
+    models = load_json_config(MODELS_CONFIG_FILE)
     parser = argparse.ArgumentParser(description="Launch, manage, or test vLLM models on remote cluster.")
     parser.add_argument("--model", default="all", help="Model to launch or 'all'")
     parser.add_argument("--stop", action="store_true", help="Stop running model container")

@@ -22,13 +22,14 @@ DEFAULT_PI_PORT = 4097
 
 # Timeout Defaults (in minutes)
 DEFAULT_MAX_STEP_TIMEOUT_MINUTES = 120  # Safety maximum ceiling per step
-DEFAULT_IDLE_TIMEOUT_MINUTES = 5        # Max cold prefill baseline at 260k context
+DEFAULT_IDLE_TIMEOUT_MINUTES = 10       # Max cold prefill + reasoning baseline at high context
 
 # Data & Config Paths (Path objects)
 MODELS_CONFIG_FILE = REPO_ROOT / "eval" / "models.json"
 HARNESSES_CONFIG_FILE = REPO_ROOT / "eval" / "harnesses.json"
 BENCHMARK_DATA_FILE = REPO_ROOT / "site" / "results" / "benchmark-data.json"
 BENCHMARK_SCHEMA_FILE = REPO_ROOT / "eval" / "benchmark-data.schema.json"
+BENCHMARK_RESULT_FILE = REPO_ROOT / "result.txt"
 RESULTS_DIR = REPO_ROOT / "site" / "results"
 TESTS_DIR = REPO_ROOT / "tests"
 
@@ -49,6 +50,7 @@ __all__ = [
     "HARNESSES_CONFIG_FILE",
     "BENCHMARK_DATA_FILE",
     "BENCHMARK_SCHEMA_FILE",
+    "BENCHMARK_RESULT_FILE",
     "RESULTS_DIR",
     "TESTS_DIR",
 ]

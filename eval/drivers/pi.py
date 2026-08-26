@@ -330,6 +330,7 @@ class PiSession:
             tool_calls_map = {{}}
             tokens_in = 0
             tokens_out = 0
+            peak_context_tokens = 0
             raw_messages = []
             start_time = time.time()
             last_activity_time = time.time()
@@ -463,8 +464,11 @@ class PiSession:
                                         reasoning_chunks.append(c["thinking"])
                         usage = msg.get("usage", {{}})
                         if usage:
-                            tokens_in += usage.get("input", 0)
-                            tokens_out += usage.get("output", 0)
+                            u_in = usage.get("input", 0)
+                            u_out = usage.get("output", 0)
+                            tokens_in += u_in
+                            tokens_out += u_out
+                            peak_context_tokens = max(peak_context_tokens, u_in + u_out)
 
                 elif e_type == "agent_end":
                     gen_msgs = event.get("messages", [])
@@ -516,6 +520,7 @@ class PiSession:
                 "events": norm_events,
                 "tokens_in": tokens_in,
                 "tokens_out": tokens_out,
+                "peak_context_tokens": peak_context_tokens,
                 "raw_messages": raw_messages if raw_messages else [{{
                     "role": "assistant",
                     "content": [{{"type": "text", "text": full_text}}] if full_text else [],
@@ -693,6 +698,7 @@ except Exception:
             events=turn_dict.get("events", []),
             tokens_in=turn_dict.get("tokens_in", 0),
             tokens_out=turn_dict.get("tokens_out", 0),
+            peak_context_tokens=turn_dict.get("peak_context_tokens", 0),
             raw_messages=turn_dict.get("raw_messages", []),
         )
 
@@ -730,7 +736,10 @@ except Exception:
 
             usage = msg.get("usage", {})
             if usage:
-                turn.tokens_in += usage.get("input", 0)
-                turn.tokens_out += usage.get("output", 0)
+                u_in = usage.get("input", 0)
+                u_out = usage.get("output", 0)
+                turn.tokens_in += u_in
+                turn.tokens_out += u_out
+                turn.peak_context_tokens = max(turn.peak_context_tokens, u_in + u_out)
 
         return turn

@@ -3,6 +3,7 @@ assertions.py - Concise assertion primitives for evaluating agent actions in git
 """
 
 from dataclasses import dataclass
+import json
 import os
 import re
 import subprocess
@@ -15,10 +16,12 @@ __all__ = [
     "GitChangeAssert",
     "LangDetectAssert",
     "FilesIdenticalAssert",
+    "KotlinSyntaxAssert",
     "CustomAssert",
     "git_changes",
     "lang_detect",
     "files_identical",
+    "check_kotlin_syntax",
     "custom_check",
 ]
 
@@ -250,6 +253,56 @@ class FilesIdenticalAssert(BaseAssertion):
         return CheckResult(True, f"Files '{self.file1}' and '{self.file2}' are identical.")
 
 
+class KotlinSyntaxAssert(BaseAssertion):
+    """Asserts that a Kotlin file in the workspace has valid syntax (or optionally conforms to ktlint style)."""
+
+    def __init__(self, filepath: str, check_style: bool = False):
+        self.filepath = filepath
+        self.check_style = check_style
+
+    def evaluate(self, workspace_dir: str) -> CheckResult:
+        full_path = os.path.join(workspace_dir, self.filepath)
+        if not os.path.exists(full_path):
+            return CheckResult(False, f"Kotlin file '{self.filepath}' not found in workspace '{workspace_dir}'.")
+
+        res = subprocess.run(
+            ["ktlint", "--reporter=json", self.filepath],
+            cwd=workspace_dir,
+            capture_output=True,
+            text=True,
+        )
+
+        stdout = res.stdout
+        json_match = re.search(r"(\[\s*\{.*\}\s*\]|\[\s*\])", stdout, re.DOTALL)
+        if not json_match:
+            if res.returncode != 0 and "Not a valid Kotlin file" in (stdout + res.stderr):
+                return CheckResult(False, f"Kotlin syntax error in '{self.filepath}': {stdout.strip() or res.stderr.strip()}")
+            return CheckResult(True, f"Kotlin file '{self.filepath}' passed validation.")
+
+        try:
+            data = json.loads(json_match.group(1))
+            errors = data[0].get("errors", []) if data else []
+        except Exception as e:
+            return CheckResult(False, f"Failed to parse ktlint output for '{self.filepath}': {e}")
+
+        syntax_errors = [
+            e for e in errors
+            if not e.get("rule") or "Not a valid Kotlin file" in e.get("message", "")
+        ]
+
+        if syntax_errors:
+            first_err = syntax_errors[0]
+            err_msg = f"Kotlin syntax error in '{self.filepath}' at line {first_err.get('line')}:{first_err.get('column')} - {first_err.get('message')}"
+            return CheckResult(False, err_msg, {"syntax_errors": syntax_errors})
+
+        if self.check_style and errors:
+            first_err = errors[0]
+            err_msg = f"Kotlin style violation in '{self.filepath}' at line {first_err.get('line')}:{first_err.get('column')} [{first_err.get('rule')}] - {first_err.get('message')}"
+            return CheckResult(False, err_msg, {"style_violations": errors})
+
+        return CheckResult(True, f"Kotlin syntax verified for '{self.filepath}'.")
+
+
 class CustomAssert(BaseAssertion):
     """Wraps a custom python callable assertion."""
 
@@ -296,6 +349,10 @@ def lang_detect(filepath: str, lang: str = "en") -> LangDetectAssert:
 
 def files_identical(file1: str, file2: str) -> FilesIdenticalAssert:
     return FilesIdenticalAssert(file1=file1, file2=file2)
+
+
+def check_kotlin_syntax(filepath: str, check_style: bool = False) -> KotlinSyntaxAssert:
+    return KotlinSyntaxAssert(filepath=filepath, check_style=check_style)
 
 
 def custom_check(func: Callable[[str], Any]) -> CustomAssert:

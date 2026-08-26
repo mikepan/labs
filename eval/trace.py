@@ -40,6 +40,7 @@ class TurnData:
     events: list[dict[str, Any]] = field(default_factory=list)
     tokens_in: int = 0
     tokens_out: int = 0
+    peak_context_tokens: int = 0
     raw_messages: list[dict[str, Any]] = field(default_factory=list)
 
 
@@ -56,6 +57,8 @@ class StepTrace:
     end_time: str
     tokens_in: int = 0
     tokens_out: int = 0
+    peak_context_tokens: int = 0
+    context_used_pct: float = 0.0
     events: list[dict[str, Any]] = field(default_factory=list)
     tool_calls: list[dict[str, Any]] = field(default_factory=list)
     reasoning_blocks: list[str] = field(default_factory=list)

@@ -124,16 +124,22 @@ def save_as_template(sandbox: SandboxClient, template_tag: str) -> bool:
 
 
 def install_evaluation_dependencies(sandbox: SandboxClient) -> None:
-    """Install core evaluation dependencies (git, python3, pip, nodejs, npm, langdetect, html5lib, etc.)."""
-    logger.info("Installing base evaluation dependencies (git, python, nodejs, langdetect, etc.)...")
+    """Install core evaluation dependencies (git, python3, pip, nodejs, npm, openjdk, ktlint, langdetect, html5lib, etc.)."""
+    logger.info("Installing base evaluation dependencies (git, python, nodejs, openjdk, ktlint, langdetect, etc.)...")
 
     setup_script = """
     set -e
     if command -v apt-get >/dev/null 2>&1; then
         export DEBIAN_FRONTEND=noninteractive
-        apt-get update -qq && apt-get install -y -qq git python3 python3-pip python3-venv curl jq nodejs npm
+        sudo apt-get update -qq && sudo apt-get install -y -qq git python3 python3-pip python3-venv curl jq nodejs npm openjdk-21-jre-headless || sudo apt-get install -y -qq default-jre-headless || true
     elif command -v apk >/dev/null 2>&1; then
-        apk update && apk add --no-cache git python3 py3-pip curl jq nodejs npm
+        apk update && apk add --no-cache git python3 py3-pip curl jq nodejs npm openjdk17-jre
+    fi
+
+    # Install ktlint
+    if ! command -v ktlint >/dev/null 2>&1; then
+        sudo curl -sSL https://github.com/pinterest/ktlint/releases/download/1.5.0/ktlint -o /usr/local/bin/ktlint
+        sudo chmod a+x /usr/local/bin/ktlint
     fi
 
     # Install Python evaluation packages
@@ -146,10 +152,10 @@ def install_evaluation_dependencies(sandbox: SandboxClient) -> None:
     if code != 0:
         logger.warning("Issue installing base eval packages (code %d):\n%s\n%s", code, stderr, stdout)
     else:
-        logger.info("✓ System evaluation tools and Python packages installed.")
+        logger.info("✓ System evaluation tools, OpenJDK, ktlint, and Python packages installed.")
 
     # Validation
-    val_cmd = 'git --version && python3 --version && python3 -c "import langdetect, html5lib; print(\'✓ Evaluation Python modules validated (langdetect, html5lib).\')"'
+    val_cmd = 'git --version && python3 --version && java -version && ktlint --version && python3 -c "import langdetect, html5lib; print(\'✓ Evaluation Python modules validated (langdetect, html5lib).\')"'
     code, v_out, _ = sandbox.exec(val_cmd)
     if code == 0 and v_out:
         for line in v_out.splitlines():

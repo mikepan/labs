@@ -208,6 +208,9 @@ def run_test_suite_on_agent(
                 logger.debug("Uploading test asset %s -> %s", asset_path.name, remote_asset)
                 sandbox.upload_file(asset_path, remote_asset)
 
+        # Commit initial test data assets so git change tracking starts with a clean baseline
+        sandbox.exec(f"cd {test_ws} && git add -A && git commit --allow-empty -m 'initial test assets'")
+
         active_model = driver.start(sandbox, test_ws, model_name, DEFAULT_LLM_BASE_URL)
         session_id = driver.create_session(sandbox)
 
@@ -351,6 +354,12 @@ def run_test_suite_on_agent(
                     if not cr.get("passed"):
                         logger.warning("    - Failure: %s", cr.get("message"))
 
+            # Step context usage
+            step_peak_ctx = turn.peak_context_tokens
+            vllm_info = get_vllm_model_info(base_url=DEFAULT_LLM_BASE_URL)
+            max_ctx = int(vllm_info.get("max_model_len", 0)) if vllm_info else 0
+            step_context_used_pct = round((step_peak_ctx / max_ctx) * 100.0, 2) if max_ctx > 0 else 0.0
+
             step_traces.append(StepTrace(
                 step_index=idx,
                 step_name=step_name,
@@ -362,6 +371,8 @@ def run_test_suite_on_agent(
                 end_time=step_end_iso,
                 tokens_in=turn.tokens_in,
                 tokens_out=turn.tokens_out,
+                peak_context_tokens=step_peak_ctx,
+                context_used_pct=step_context_used_pct,
                 events=turn.events,
                 tool_calls=[tc.to_dict() for tc in turn.tool_calls],
                 reasoning_blocks=turn.reasoning,
@@ -373,11 +384,9 @@ def run_test_suite_on_agent(
 
         test_duration = round(time.time() - test_start, 2)
 
-        # Context usage
-        vllm_info = get_vllm_model_info(base_url=DEFAULT_LLM_BASE_URL)
-        max_ctx = int(vllm_info.get("max_model_len", 0)) if vllm_info else 0
-        total_tokens = total_tokens_in + total_tokens_out
-        context_used_pct = round((total_tokens / max_ctx) * 100.0, 2) if max_ctx > 0 else 0.0
+        # Context usage (peak single turn across all steps)
+        test_peak_ctx = max([st.get("peak_context_tokens", 0) for st in step_traces], default=0)
+        test_context_used_pct = round((test_peak_ctx / max_ctx) * 100.0, 2) if max_ctx > 0 else 0.0
 
         test_results_summary[test_id] = {
             "name": test_obj.description or test_id,
@@ -386,7 +395,8 @@ def run_test_suite_on_agent(
             "run_time_sec": test_duration,
             "tokens_in": total_tokens_in,
             "tokens_out": total_tokens_out,
-            "context_used_pct": context_used_pct,
+            "peak_context_tokens": test_peak_ctx,
+            "context_used_pct": test_context_used_pct,
         }
 
         # Extract artifacts

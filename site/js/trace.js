@@ -277,8 +277,8 @@ function renderTestStepsTimeline(testData) {
     const hasReasoning = events.some(e => e.type === 'reasoning');
     const checks = (step.evaluation && step.evaluation.check_results) || [];
 
-    const contextUsedPct = getStepContextUsedPct(step, testData, currentTraceData);
-    const contextDisplay = (contextUsedPct !== null && contextUsedPct !== undefined)
+    const contextUsedPct = getStepContextUsedPct(step);
+    const contextDisplay = (contextUsedPct !== null && contextUsedPct !== undefined && contextUsedPct > 0)
       ? `<span class="step-tokens">Context Used: ${Math.round(contextUsedPct)}%</span>`
       : '';
     const isCollapsed = currentViewMode === 'simple';
@@ -494,72 +494,13 @@ function formatToolInputOutput(tc) {
 
 
 function getStepTokens(step) {
-  if (step.tokens_in !== undefined && step.tokens_out !== undefined) {
-    return { in: step.tokens_in || 0, out: step.tokens_out || 0 };
-  }
-  let tin = 0;
-  let tout = 0;
-  if (Array.isArray(step.messages)) {
-    step.messages.forEach(msg => {
-      const parts = msg.parts || [];
-      let foundInParts = false;
-      parts.forEach(p => {
-        if (p.type === 'step-finish' && p.tokens) {
-          tin += (p.tokens.input || 0);
-          tout += (p.tokens.output || 0);
-          foundInParts = true;
-        }
-      });
-      if (!foundInParts && msg.info && msg.info.tokens) {
-        tin += (msg.info.tokens.input || 0);
-        tout += (msg.info.tokens.output || 0);
-      }
-    });
-  }
-  return { in: tin, out: tout };
+  return { in: step.tokens_in || 0, out: step.tokens_out || 0 };
 }
 
-function getStepPeakContextTokens(step) {
-  let peakCtx = 0;
-  if (Array.isArray(step.messages)) {
-    step.messages.forEach(msg => {
-      const parts = msg.parts || [];
-      let foundInParts = false;
-      parts.forEach(p => {
-        if (p.type === 'step-finish' && p.tokens) {
-          const turnCtx = (p.tokens.input || 0) + (p.tokens.output || 0);
-          if (turnCtx > peakCtx) peakCtx = turnCtx;
-          foundInParts = true;
-        }
-      });
-      if (!foundInParts && msg.info && msg.info.tokens) {
-        const turnCtx = (msg.info.tokens.input || 0) + (msg.info.tokens.output || 0);
-        if (turnCtx > peakCtx) peakCtx = turnCtx;
-      }
-    });
-  }
-  return peakCtx;
-}
-
-function getStepContextUsedPct(step, testData, rootTraceData) {
-  if (step.context_used_pct !== undefined && step.context_used_pct !== null) {
+function getStepContextUsedPct(step) {
+  if (step && step.context_used_pct !== undefined && step.context_used_pct !== null) {
     return Number(step.context_used_pct);
   }
-
-  const maxContext = (rootTraceData && rootTraceData.context_length) || (testData && testData.context_length) || 262144;
-  const peakContext = getStepPeakContextTokens(step);
-
-  if (peakContext > 0 && maxContext > 0) {
-    return (peakContext / maxContext) * 100;
-  }
-
-  const tokens = getStepTokens(step);
-  const totalTokens = (tokens.in || 0) + (tokens.out || 0);
-
-  if (totalTokens > 0 && maxContext > 0) {
-    return (totalTokens / maxContext) * 100;
-  }
-
   return null;
 }
 

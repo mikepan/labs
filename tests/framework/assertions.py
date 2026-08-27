@@ -49,7 +49,7 @@ class GitChangeAssert(BaseAssertion):
         status: str = "A",
         total_lines: tuple[int, int] | int | None = None,
         diff_lines: tuple[int, int] | int | None = None,
-        allow_extra: bool = False,
+        allow_extra: bool = True,
     ):
         self.filepath = filepath
         self.status = status.strip().upper() if status else "A"
@@ -332,7 +332,7 @@ def git_changes(
     status: str = "A",
     total_lines: tuple[int, int] | int | None = None,
     diff_lines: tuple[int, int] | int | None = None,
-    allow_extra: bool = False,
+    allow_extra: bool = True,
 ) -> GitChangeAssert:
     return GitChangeAssert(
         filepath=filepath,

@@ -109,3 +109,20 @@ def get_active_api_model(base_url: str) -> str | None:
         return data["data"][0].get("id")
     return None
 
+
+def prevent_system_sleep() -> subprocess.Popen | None:
+    """Prevent macOS from going to sleep or dimming display during evaluation."""
+    import shutil
+    if sys.platform == "darwin":
+        caff = shutil.which("caffeinate")
+        if caff:
+            try:
+                return subprocess.Popen(
+                    [caff, "-dimsu", "-w", str(os.getpid())],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+            except Exception:
+                pass
+    return None
+

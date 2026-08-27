@@ -109,5 +109,13 @@ TEST = Test(
             ],
             point=2,
         ),
+        Step(
+            prompt="""remove code smell, reduce redunancy, and improve readability without changing functionality""",
+            checks=[
+                git_changes("source.kt", "M", diff_lines=(2, 1000)),
+                check_kotlin_syntax("source.kt"),
+            ],
+            point=2,
+        ),
     ],
 )

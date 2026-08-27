@@ -24,7 +24,13 @@ from eval.config import (
     REPO_ROOT,
     TESTS_DIR,
 )
-from eval.common import setup_logger, get_available_tests, load_harnesses_config, load_json_config
+from eval.common import (
+    setup_logger,
+    get_available_tests,
+    load_harnesses_config,
+    load_json_config,
+    prevent_system_sleep,
+)
 from eval.drivers import get_driver
 from eval.launch_model import (
     ensure_model_running,
@@ -132,6 +138,7 @@ def run_model_pipeline(
 
 
 def main():
+    prevent_system_sleep()
     models = load_json_config(MODELS_CONFIG_FILE)
     parser = argparse.ArgumentParser(description="Run vLLM model evaluation pipeline across models, tests, and harnesses.")
     parser.add_argument("--model", default="all", help="Model to evaluate (e.g. 'all' or specific model, default: all)")

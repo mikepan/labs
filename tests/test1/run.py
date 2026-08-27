@@ -276,9 +276,45 @@ def check_genre_returns_csv(filepath: str = "genre-returns.csv") -> CustomAssert
     """Validate genre-returns.csv (Genre, TotalOrders, ReturnedOrders, ReturnRatePct, TotalRefund)."""
     def _validate(workspace_dir: str) -> tuple[bool, str]:
         expected = compute_expected_genre_returns(_get_source_csv(workspace_dir))
-        def _check_row(rank, exp, row, idxs):
-            genre_idx, tot_idx, ret_idx, pct_idx, ref_idx = idxs
-            exp_genre, exp_tot, exp_ret, exp_pct, exp_ref = exp
+        target_path = os.path.join(workspace_dir, filepath)
+        if not os.path.exists(target_path):
+            available = [f for f in os.listdir(workspace_dir) if not f.startswith(".")]
+            return False, f"File '{filepath}' not found in workspace '{workspace_dir}'. Available files: {available}"
+
+        try:
+            with open(target_path, "r", encoding="utf-8", errors="ignore") as f:
+                raw_rows = [r for r in csv.reader(f) if any(cell.strip() for cell in r)]
+        except Exception as e:
+            return False, f"Failed to parse CSV '{filepath}': {e}"
+
+        if not raw_rows:
+            return False, f"File '{filepath}' is empty."
+
+        data_rows = raw_rows[1:]
+        if len(data_rows) != len(expected):
+            return False, f"Row count mismatch: expected exactly {len(expected)} data rows, but found {len(data_rows)} rows. Header found: {raw_rows[0]}"
+
+        norm_header = [_norm(h) for h in raw_rows[0]]
+        col_matchers = [
+            ("Genre", ["genre", "category"]),
+            ("TotalOrders", ["tot", "order", "count"]),
+            ("ReturnedOrders", ["return", "ret"]),
+            ("ReturnRatePct", ["pct", "rate", "percent"]),
+            ("TotalRefund", ["refund"]),
+        ]
+        indices = []
+        for col_name, keywords in col_matchers:
+            idx = next((i for i, h in enumerate(norm_header) if any(k in h for k in keywords)), None)
+            indices.append(idx if idx is not None else len(indices))
+
+        genre_idx, tot_idx, ret_idx, pct_idx, ref_idx = indices
+        expected_map = {exp[0].lower(): exp for exp in expected}
+
+        prev_pct = float("inf")
+        prev_ref = float("inf")
+        for rank, row in enumerate(data_rows, 1):
+            if len(row) <= max(indices):
+                return False, f"Row {rank} is missing required columns. Found row: {row}"
             act_genre = row[genre_idx].strip()
             try:
                 act_tot = int(round(_clean_float(row[tot_idx])))
@@ -287,34 +323,38 @@ def check_genre_returns_csv(filepath: str = "genre-returns.csv") -> CustomAssert
                 act_ref = _clean_float(row[ref_idx])
             except ValueError as e:
                 return False, f"Row {rank} contains invalid numeric data: {row} (error: {e})"
-            if exp_genre.lower() != act_genre.lower():
-                return False, (
-                    f"Row {rank} genre mismatch: expected '{exp_genre}' (Total: {exp_tot}, Ret: {exp_ret}, Rate: {exp_pct:.2f}%, Ref: ${exp_ref:.2f}), "
-                    f"got '{act_genre}' (Total: {act_tot}, Ret: {act_ret}, Rate: {act_pct:.2f}%, Ref: ${act_ref:.2f}). "
-                    f"(Check: Sort by ReturnRatePct descending, with ties broken by TotalRefund descending)."
-                )
+
+            if act_genre.lower() not in expected_map:
+                return False, f"Row {rank} contains unknown genre '{act_genre}'."
+
+            exp_genre, exp_tot, exp_ret, exp_pct, exp_ref = expected_map[act_genre.lower()]
+
             if act_tot != exp_tot or act_ret != exp_ret:
                 return False, (
-                    f"Row {rank} ({exp_genre}) order count mismatch: expected Total={exp_tot}, Returned={exp_ret}, "
+                    f"Row {rank} ({act_genre}) order count mismatch: expected Total={exp_tot}, Returned={exp_ret}, "
                     f"got Total={act_tot}, Returned={act_ret}."
                 )
             if abs(act_pct - exp_pct) > 0.1:
                 return False, (
-                    f"Row {rank} ({exp_genre}) return rate mismatch: expected {exp_pct:.2f}%, "
+                    f"Row {rank} ({act_genre}) return rate mismatch: expected {exp_pct:.2f}%, "
                     f"got {act_pct:.2f}% (diff: {abs(act_pct - exp_pct):.2f}%)."
                 )
             if abs(act_ref - exp_ref) > 0.05:
                 return False, (
-                    f"Row {rank} ({exp_genre}) refund mismatch: expected ${exp_ref:.2f}, "
+                    f"Row {rank} ({act_genre}) refund mismatch: expected ${exp_ref:.2f}, "
                     f"got ${act_ref:.2f} (diff: ${abs(act_ref - exp_ref):.2f})."
                 )
-            return True, ""
 
-        return _validate_tabular_csv(
-            workspace_dir, filepath, expected,
-            [("Genre", ["genre", "category"]), ("TotalOrders", ["tot", "order", "count"]), ("ReturnedOrders", ["return", "ret"]), ("ReturnRatePct", ["pct", "rate", "percent"]), ("TotalRefund", ["refund"])],
-            _check_row, f"All {len(expected)} genre rows match ground truth."
-        )
+            # Validate sort order (ReturnRatePct descending, then TotalRefund descending)
+            if act_pct > prev_pct + 0.01:
+                return False, f"Row {rank} ({act_genre}) violates sort order: ReturnRatePct ({act_pct:.2f}%) is higher than previous row ({prev_pct:.2f}%)."
+            elif abs(act_pct - prev_pct) <= 0.01 and act_ref > prev_ref + 0.05:
+                return False, f"Row {rank} ({act_genre}) violates tie-break sort order: TotalRefund (${act_ref:.2f}) is higher than previous row (${prev_ref:.2f}) with identical return rate."
+
+            prev_pct = act_pct
+            prev_ref = act_ref
+
+        return True, f"All {len(expected)} genre rows match ground truth."
     return custom_check(_validate)
 
 

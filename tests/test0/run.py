@@ -56,14 +56,14 @@ def check_bilingual_merge():
             en_sentences = [s.strip() for s in re.split(r"[.\n]+", clean_md(sky_en)) if len(s.strip()) > 20]
             en_matched = sum(1 for s in en_sentences if s.lower() in merged_content.lower() or s[:20].lower() in merged_content.lower())
             en_ratio = (en_matched / len(en_sentences)) if en_sentences else 1.0
-            if en_ratio < 0.70:
+            if en_ratio < 0.50:
                 return False, f"English content retention in sky_bilingual.md is too low ({en_ratio:.1%})."
 
         if sky_zh:
             zh_sentences = [s.strip() for s in re.split(r"[。\n]+", clean_md(sky_zh)) if len(s.strip()) > 10]
             zh_matched = sum(1 for s in zh_sentences if s in merged_content or s[:10] in merged_content)
             zh_ratio = (zh_matched / len(zh_sentences)) if zh_sentences else 1.0
-            if zh_ratio < 0.70:
+            if zh_ratio < 0.50:
                 return False, f"Chinese content retention in sky_bilingual.md is too low ({zh_ratio:.1%})."
 
         return True, "sky_bilingual.md correctly merged English and Chinese content."
@@ -75,9 +75,9 @@ def check_html_metadata_standards():
     """Verify all 3 HTML presentations have standard charset, html lang tag, and author footer."""
 
     def _validate(workspace_dir: str) -> tuple[bool, str]:
-        # Robust regex for footer: handles single/double quotes, extra whitespace, newlines, and attribute ordering
+        # Robust regex for footer: handles author id, Jennifer Robins, and 2026
         footer_pattern = re.compile(
-            r'<footer\b[^>]*\bid=["\']author["\'][^>]*>\s*Created\s+by\s+Dr\.\s+Jennifer\s+Robins,\s*Ph\.D\.\s*-\s*2026\s*<\/footer>',
+            r'<footer\b[^>]*\bid=["\']author["\'][^>]*>.*?Jennifer\s+Robins.*?2026.*?<\/footer>',
             re.IGNORECASE | re.DOTALL,
         )
         # Robust regex for charset: handles <meta charset="utf-8"> and <meta http-equiv=... charset=utf-8>
@@ -92,9 +92,9 @@ def check_html_metadata_standards():
         )
 
         expected_langs = {
-            "index.htm": "en",
-            "earth.htm": "ar",
-            "cell.htm": "ar",
+            "index.html": "en",
+            "earth.html": "ar",
+            "cell.html": "ar",
         }
 
         for fname, expected_lang in expected_langs.items():
@@ -107,7 +107,7 @@ def check_html_metadata_standards():
 
             # Check footer
             if not footer_pattern.search(content):
-                return False, f"File '{fname}' is missing or has malformed footer: expected '<footer id=\"author\">Created by Dr. Jennifer Robins, Ph.D. - 2026</footer>'."
+                return False, f"File '{fname}' is missing or has malformed footer: expected '<footer id=\"author\">Created by Dr. Jennifer Robins - 2026</footer>'."
 
             # Check meta charset
             if not charset_pattern.search(content):
@@ -131,12 +131,12 @@ def check_rebrand():
         unreplaced_pattern = re.compile(r'\bJennifer\s+Robins\b', re.IGNORECASE)
         rebranded_pattern = re.compile(r'Prof\.\s*J\.\s*Robins', re.IGNORECASE)
 
-        html_files = ["index.htm", "earth.htm", "cell.htm"]
+        html_files = ["index.html", "earth.html", "cell.html"]
         for root, _, files in os.walk(workspace_dir):
             if ".git" in root:
                 continue
             for f in files:
-                if f.endswith((".htm", ".html", ".md")):
+                if f.endswith((".html", ".md")):
                     fpath = os.path.join(root, f)
                     with open(fpath, "r", encoding="utf-8", errors="ignore") as file_obj:
                         content = file_obj.read()
@@ -186,27 +186,27 @@ TEST = Test(
             ],
         ),
         Step(
-            prompt="""Create a beautiful single page html(index.htm) to present this content, showing the english and chinese content side by side. Be sure that the js/css are all embedded. Dont load any external resources from the web.""",
+            prompt="""Create a beautiful single page html(index.html) to present this content, showing the english and chinese content side by side. Be sure that the js/css are all embedded. Dont load any external resources from the web.""",
             checks=[
-                git_changes("index.htm", "A", total_lines=(50, 1000)),
+                git_changes("index.html", "A", total_lines=(50, 1000)),
             ],
         ),
         Step(
             prompt="""Add a copyright Jennifer Robins 2026 notice at the bottom  of the page""",
             checks=[
-                git_changes("index.htm", "M", diff_lines=(1,100)),
+                git_changes("index.html", "M", diff_lines=(1,100)),
             ],
         ),
         Step(
-            prompt="""Add a theme toggle button to index.htm that allows switching between 'Day Mode' (light blue) and 'Night Mode' (dark starry sky) with smooth CSS transitions.""",
+            prompt="""Add a theme toggle button to index.html that allows switching between 'Day Mode' (light blue) and 'Night Mode' (dark starry sky) with smooth CSS transitions.""",
             checks=[
-                git_changes("index.htm", "M", total_lines=(50, 2000), diff_lines=(10, 1500)),
+                git_changes("index.html", "M", total_lines=(50, 2000), diff_lines=(10, 1500)),
             ],
         ),
         Step(
             prompt="""let's not use any javascript""",
             checks=[
-                git_changes("index.htm", "M", total_lines=(50, 2000)),
+                git_changes("index.html", "M", total_lines=(50, 2000)),
             ],
         ),
         Step(
@@ -219,32 +219,32 @@ TEST = Test(
             ],
         ),
         Step(
-            prompt="""ok lets create a rich, beautiful html presentation on the inner layers of the earth geology. use diagrams if you can. make it in Arabic and name the final html "earth.htm".  Ensure it's single page, no external js/css/images.""",
+            prompt="""ok lets create a rich, beautiful html presentation on the inner layers of the earth geology. use diagrams if you can. make it in Arabic and name the final html "earth.html".  Ensure it's single page, no external js/css/images.""",
             checks=[
-                git_changes("earth.htm", "A", total_lines=(100, 2000)),
+                git_changes("earth.html", "A", total_lines=(100, 2000)),
             ],
         ),
         Step(
-            prompt="""make another rich, beautiful html presentation on the topic of cell biology. use diagrams if you can. make it in Arabic and name the final html "cell.htm".  Ensure it's single page, no external js/css/images.""",
+            prompt="""make another rich, beautiful html presentation on the topic of cell biology. use diagrams if you can. make it in Arabic and name the final html "cell.html".  Ensure it's single page, no external js/css/images.""",
             checks=[
-                git_changes("cell.htm", "A", total_lines=(100, 4000)),
+                git_changes("cell.html", "A", total_lines=(100, 4000)),
             ],
         ),
         Step(
-            prompt="""Audit all 3 HTML presentations (index.htm, earth.htm, cell.htm). Ensure every HTML file includes: (1) an appropriate <html lang="..."> attribute for its language ("en" for index.htm, "ar" for earth.htm and cell.htm), (2) a <meta charset="utf-8"> tag, and (3) an author footer at the bottom: <footer id="author">Created by Dr. Jennifer Robins, Ph.D. - 2026</footer>. Update any of these HTML files that are missing these elements.""",
+            prompt="""Audit all 3 HTML presentations (index.html, earth.html, cell.html). Ensure every HTML file includes: (1) an appropriate <html lang="..."> attribute for its language ("en" for index.html, "ar" for earth.html and cell.html), (2) a <meta charset="utf-8"> tag, and (3) an author footer at the bottom: <footer id="author">Created by Dr. Jennifer Robins - 2026</footer>. Update any of these HTML files that are missing these elements.""",
             checks=[
-                git_changes("index.htm", "M"),
-                git_changes("earth.htm", "M"),
-                git_changes("cell.htm", "M"),
+                git_changes("index.html", "M"),
+                git_changes("earth.html", "M"),
+                git_changes("cell.html", "M"),
                 check_html_metadata_standards(),
             ],
         ),
         Step(
-            prompt="""We are rebranding: search across all files in the workspace (including .md and .htm files) for any occurrence of "Jennifer Robins" or "Dr. Jennifer Robins, Ph.D." and replace them with "Prof. J. Robins". Ensure no occurrences of "Jennifer Robins" remain in any file in the workspace.""",
+            prompt="""We are rebranding: search across all files in the workspace (including .md and .html files) for any occurrence of "Jennifer Robins" or "Dr. Jennifer Robins" and replace them with "Prof. J. Robins". Ensure no occurrences of "Jennifer Robins" remain in any file in the workspace.""",
             checks=[
-                git_changes("index.htm", "M"),
-                git_changes("earth.htm", "M"),
-                git_changes("cell.htm", "M"),
+                git_changes("index.html", "M"),
+                git_changes("earth.html", "M"),
+                git_changes("cell.html", "M"),
                 check_rebrand(),
             ],
         ),

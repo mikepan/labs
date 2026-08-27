@@ -309,11 +309,29 @@ class PiSession:
             env=env,
         )
 
+    def _drain_output(self, timeout_sec=0.2):
+        """Drain any leftover stdout data to prevent RPC message desynchronization."""
+        if not self.proc or not self.proc.stdout:
+            return
+        while True:
+            rlist, _, _ = select.select([self.proc.stdout], [], [], timeout_sec)
+            if not rlist:
+                break
+            line = self.proc.stdout.readline()
+            if not line:
+                break
+            line_str = line.strip()
+            if line_str:
+                sys.stderr.write(f"[pi_rpc_drain] {{line_str[:200]}}\\n")
+
     def send_prompt(self, prompt, timeout=7200, idle_timeout=360):
         with self.lock:
             if not self.proc or self.proc.poll() is not None:
                 sys.stderr.write(f"[pi_server] Respawning died pi process\\n")
                 self._start_process()
+
+            # Pre-prompt: drain any leftover trailing output
+            self._drain_output(timeout_sec=0.1)
 
             req = {{"type": "prompt", "message": prompt}}
             sys.stderr.write(f"[pi_server] Sending prompt (timeout={{timeout}}s, idle_timeout={{idle_timeout}}s): {{prompt[:80]}}...\\n")
@@ -321,8 +339,10 @@ class PiSession:
                 self.proc.stdin.write(json.dumps(req) + "\\n")
                 self.proc.stdin.flush()
             except Exception as e:
-                sys.stderr.write(f"[pi_server] Error writing to stdin: {{e}}\\n")
-                raise RuntimeError(f"Failed to send prompt to pi: {{e}}")
+                sys.stderr.write(f"[pi_server] Error writing to stdin: {{e}}, respawning pi process...\\n")
+                self._start_process()
+                self.proc.stdin.write(json.dumps(req) + "\\n")
+                self.proc.stdin.flush()
 
             events = []
             text_chunks = []
@@ -337,165 +357,174 @@ class PiSession:
             step_start_iso = datetime.now(timezone.utc).isoformat()
 
             agent_started = False
-            while True:
-                elapsed = time.time() - start_time
-                idle_elapsed = time.time() - last_activity_time
-                if elapsed > timeout:
-                    sys.stderr.write(f"[pi_server] Max timeout reached ({{elapsed:.1f}}s > {{timeout}}s), aborting and resetting\\n")
+            try:
+                while True:
+                    elapsed = time.time() - start_time
+                    idle_elapsed = time.time() - last_activity_time
+                    if elapsed > timeout:
+                        sys.stderr.write(f"[pi_server] Max timeout reached ({{elapsed:.1f}}s > {{timeout}}s), aborting and resetting\\n")
+                        try:
+                            self.proc.stdin.write(json.dumps({{"type": "abort"}}) + "\\n")
+                            self.proc.stdin.flush()
+                        except Exception:
+                            pass
+                        self._start_process()
+                        raise TimeoutError(f"Pi execution exceeded maximum ceiling of {{timeout // 60}} minutes ({{elapsed:.1f}}s elapsed).")
+
+                    if idle_elapsed > idle_timeout:
+                        sys.stderr.write(f"[pi_server] Idle timeout reached ({{idle_elapsed:.1f}}s > {{idle_timeout}}s with no progress), aborting and resetting\\n")
+                        try:
+                            self.proc.stdin.write(json.dumps({{"type": "abort"}}) + "\\n")
+                            self.proc.stdin.flush()
+                        except Exception:
+                            pass
+                        self._start_process()
+                        raise TimeoutError(f"Agent stalled: No activity received for {{idle_elapsed:.1f}}s (idle timeout of {{idle_timeout}}s based on max prefill).")
+
+                    # Non-blocking or timed read
+                    rlist, _, _ = select.select([self.proc.stdout], [], [], 1.0)
+                    if not rlist:
+                        if self.proc.poll() is not None:
+                            raise RuntimeError(f"Pi process exited prematurely with code {{self.proc.returncode}}")
+                        continue
+
+                    line = self.proc.stdout.readline()
+                    if not line:
+                        if self.proc.poll() is not None:
+                            raise RuntimeError(f"Pi process closed stdout with code {{self.proc.returncode}}")
+                        continue
+
+                    line_str = line.strip()
+                    if not line_str:
+                        continue
+
+                    # Any line received indicates active progress from agent
+                    last_activity_time = time.time()
+
+                    # Log raw line to stderr for logging
+                    sys.stderr.write(f"[pi_rpc] {{line_str[:200]}}\\n")
+
                     try:
-                        self.proc.stdin.write(json.dumps({{"type": "abort"}}) + "\\n")
-                        self.proc.stdin.flush()
+                        event = json.loads(line_str)
                     except Exception:
-                        pass
-                    self._start_process()
-                    raise TimeoutError(f"Pi execution exceeded maximum ceiling of {{timeout // 60}} minutes ({{elapsed:.1f}}s elapsed).")
+                        continue
 
-                if idle_elapsed > idle_timeout:
-                    sys.stderr.write(f"[pi_server] Idle timeout reached ({{idle_elapsed:.1f}}s > {{idle_timeout}}s with no progress), aborting and resetting\\n")
-                    try:
-                        self.proc.stdin.write(json.dumps({{"type": "abort"}}) + "\\n")
-                        self.proc.stdin.flush()
-                    except Exception:
-                        pass
-                    self._start_process()
-                    raise TimeoutError(f"Agent stalled: No activity received for {{idle_elapsed:.1f}}s (idle timeout of {{idle_timeout}}s based on max prefill).")
+                    events.append(event)
+                    e_type = event.get("type")
 
-                # Non-blocking or timed read
-                rlist, _, _ = select.select([self.proc.stdout], [], [], 1.0)
-                if not rlist:
-                    if self.proc.poll() is not None:
-                        raise RuntimeError(f"Pi process exited prematurely with code {{self.proc.returncode}}")
-                    continue
+                    if e_type == "response":
+                        cmd = event.get("command")
+                        if cmd == "prompt" and not event.get("success"):
+                            err_msg = event.get("error", "Prompt command failed")
+                            sys.stderr.write(f"[pi_server] Pi prompt error: {{err_msg}}\\n")
+                            if "already processing" in err_msg.lower():
+                                sys.stderr.write(f"[pi_server] Pi stuck in active processing state, resetting process...\\n")
+                                try:
+                                    self.proc.stdin.write(json.dumps({{"type": "abort"}}) + "\\n")
+                                    self.proc.stdin.flush()
+                                except Exception:
+                                    pass
+                                self._start_process()
+                            raise RuntimeError(f"Pi prompt command rejected: {{err_msg}}")
 
-                line = self.proc.stdout.readline()
-                if not line:
-                    if self.proc.poll() is not None:
-                        raise RuntimeError(f"Pi process closed stdout with code {{self.proc.returncode}}")
-                    continue
+                    elif e_type == "agent_start":
+                        agent_started = True
 
-                line_str = line.strip()
-                if not line_str:
-                    continue
+                    elif e_type == "message_update":
+                        ame = event.get("assistantMessageEvent", {{}})
+                        ame_type = ame.get("type")
+                        if ame_type == "text_delta":
+                            text_chunks.append(ame.get("delta", ""))
+                        elif ame_type == "thinking_delta":
+                            reasoning_chunks.append(ame.get("delta", ""))
 
-                # Any line received indicates active progress from agent
-                last_activity_time = time.time()
+                    elif e_type == "tool_execution_start":
+                        call_id = event.get("toolCallId") or str(uuid.uuid4())
+                        tool_calls_map[call_id] = {{
+                            "tool": event.get("toolName", ""),
+                            "call_id": call_id,
+                            "status": "running",
+                            "input": json.dumps(event.get("args", {{}})),
+                            "output": "",
+                            "exit_code": None,
+                            "start_time": time.time(),
+                            "timestamp": datetime.now(timezone.utc).isoformat(),
+                        }}
 
-                # Log raw line to stderr for logging
-                sys.stderr.write(f"[pi_rpc] {{line_str[:200]}}\\n")
+                    elif e_type == "tool_execution_update":
+                        call_id = event.get("toolCallId")
+                        if call_id and call_id in tool_calls_map:
+                            partial = event.get("partialResult", {{}})
+                            text_out = "".join(
+                                c.get("text", "")
+                                for c in partial.get("content", [])
+                                if isinstance(c, dict)
+                            )
+                            tool_calls_map[call_id]["output"] = text_out
 
+                    elif e_type == "tool_execution_end":
+                        call_id = event.get("toolCallId")
+                        if call_id and call_id in tool_calls_map:
+                            res_obj = event.get("result", {{}})
+                            text_out = "".join(
+                                c.get("text", "")
+                                for c in res_obj.get("content", [])
+                                if isinstance(c, dict)
+                            )
+                            t_start = tool_calls_map[call_id].get("start_time", time.time())
+                            dur_ms = int((time.time() - t_start) * 1000)
+                            is_err = bool(event.get("isError"))
+                            tool_calls_map[call_id]["status"] = "error" if is_err else "completed"
+                            tool_calls_map[call_id]["exit_code"] = 1 if is_err else 0
+                            tool_calls_map[call_id]["output"] = text_out
+                            tool_calls_map[call_id]["duration_ms"] = dur_ms
+
+                    elif e_type == "turn_end":
+                        msg = event.get("message", {{}})
+                        if msg:
+                            raw_messages.append(msg)
+                            for c in msg.get("content", []):
+                                if isinstance(c, dict):
+                                    if c.get("type") == "text" and c.get("text"):
+                                        if not text_chunks:
+                                            text_chunks.append(c["text"])
+                                    elif c.get("type") == "thinking" and c.get("thinking"):
+                                        if not reasoning_chunks:
+                                            reasoning_chunks.append(c["thinking"])
+                            usage = msg.get("usage", {{}})
+                            if usage:
+                                u_in = usage.get("input", 0)
+                                u_out = usage.get("output", 0)
+                                tokens_in += u_in
+                                tokens_out += u_out
+                                peak_context_tokens = max(peak_context_tokens, u_in + u_out)
+
+                    elif e_type == "agent_end":
+                        gen_msgs = event.get("messages", [])
+                        if gen_msgs:
+                            raw_messages.extend(gen_msgs)
+                        if agent_started and not event.get("willRetry"):
+                            sys.stderr.write(f"[pi_server] Received agent_end (willRetry=False). Turn complete.\\n")
+                            break
+
+                    elif e_type == "agent_settled":
+                        if agent_started:
+                            sys.stderr.write(f"[pi_server] Received agent_settled. Turn complete.\\n")
+                            break
+                        else:
+                            sys.stderr.write(f"[pi_server] Ignored trailing agent_settled before agent_start.\\n")
+
+                # Drain trailing events so subsequent turns start clean
+                self._drain_output(timeout_sec=0.1)
+
+            except Exception:
                 try:
-                    event = json.loads(line_str)
+                    self.proc.stdin.write(json.dumps({{"type": "abort"}}) + "\\n")
+                    self.proc.stdin.flush()
                 except Exception:
-                    continue
-
-                events.append(event)
-                e_type = event.get("type")
-
-                if e_type == "response":
-                    cmd = event.get("command")
-                    if cmd == "prompt" and not event.get("success"):
-                        err_msg = event.get("error", "Prompt command failed")
-                        sys.stderr.write(f"[pi_server] Pi prompt error: {{err_msg}}\\n")
-                        raise RuntimeError(f"Pi prompt command rejected: {{err_msg}}")
-
-                elif e_type == "agent_start":
-                    agent_started = True
-
-                elif e_type == "message_update":
-                    ame = event.get("assistantMessageEvent", {{}})
-                    ame_type = ame.get("type")
-                    if ame_type == "text_delta":
-                        text_chunks.append(ame.get("delta", ""))
-                    elif ame_type == "thinking_delta":
-                        reasoning_chunks.append(ame.get("delta", ""))
-
-                elif e_type == "tool_execution_start":
-                    call_id = event.get("toolCallId") or str(uuid.uuid4())
-                    tool_calls_map[call_id] = {{
-                        "tool": event.get("toolName", ""),
-                        "call_id": call_id,
-                        "status": "running",
-                        "input": json.dumps(event.get("args", {{}})),
-                        "output": "",
-                        "exit_code": None,
-                        "start_time": time.time(),
-                        "timestamp": datetime.now(timezone.utc).isoformat(),
-                    }}
-
-                elif e_type == "tool_execution_update":
-                    call_id = event.get("toolCallId")
-                    if call_id and call_id in tool_calls_map:
-                        partial = event.get("partialResult", {{}})
-                        text_out = "".join(
-                            c.get("text", "")
-                            for c in partial.get("content", [])
-                            if isinstance(c, dict)
-                        )
-                        tool_calls_map[call_id]["output"] = text_out
-
-                elif e_type == "tool_execution_end":
-                    call_id = event.get("toolCallId")
-                    if call_id and call_id in tool_calls_map:
-                        res_obj = event.get("result", {{}})
-                        text_out = "".join(
-                            c.get("text", "")
-                            for c in res_obj.get("content", [])
-                            if isinstance(c, dict)
-                        )
-                        t_start = tool_calls_map[call_id].get("start_time", time.time())
-                        dur_ms = int((time.time() - t_start) * 1000)
-                        is_err = bool(event.get("isError"))
-                        tool_calls_map[call_id]["status"] = "error" if is_err else "completed"
-                        tool_calls_map[call_id]["exit_code"] = 1 if is_err else 0
-                        tool_calls_map[call_id]["output"] = text_out
-                        tool_calls_map[call_id]["duration_ms"] = dur_ms
-
-                elif e_type == "turn_end":
-                    msg = event.get("message", {{}})
-                    if msg:
-                        raw_messages.append(msg)
-                        for c in msg.get("content", []):
-                            if isinstance(c, dict):
-                                if c.get("type") == "text" and c.get("text"):
-                                    if not text_chunks:
-                                        text_chunks.append(c["text"])
-                                elif c.get("type") == "thinking" and c.get("thinking"):
-                                    if not reasoning_chunks:
-                                        reasoning_chunks.append(c["thinking"])
-                        usage = msg.get("usage", {{}})
-                        if usage:
-                            u_in = usage.get("input", 0)
-                            u_out = usage.get("output", 0)
-                            tokens_in += u_in
-                            tokens_out += u_out
-                            peak_context_tokens = max(peak_context_tokens, u_in + u_out)
-
-                elif e_type == "agent_end":
-                    gen_msgs = event.get("messages", [])
-                    if gen_msgs:
-                        raw_messages.extend(gen_msgs)
-                    if agent_started and not event.get("willRetry"):
-                        sys.stderr.write(f"[pi_server] Received agent_end (willRetry=False). Turn complete.\\n")
-                        break
-
-                elif e_type == "agent_settled":
-                    if agent_started:
-                        sys.stderr.write(f"[pi_server] Received agent_settled. Turn complete.\\n")
-                        break
-                    else:
-                        sys.stderr.write(f"[pi_server] Ignored trailing agent_settled before agent_start.\\n")
-
-            # Drain trailing events (e.g. agent_settled after agent_end) so subsequent turns start clean
-            while True:
-                rlist, _, _ = select.select([self.proc.stdout], [], [], 0.05)
-                if not rlist:
-                    break
-                line = self.proc.stdout.readline()
-                if not line:
-                    break
-                line_str = line.strip()
-                if line_str:
-                    sys.stderr.write(f"[pi_rpc_drain] {{line_str[:200]}}\\n")
+                    pass
+                self._start_process()
+                raise
 
             full_text = "".join(text_chunks).strip()
             full_reasoning = "".join(reasoning_chunks).strip()

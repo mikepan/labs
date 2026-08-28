@@ -26,6 +26,7 @@ class HarnessDriver(ABC):
         workspace: str,
         model_name: str,
         llm_base_url: str,
+        reasoning_effort: str | None = None,
     ) -> str:
         """Configure and start the agent server in the sandbox.
 
@@ -45,6 +46,7 @@ class HarnessDriver(ABC):
         model_name: str,
         timeout: int = int(DEFAULT_MAX_STEP_TIMEOUT_MINUTES * 60),
         idle_timeout: int = int(DEFAULT_IDLE_TIMEOUT_MINUTES * 60),
+        reasoning_effort: str | None = None,
     ) -> TurnData:
         """Send a prompt, wait for completion, return normalized TurnData."""
 

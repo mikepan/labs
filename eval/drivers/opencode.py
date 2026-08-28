@@ -44,17 +44,18 @@ class OpenCodeDriver(HarnessDriver):
         workspace: str,
         model_name: str,
         llm_base_url: str,
+        reasoning_effort: str | None = None,
     ) -> str:
         """Configure OpenCode and start its server in the sandbox workspace."""
         active_model = get_active_api_model(llm_base_url) or model_name
 
         logger.info(
-            "Configured OpenCode with API model ID: '%s' (config alias: '%s')",
-            active_model, model_name,
+            "Configured OpenCode with API model ID: '%s' (config alias: '%s', reasoning_effort: '%s')",
+            active_model, model_name, reasoning_effort,
         )
 
         # Build opencode.json config
-        self._write_config(sandbox, active_model, model_name, llm_base_url)
+        self._write_config(sandbox, active_model, model_name, llm_base_url, reasoning_effort=reasoning_effort)
 
         # Start server
         self._start_server(sandbox, workspace)
@@ -84,6 +85,7 @@ print(data.get('id', ''))
         model_name: str,
         timeout: int = int(DEFAULT_MAX_STEP_TIMEOUT_MINUTES * 60),
         idle_timeout: int = int(DEFAULT_IDLE_TIMEOUT_MINUTES * 60),
+        reasoning_effort: str | None = None,
     ) -> TurnData:
         """Send prompt to OpenCode, monitor activity with idle timeout, and return normalized TurnData."""
         # Get message count before sending
@@ -93,12 +95,16 @@ print(data.get('id', ''))
         step_start_iso = datetime.now(timezone.utc).isoformat()
 
         # Send the message
+        model_payload: dict[str, Any] = {
+            "providerID": self.provider_id,
+            "modelID": model_name,
+        }
+        if reasoning_effort and reasoning_effort not in ("off", "none"):
+            model_payload["parameters"] = {"reasoningEffort": reasoning_effort}
+
         payload_json = json.dumps({
             "parts": [{"type": "text", "text": prompt}],
-            "model": {
-                "providerID": self.provider_id,
-                "modelID": model_name,
-            },
+            "model": model_payload,
         })
         script = f"""import urllib.request, urllib.error, socket, json, sys, os, time, threading
 payload = sys.stdin.read().encode('utf-8')
@@ -277,15 +283,25 @@ except Exception as e:
         active_model: str,
         config_alias: str,
         llm_base_url: str,
+        reasoning_effort: str | None = None,
     ) -> None:
         """Write opencode.json configuration inside the sandbox."""
-        model_entry = {
+        model_entry: dict[str, Any] = {
             "name": active_model,
             "modalities": {"input": ["text", "image"], "output": ["text"]},
         }
-        models_config = {active_model: model_entry}
+        if reasoning_effort and reasoning_effort not in ("off", "none"):
+            model_entry["parameters"] = {"reasoningEffort": reasoning_effort}
+
+        models_config: dict[str, Any] = {active_model: model_entry}
         if active_model != config_alias:
-            models_config[config_alias] = model_entry
+            alias_entry: dict[str, Any] = {
+                "name": config_alias,
+                "modalities": {"input": ["text", "image"], "output": ["text"]},
+            }
+            if reasoning_effort and reasoning_effort not in ("off", "none"):
+                alias_entry["parameters"] = {"reasoningEffort": reasoning_effort}
+            models_config[config_alias] = alias_entry
 
         config_data = {
             "$schema": "https://opencode.ai/config.json",

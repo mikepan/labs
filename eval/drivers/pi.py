@@ -44,19 +44,20 @@ class PiDriver(HarnessDriver):
         workspace: str,
         model_name: str,
         llm_base_url: str,
+        reasoning_effort: str | None = None,
     ) -> str:
         """Configure Pi and start the Pi RPC bridge server inside the sandbox."""
         active_model = get_active_api_model(llm_base_url) or model_name
         logger.info(
-            "Configured Pi with API model ID: '%s' (config alias: '%s')",
-            active_model, model_name,
+            "Configured Pi with API model ID: '%s' (config alias: '%s', reasoning_effort: '%s')",
+            active_model, model_name, reasoning_effort,
         )
 
         # Write ~/.pi/agent configs (models.json, settings.json, trust.json)
-        self._write_config(sandbox, active_model, model_name, llm_base_url)
+        self._write_config(sandbox, active_model, model_name, llm_base_url, reasoning_effort=reasoning_effort)
 
         # Start bridge server
-        self._start_server(sandbox, workspace, active_model)
+        self._start_server(sandbox, workspace, active_model, reasoning_effort=reasoning_effort)
 
         return active_model
 
@@ -84,6 +85,7 @@ print(data.get('id', ''))
         model_name: str,
         timeout: int = int(DEFAULT_MAX_STEP_TIMEOUT_MINUTES * 60),
         idle_timeout: int = int(DEFAULT_IDLE_TIMEOUT_MINUTES * 60),
+        reasoning_effort: str | None = None,
     ) -> TurnData:
         """Send prompt to Pi, wait for completion, return normalized TurnData."""
         step_start_iso = datetime.now(timezone.utc).isoformat()
@@ -92,6 +94,7 @@ print(data.get('id', ''))
             "model": model_name,
             "timeout": timeout,
             "idle_timeout": idle_timeout,
+            "reasoning_effort": reasoning_effort,
         })
         script = f"""import urllib.request, urllib.error, socket, json, sys
 payload = sys.stdin.read().encode('utf-8')
@@ -175,21 +178,32 @@ except Exception as e:
         active_model: str,
         config_alias: str,
         llm_base_url: str,
+        reasoning_effort: str | None = None,
     ) -> None:
         """Write ~/.pi/agent/models.json, settings.json, and trust.json inside sandbox."""
-        models_list = [
-            {
-                "id": active_model,
-                "name": active_model,
-                "reasoning": True,
-            }
-        ]
+        is_reasoning = reasoning_effort not in ("off", "none")
+        # For 'xhigh', vLLM's default is already xhigh, but Pi's OpenAI adapter converts xhigh -> 'high' (which vLLM rejects with 400).
+        # Therefore, only enable supportsReasoningEffort for 'low' and 'medium'.
+        supports_effort = bool(reasoning_effort and reasoning_effort.lower() in ("low", "medium"))
+
+        model_entry: dict[str, Any] = {
+            "id": active_model,
+            "name": active_model,
+            "reasoning": is_reasoning,
+        }
+        if supports_effort:
+            model_entry["defaultReasoningEffort"] = reasoning_effort
+
+        models_list = [model_entry]
         if config_alias and config_alias != active_model:
-            models_list.append({
+            alias_entry: dict[str, Any] = {
                 "id": config_alias,
                 "name": config_alias,
-                "reasoning": True,
-            })
+                "reasoning": is_reasoning,
+            }
+            if supports_effort:
+                alias_entry["defaultReasoningEffort"] = reasoning_effort
+            models_list.append(alias_entry)
 
         models_data = {
             "providers": {
@@ -199,7 +213,7 @@ except Exception as e:
                     "apiKey": "dummy",
                     "compat": {
                         "supportsDeveloperRole": False,
-                        "supportsReasoningEffort": False,
+                        "supportsReasoningEffort": supports_effort,
                     },
                     "models": models_list,
                 }
@@ -233,8 +247,9 @@ EOF
 """
         sandbox.exec(setup_cmd)
 
-    def _get_server_script(self, active_model: str) -> str:
+    def _get_server_script(self, active_model: str, reasoning_effort: str | None = None) -> str:
         """Generate the standalone Python bridge HTTP server script to run inside sandbox."""
+        effort_str = (reasoning_effort or "").strip()
         return f'''#!/usr/bin/env python3
 import http.server
 import json
@@ -251,6 +266,7 @@ from datetime import datetime, timezone
 PORT = {self.port}
 PROVIDER = "{self.provider_id}"
 DEFAULT_MODEL = "{active_model}"
+REASONING_EFFORT = "{effort_str}"
 
 sessions = {{}}
 sessions_lock = threading.Lock()
@@ -282,6 +298,8 @@ class PiSession:
         path = env.get("PATH", "")
         home = os.path.expanduser("~")
         extra_paths = [
+            "/usr/local/share/npm-global/bin",
+            f"{{home}}/.npm-global/bin",
             f"{{home}}/.pi/bin",
             f"{{home}}/.local/bin",
             "/usr/local/bin",
@@ -297,6 +315,13 @@ class PiSession:
             "--provider", PROVIDER,
             "--model", DEFAULT_MODEL,
         ]
+        if REASONING_EFFORT:
+            eff = REASONING_EFFORT.strip().lower()
+            if eff in ("off", "none", "no"):
+                cmd.extend(["--thinking", "off"])
+            elif eff in ("minimal", "low", "medium", "high", "xhigh", "max"):
+                cmd.extend(["--thinking", eff])
+
         sys.stderr.write(f"[pi_server] Spawning pi RPC process: {{cmd}} in {{self.cwd}}\\n")
         self.proc = subprocess.Popen(
             cmd,
@@ -324,7 +349,7 @@ class PiSession:
             if line_str:
                 sys.stderr.write(f"[pi_rpc_drain] {{line_str[:200]}}\\n")
 
-    def send_prompt(self, prompt, timeout=7200, idle_timeout=360):
+    def send_prompt(self, prompt, timeout=7200, idle_timeout=360, reasoning_effort=None):
         with self.lock:
             if not self.proc or self.proc.poll() is not None:
                 sys.stderr.write(f"[pi_server] Respawning died pi process\\n")
@@ -626,8 +651,10 @@ class RequestHandler(http.server.BaseHTTPRequestHandler):
             timeout = int(data.get("timeout", 7200))
             idle_timeout = int(data.get("idle_timeout", 360))
 
+            reasoning_effort = data.get("reasoning_effort")
+
             try:
-                turn = session.send_prompt(prompt, timeout=timeout, idle_timeout=idle_timeout)
+                turn = session.send_prompt(prompt, timeout=timeout, idle_timeout=idle_timeout, reasoning_effort=reasoning_effort)
                 self._send_json({{"status": "ok", "turn": turn}})
             except TimeoutError as te:
                 self.send_error(504, str(te))
@@ -666,13 +693,19 @@ if __name__ == "__main__":
     main()
 '''
 
-    def _start_server(self, sandbox: SandboxClient, workspace: str, active_model: str) -> None:
+    def _start_server(
+        self,
+        sandbox: SandboxClient,
+        workspace: str,
+        active_model: str,
+        reasoning_effort: str | None = None,
+    ) -> None:
         """Deploy server script, start pi_server daemon, and wait for it to become responsive."""
         logger.info("Starting Pi bridge server in %s on port %d...", workspace, self.port)
 
         sandbox.exec("pkill -9 -f '[p]i_server.py' 2>/dev/null || true")
 
-        server_code = self._get_server_script(active_model)
+        server_code = self._get_server_script(active_model, reasoning_effort=reasoning_effort)
         sandbox.write_file(self._server_script_path, server_code)
         sandbox.exec(f"chmod +x {self._server_script_path}")
 

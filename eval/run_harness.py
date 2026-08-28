@@ -26,11 +26,12 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any
 
-from eval.common import setup_logger, load_harnesses_config, get_available_tests
+from eval.common import setup_logger, load_harnesses_config, load_json_config, get_available_tests
 from eval.config import (
     DEFAULT_IDLE_TIMEOUT_MINUTES,
     DEFAULT_LLM_BASE_URL,
     DEFAULT_MAX_STEP_TIMEOUT_MINUTES,
+    MODELS_CONFIG_FILE,
     RESULTS_DIR,
     TESTS_DIR,
 )
@@ -180,6 +181,7 @@ def run_test_suite_on_agent(
     test_specs: list[tuple[str, Any]],
     driver: HarnessDriver,
     sandbox: SandboxClient,
+    reasoning_effort: str | None = None,
 ) -> dict[str, Any]:
     """Execute all test specs sequentially against an agent harness."""
     stage_dir = tempfile.mkdtemp(prefix="eval_artifacts_")
@@ -187,6 +189,7 @@ def run_test_suite_on_agent(
     suite_trace: dict[str, Any] = {
         "eval_id": eval_id,
         "model": model_name,
+        "reasoning_effort": reasoning_effort,
         "start_time": datetime.now(timezone.utc).isoformat(),
         "tests": {},
     }
@@ -211,7 +214,7 @@ def run_test_suite_on_agent(
         # Commit initial test data assets so git change tracking starts with a clean baseline
         sandbox.exec(f"cd {test_ws} && git add -A && git commit --allow-empty -m 'initial test assets'")
 
-        active_model = driver.start(sandbox, test_ws, model_name, DEFAULT_LLM_BASE_URL)
+        active_model = driver.start(sandbox, test_ws, model_name, DEFAULT_LLM_BASE_URL, reasoning_effort=reasoning_effort)
         session_id = driver.create_session(sandbox)
 
         test_start = time.time()
@@ -221,6 +224,9 @@ def run_test_suite_on_agent(
         earned_score = 0
         total_tokens_in = 0
         total_tokens_out = 0
+
+        vllm_info = get_vllm_model_info(base_url=DEFAULT_LLM_BASE_URL)
+        max_ctx = int(vllm_info.get("max_model_len", 0)) if vllm_info else 0
 
         for idx, step in enumerate(test_obj.steps):
             step_name = step.name or f"Step {idx + 1}"
@@ -251,6 +257,7 @@ def run_test_suite_on_agent(
                     active_model,
                     timeout=step_timeout_seconds,
                     idle_timeout=step_idle_seconds,
+                    reasoning_effort=reasoning_effort,
                 )
             except Exception as e:
                 step_elapsed = round(time.time() - step_t0, 2)
@@ -470,6 +477,10 @@ def main():
     logger.info("Evaluating model '%s' across %d harness(es): %s",
                 args.model, len(target_harnesses), target_harnesses)
 
+    models_cfg = load_json_config(MODELS_CONFIG_FILE) if os.path.exists(MODELS_CONFIG_FILE) else {}
+    model_entry = models_cfg.get(args.model, {})
+    reasoning_effort = model_entry.get("reasoning_effort")
+
     for harness_name in target_harnesses:
         # Determine harness version
         harness_version = "unknown"
@@ -480,8 +491,8 @@ def main():
         # Select driver
         driver = get_driver(harness_name)
         logger.info("==================================================")
-        logger.info("STARTING %s HARNESS (%s) FOR MODEL: %s (Tests: %s)",
-                    harness_name.upper(), type(driver).__name__, args.model,
+        logger.info("STARTING %s HARNESS (%s) FOR MODEL: %s (Reasoning Effort: %s, Tests: %s)",
+                    harness_name.upper(), type(driver).__name__, args.model, reasoning_effort,
                     [t[1].name for t in test_specs])
         logger.info("==================================================")
 
@@ -494,6 +505,7 @@ def main():
                 test_specs=test_specs,
                 driver=driver,
                 sandbox=sandbox,
+                reasoning_effort=reasoning_effort,
             )
 
             save_evaluation_results(

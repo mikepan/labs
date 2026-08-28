@@ -141,15 +141,23 @@ def wait_for_server_ready(
             log_proc.terminate()
 
 
-def run_sanity_test(model_id: str, base_url: str = API_BASE_URL) -> bool:
+def run_sanity_test(model_id: str, base_url: str = API_BASE_URL, reasoning_effort: str | None = None) -> bool:
     """Send a test query to verify basic generation and reasoning output."""
     prompt = "What is the capital of Japan? Answer with the city name only."
-    logger.debug("Running Sanity Test on %s with prompt: \"%s\"", model_id, prompt)
+    logger.debug("Running Sanity Test on %s with prompt: \"%s\" (reasoning_effort: %s)", model_id, prompt, reasoning_effort)
+
+    payload: dict[str, Any] = {
+        "model": model_id,
+        "messages": [{"role": "user", "content": prompt}],
+        "max_tokens": 512,
+    }
+    if reasoning_effort and reasoning_effort not in ("off", "none", "on"):
+        payload["reasoning_effort"] = reasoning_effort
 
     data = http_json(
         f"{base_url}/v1/chat/completions",
         method="POST",
-        data={"model": model_id, "messages": [{"role": "user", "content": prompt}], "max_tokens": 512},
+        data=payload,
         timeout=60,
     )
     if not data:
@@ -179,6 +187,7 @@ def ensure_model_running(
     Returns (success, weight_name).
     """
     weight_name, vllm_cmd = parse_model_config(model_config)
+    reasoning_effort = model_config.get("reasoning_effort")
     if fast and is_server_ready(expected_weight=weight_name, base_url=base_url):
         logger.info("Fast mode: '%s' is already UP. Skipping launch.", weight_name)
         return True, weight_name
@@ -187,7 +196,7 @@ def ensure_model_running(
         return False, weight_name
     if not wait_for_server_ready(expected_weight=weight_name, base_url=base_url, verbose=verbose, host=host):
         return False, weight_name
-    if not run_sanity_test(weight_name, base_url=base_url):
+    if not run_sanity_test(weight_name, base_url=base_url, reasoning_effort=reasoning_effort):
         return False, weight_name
 
     return True, weight_name

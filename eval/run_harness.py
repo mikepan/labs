@@ -200,7 +200,8 @@ def run_test_suite_on_agent(
         logger.info("RUNNING TEST: %s (%d steps)", test_id, len(test_obj.steps))
 
         # Setup workspace and start agent
-        test_ws = f"/tmp/eval_{test_id}"
+        clean_name = test_id.replace("eval_", "").replace("test_", "").replace("test", "project").replace("eval", "project")
+        test_ws = f"/tmp/project_{clean_name}"
         sandbox.setup_test_workspace(test_ws, test_obj.setup)
 
         # Upload test data assets (excluding .py files, hidden directories, and private test assets)
@@ -221,7 +222,7 @@ def run_test_suite_on_agent(
                 sandbox.upload_dir(asset_path, remote_asset)
 
         # Commit initial test data assets so git change tracking starts with a clean baseline
-        sandbox.exec(f"cd {test_ws} && git add -A && git commit --allow-empty -m 'initial test assets'")
+        sandbox.exec(f"cd {test_ws} && git add -A && git commit --allow-empty -m 'initial project assets'")
 
         active_model = driver.start(sandbox, test_ws, model_name, DEFAULT_LLM_BASE_URL, reasoning_effort=reasoning_effort)
         session_id = driver.create_session(sandbox)

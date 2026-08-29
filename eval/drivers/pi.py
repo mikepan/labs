@@ -559,21 +559,60 @@ class PiSession:
                 self._start_process()
                 raise
 
-            full_text = "".join(text_chunks).strip()
-            full_reasoning = "".join(reasoning_chunks).strip()
-            tool_calls_list = list(tool_calls_map.values())
-
-            # Format normalized events
+            # Build chronological events and outputs from raw_messages
             norm_events = []
-            if full_reasoning:
-                norm_events.append({{"type": "reasoning", "timestamp": step_start_iso, "content": full_reasoning}})
-            for tc in tool_calls_list:
-                norm_events.append({{"type": "tool", "timestamp": tc.get("timestamp", step_start_iso), "data": tc}})
-            if full_text:
-                norm_events.append({{"type": "response", "timestamp": step_start_iso, "content": full_text}})
+            text_list = []
+            reasoning_list = []
 
-            text_list = [full_text] if full_text else []
-            reasoning_list = [full_reasoning] if full_reasoning else []
+            for msg in raw_messages:
+                m_role = msg.get("role")
+                m_content = msg.get("content", [])
+                m_ts = datetime.now(timezone.utc).isoformat()
+
+                if isinstance(m_content, str):
+                    if m_role == "assistant" and m_content.strip():
+                        norm_events.append({{"type": "response", "timestamp": m_ts, "content": m_content.strip()}})
+                        text_list.append(m_content.strip())
+                elif isinstance(m_content, list):
+                    for part in m_content:
+                        if not isinstance(part, dict):
+                            continue
+                        p_type = part.get("type")
+                        if p_type == "thinking" and part.get("thinking"):
+                            th = part["thinking"].strip()
+                            if th:
+                                norm_events.append({{"type": "reasoning", "timestamp": m_ts, "content": th}})
+                                reasoning_list.append(th)
+                        elif p_type == "text" and part.get("text"):
+                            tx = part["text"].strip()
+                            if tx and m_role == "assistant":
+                                norm_events.append({{"type": "response", "timestamp": m_ts, "content": tx}})
+                                text_list.append(tx)
+                        elif p_type == "toolCall":
+                            cid = part.get("id")
+                            tc_info = tool_calls_map.get(cid, {{
+                                "tool": part.get("name", "tool"),
+                                "call_id": cid,
+                                "status": "completed",
+                                "input": json.dumps(part.get("arguments", {{}})),
+                                "output": "",
+                                "exit_code": 0,
+                                "timestamp": m_ts,
+                            }})
+                            norm_events.append({{"type": "tool", "timestamp": tc_info.get("timestamp", m_ts), "data": tc_info}})
+
+            tool_calls_list = list(tool_calls_map.values())
+            if not norm_events:
+                full_text = "".join(text_chunks).strip()
+                full_reasoning = "".join(reasoning_chunks).strip()
+                if full_reasoning:
+                    norm_events.append({{"type": "reasoning", "timestamp": step_start_iso, "content": full_reasoning}})
+                    reasoning_list.append(full_reasoning)
+                for tc in tool_calls_list:
+                    norm_events.append({{"type": "tool", "timestamp": tc.get("timestamp", step_start_iso), "data": tc}})
+                if full_text:
+                    norm_events.append({{"type": "response", "timestamp": step_start_iso, "content": full_text}})
+                    text_list.append(full_text)
 
             turn_data = {{
                 "reasoning": reasoning_list,

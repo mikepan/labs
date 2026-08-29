@@ -531,7 +531,7 @@ TEST = Test(
             point=2,
         ),
         Step(
-            prompt="""Use Python to evaluate channel performance across all sales channels in bookstore_orders.csv. Group by order_channel and calculate: OrderCount (number of orders), GrossRevenue (sum of order_grand_total), TotalRefunds (sum of refund_amount), NetRevenue (GrossRevenue minus TotalRefunds), and NetAOV (NetRevenue divided by OrderCount, rounded to 2 decimal places). Produce a "channel-performance.csv" with columns: Channel, OrderCount, GrossRevenue, TotalRefunds, NetRevenue, NetAOV. Sort by NetRevenue descending.""",
+            prompt="""Use Python to analyze channel performance across all sales channels in bookstore_orders.csv. Group by order_channel and calculate: OrderCount (number of orders), GrossRevenue (sum of order_grand_total), TotalRefunds (sum of refund_amount), NetRevenue (GrossRevenue minus TotalRefunds), and NetAOV (NetRevenue divided by OrderCount, rounded to 2 decimal places). Produce a "channel-performance.csv" with columns: Channel, OrderCount, GrossRevenue, TotalRefunds, NetRevenue, NetAOV. Sort by NetRevenue descending.""",
             checks=[
                 git_changes("channel-performance.csv", "A", total_lines=(7, 9)),
                 check_channel_performance_csv(),

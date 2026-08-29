@@ -1249,18 +1249,19 @@ footer a:hover {
   display: grid;
   grid-template-columns: 60px 1fr;
   padding: 0.5rem 0.5rem;
-  align-items: center;
+  align-items: start;
   transition: background-color 0.15s ease;
 }
 
 .col-type {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: flex-end;
   justify-self: end;
-  align-self: center;
+  align-self: flex-start;
   width: 100%;
   padding-right: 0.75rem;
+  padding-top: 0.4rem;
 }
 
 .type-pill {

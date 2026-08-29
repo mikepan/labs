@@ -272,7 +272,7 @@ function renderTestStepsTimeline(testData) {
     const isPassed = step.evaluation ? step.evaluation.passed : (step.earned_score >= step.max_score);
     const scoreText = `${step.earned_score ?? 0} / ${step.max_score ?? step.point ?? 1} pts`;
     const durSec = step.duration_seconds !== undefined ? `${Math.round(Number(step.duration_seconds))}s` : '';
-    const events = step.events || [];
+    const events = getStepEvents(step);
     const hasTools = events.some(e => e.type === 'tool');
     const hasReasoning = events.some(e => e.type === 'reasoning');
     const checks = (step.evaluation && step.evaluation.check_results) || [];
@@ -379,95 +379,163 @@ function capitalize(str) {
 }
 
 /**
+ * Extract normalized chronological event list for a step.
+ * Uses step.events directly if rich/interspersed, or reconstructs chronological sequence from step.messages if needed.
+ */
+function getStepEvents(step) {
+  const rawEvents = step.events || [];
+  const messages = step.messages || [];
+
+  // Check if events is lumped (e.g. single reasoning event followed by tools while messages has multi-turn history)
+  const reasoningCount = rawEvents.filter(e => e.type === 'reasoning').length;
+  const isLumped = (reasoningCount <= 1 && messages.length >= 2);
+
+  if ((isLumped || rawEvents.length === 0) && messages.length > 0) {
+    const toolResults = {};
+    messages.forEach(msg => {
+      const content = msg.content || [];
+      if (Array.isArray(content)) {
+        content.forEach(part => {
+          if (part && part.type === 'toolResult') {
+            const cid = part.toolCallId;
+            if (cid) {
+              let textOut = '';
+              (part.content || []).forEach(c => {
+                if (c && c.type === 'text') textOut += c.text || '';
+              });
+              toolResults[cid] = {
+                output: textOut,
+                isError: Boolean(part.isError)
+              };
+            }
+          }
+        });
+      }
+    });
+
+    const reconstructed = [];
+    messages.forEach(msg => {
+      const role = msg.role;
+      const content = msg.content;
+      if (typeof content === 'string' && role === 'assistant') {
+        if (content.trim()) {
+          reconstructed.push({ type: 'response', content: content.trim() });
+        }
+      } else if (Array.isArray(content)) {
+        content.forEach(part => {
+          if (!part) return;
+          if (part.type === 'thinking' && part.thinking && part.thinking.trim()) {
+            reconstructed.push({ type: 'reasoning', content: part.thinking.trim() });
+          } else if (part.type === 'text' && part.text && part.text.trim() && role === 'assistant') {
+            reconstructed.push({ type: 'response', content: part.text.trim() });
+          } else if (part.type === 'toolCall') {
+            const cid = part.id;
+            const res = toolResults[cid] || {};
+            const tc = {
+              tool: part.name || 'tool',
+              call_id: cid,
+              input: part.arguments,
+              output: res.output || '',
+              status: res.isError ? 'error' : 'completed',
+              exit_code: res.isError ? 1 : 0
+            };
+            reconstructed.push({ type: 'tool', data: tc });
+          }
+        });
+      }
+    });
+
+    if (reconstructed.length > 0) {
+      return reconstructed;
+    }
+  }
+
+  return rawEvents;
+}
+
+/**
  * Renders events in exact chronological sequence across the 2-column layout.
  */
 function renderChronologicalEvents(step, viewMode = 'simple') {
-  const rawEvents = step.events || [];
+  const events = getStepEvents(step);
 
-  // Normalize: if no explicit response event exists, promote the last reasoning event to response
-  let events = rawEvents.map(e => ({ ...e }));
-  if (!events.some(e => e.type === 'response') && events.length > 0) {
-    for (let i = events.length - 1; i >= 0; i--) {
-      if (events[i].type === 'reasoning') {
-        events[i].type = 'response';
-        break;
+  if (viewMode === 'simple') {
+    const trailChips = [];
+    events.forEach(ev => {
+      if (ev.type === 'reasoning') {
+        trailChips.push('<span class="breadcrumb-chip chip-thinking">Thinking</span>');
+      } else if (ev.type === 'tool') {
+        const tc = ev.data || {};
+        trailChips.push(`<span class="breadcrumb-chip chip-tool">Tool: ${escapeHtml(capitalize(tc.tool || 'tool'))}</span>`);
       }
-    }
-  }
+    });
 
-  let html = '';
-  let pending = [];
+    const lastResponse = [...events].reverse().find(e => e.type === 'response');
 
-  function flush() {
-    if (pending.length === 0) return;
-    if (viewMode === 'full') {
-      const itemsHtml = pending.map((item, idx) => {
-        const isFirst = idx === 0 ? 'is-first' : '';
-        const isLast = idx === pending.length - 1 ? 'is-last' : '';
-        const only = pending.length === 1 ? 'is-only' : '';
-
-        if (item.type === 'reasoning') {
-          return `
-            <div class="stack-block block-thinking ${isFirst} ${isLast} ${only}">
-              <span class="thinking-badge-corner">Thinking</span>
-              <div class="reasoning-stream">${escapeHtml(item.content || '')}</div>
-            </div>
-          `;
-        }
-        const tc = item.data || {};
-        return `
-          <div class="stack-block block-tool ${isFirst} ${isLast} ${only}">
-            <span class="tool-badge-corner">Tool: ${escapeHtml(tc.tool || 'tool')}</span>
-            <pre class="tool-code-preview"><code>${escapeHtml(formatToolInputOutput(tc))}</code></pre>
-          </div>
-        `;
-      }).join('');
-
-      html += `
-        <div class="grid-table-row row-execution-stack">
-          <div class="col-type">
-            <span class="type-pill pill-tool" title="Execution Sequence">⚙️</span>
-          </div>
-          <div class="col-content">
-            <div class="vertical-execution-stack">${itemsHtml}</div>
-          </div>
-        </div>
-      `;
-    } else {
-      const trailHtml = pending.map(c => {
-        const chipClass = c.type === 'reasoning' ? 'chip-thinking' : 'chip-tool';
-        const label = c.type === 'reasoning'
-          ? 'Thinking'
-          : `Tool: ${escapeHtml(capitalize(c.tool || 'tool'))}`;
-        return `<span class="breadcrumb-chip ${chipClass}">${label}</span>`;
-      }).join('');
-
-      html += `
+    return `
+      ${trailChips.length > 0 ? `
         <div class="grid-table-row row-breadcrumbs">
           <div class="col-type">
-            <span class="type-pill pill-tool" title="Execution Sequence">⚙️</span>
+            <span class="type-pill pill-tool" title="Execution Flow">⚙️</span>
           </div>
           <div class="col-content">
-            <div class="execution-breadcrumb-trail">${trailHtml}</div>
+            <div class="execution-breadcrumb-trail">${trailChips.join('')}</div>
+          </div>
+        </div>
+      ` : ''}
+      ${lastResponse ? `
+        <div class="grid-table-row row-response">
+          <div class="col-type">
+            <span class="type-pill pill-response" title="Final Response">💬</span>
+          </div>
+          <div class="col-content">
+            <div class="response-text">${escapeHtml(lastResponse.content || '')}</div>
+          </div>
+        </div>
+      ` : ''}
+    `;
+  }
+
+  // Full View Mode: Render each event in exact sequential order
+  return events.map(ev => {
+    if (ev.type === 'reasoning') {
+      return `
+        <div class="grid-table-row row-thinking">
+          <div class="col-type">
+            <span class="type-pill pill-thinking" title="Model Thinking">🧠</span>
+          </div>
+          <div class="col-content">
+            <div class="stack-block block-thinking is-only">
+              <span class="thinking-badge-corner">Thinking</span>
+              <div class="reasoning-stream">${escapeHtml(ev.content || '')}</div>
+            </div>
           </div>
         </div>
       `;
     }
-    pending = [];
-  }
 
-  events.forEach(ev => {
-    if (ev.type === 'reasoning') {
-      pending.push({ type: 'reasoning', content: ev.content });
-    } else if (ev.type === 'tool') {
+    if (ev.type === 'tool') {
       const tc = ev.data || {};
-      pending.push({ type: 'tool', tool: tc.tool || 'tool', data: tc });
-    } else if (ev.type === 'response') {
-      flush();
-      html += `
+      return `
+        <div class="grid-table-row row-tool">
+          <div class="col-type">
+            <span class="type-pill pill-tool" title="Tool Execution">⚙️</span>
+          </div>
+          <div class="col-content">
+            <div class="stack-block block-tool is-only">
+              <span class="tool-badge-corner">Tool: ${escapeHtml(tc.tool || 'tool')}</span>
+              <pre class="tool-code-preview"><code>${escapeHtml(formatToolInputOutput(tc))}</code></pre>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    if (ev.type === 'response') {
+      return `
         <div class="grid-table-row row-response">
           <div class="col-type">
-            <span class="type-pill pill-response" title="Response">💬</span>
+            <span class="type-pill pill-response" title="Assistant Response">💬</span>
           </div>
           <div class="col-content">
             <div class="response-text">${escapeHtml(ev.content || '')}</div>
@@ -475,10 +543,9 @@ function renderChronologicalEvents(step, viewMode = 'simple') {
         </div>
       `;
     }
-  });
-  flush();
 
-  return html;
+    return '';
+  }).join('');
 }
 
 function formatToolInputOutput(tc) {

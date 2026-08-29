@@ -204,8 +204,8 @@ class SandboxClient:
             f"cd {workspace_dir}",
             *setup_cmds,
             "git init",
-            "git config user.email 'eval@example.com'",
-            "git config user.name 'Eval Runner'",
+            "git config user.email 'dev@project.local'",
+            "git config user.name 'Developer'",
             "git add -A",
             "git commit --allow-empty -m 'initial commit'",
         ]

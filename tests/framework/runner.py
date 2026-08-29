@@ -32,7 +32,7 @@ import shlex
 
 def commit_step_workspace(step_name: str, workspace_dir: str) -> bool:
     """Commit workspace changes after evaluating a step to ensure clean diff status for subsequent steps."""
-    cmd = f"git add -A && git commit -m {shlex.quote(f'eval-step: {step_name}')} --allow-empty"
+    cmd = f"git add -A && git commit -m {shlex.quote(f'step: {step_name}')} --allow-empty"
     res = subprocess.run(["bash", "-c", cmd], cwd=workspace_dir, check=False, capture_output=True)
     return res.returncode == 0
 

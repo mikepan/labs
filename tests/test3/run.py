@@ -188,7 +188,7 @@ TEST = Test(
         Step(
             name="Classify Normal Maps (OpenGL vs Direct3D)",
             prompt=(
-                "i have a folder of normal maps in 'mixed/', but I suspect some are in OpenGL and some in D3D format. "
+                "i have a folder of normal maps in 'mixed/', but some are in OpenGL and some in D3D format. "
                 "figure out an algorithm to sort them out. create a python script that takes the file input as name/path, "
                 "and returns or prints 'd3d' or 'ogl' as the answer."
             ),

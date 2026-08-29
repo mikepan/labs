@@ -101,13 +101,19 @@ def load_harnesses_config() -> dict:
     return {"pi": {}, "opencode cli": {}}
 
 
-def get_active_api_model(base_url: str) -> str | None:
-    """Query /v1/models on LLM server and return the first active model ID."""
+def get_vllm_model_info(base_url: str) -> dict | None:
+    """Query /v1/models on LLM server and return the model metadata dictionary."""
     url = f"{base_url}/models" if not base_url.endswith("/models") else base_url
     data = http_json(url, timeout=3)
     if data and "data" in data and len(data["data"]) > 0:
-        return data["data"][0].get("id")
+        return data["data"][0]
     return None
+
+
+def get_active_api_model(base_url: str) -> str | None:
+    """Query /v1/models on LLM server and return the first active model ID."""
+    info = get_vllm_model_info(base_url)
+    return info.get("id") if info else None
 
 
 def prevent_system_sleep() -> subprocess.Popen | None:

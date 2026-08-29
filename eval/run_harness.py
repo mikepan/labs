@@ -203,13 +203,22 @@ def run_test_suite_on_agent(
         test_ws = f"/tmp/eval_{test_id}"
         sandbox.setup_test_workspace(test_ws, test_obj.setup)
 
-        # Upload test data assets (excluding .py files and hidden directories)
+        # Upload test data assets (excluding .py files, hidden directories, and private test assets)
         test_dir = Path(test_path).parent
-        for asset_path in test_dir.iterdir():
-            if asset_path.is_file() and not asset_path.name.endswith(".py") and not asset_path.name.startswith("."):
-                remote_asset = f"{test_ws}/{asset_path.name}"
-                logger.debug("Uploading test asset %s -> %s", asset_path.name, remote_asset)
+        for asset_path in sorted(test_dir.iterdir()):
+            if (
+                asset_path.name.endswith(".py")
+                or asset_path.name.startswith(".")
+                or asset_path.name == "__pycache__"
+                or asset_path.name.lower() in ("private", "ground_truth")
+            ):
+                continue
+            remote_asset = f"{test_ws}/{asset_path.name}"
+            logger.debug("Uploading test asset %s -> %s", asset_path.name, remote_asset)
+            if asset_path.is_file():
                 sandbox.upload_file(asset_path, remote_asset)
+            elif asset_path.is_dir():
+                sandbox.upload_dir(asset_path, remote_asset)
 
         # Commit initial test data assets so git change tracking starts with a clean baseline
         sandbox.exec(f"cd {test_ws} && git add -A && git commit --allow-empty -m 'initial test assets'")

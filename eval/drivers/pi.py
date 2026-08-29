@@ -11,7 +11,7 @@ import time
 from datetime import datetime, timezone
 from typing import Any
 
-from eval.common import setup_logger, get_active_api_model
+from eval.common import setup_logger, get_active_api_model, get_vllm_model_info
 from eval.config import (
     DEFAULT_IDLE_TIMEOUT_MINUTES,
     DEFAULT_MAX_STEP_TIMEOUT_MINUTES,
@@ -47,14 +47,17 @@ class PiDriver(HarnessDriver):
         reasoning_effort: str | None = None,
     ) -> str:
         """Configure Pi and start the Pi RPC bridge server inside the sandbox."""
-        active_model = get_active_api_model(llm_base_url) or model_name
+        model_info = get_vllm_model_info(llm_base_url)
+        active_model = (model_info.get("id") if model_info else None) or get_active_api_model(llm_base_url) or model_name
+        max_context = int(model_info.get("max_model_len", 262144)) if model_info else 262144
+
         logger.info(
-            "Configured Pi with API model ID: '%s' (config alias: '%s', reasoning_effort: '%s')",
-            active_model, model_name, reasoning_effort,
+            "Configured Pi with API model ID: '%s' (config alias: '%s', context: %d, reasoning_effort: '%s')",
+            active_model, model_name, max_context, reasoning_effort,
         )
 
         # Write ~/.pi/agent configs (models.json, settings.json, trust.json)
-        self._write_config(sandbox, active_model, model_name, llm_base_url, reasoning_effort=reasoning_effort)
+        self._write_config(sandbox, active_model, model_name, llm_base_url, max_context=max_context, reasoning_effort=reasoning_effort)
 
         # Start bridge server
         self._start_server(sandbox, workspace, active_model, reasoning_effort=reasoning_effort)
@@ -178,6 +181,7 @@ except Exception as e:
         active_model: str,
         config_alias: str,
         llm_base_url: str,
+        max_context: int = 262144,
         reasoning_effort: str | None = None,
     ) -> None:
         """Write ~/.pi/agent/models.json, settings.json, and trust.json inside sandbox."""
@@ -190,6 +194,8 @@ except Exception as e:
             "id": active_model,
             "name": active_model,
             "reasoning": is_reasoning,
+            "maxTokens": 65536,
+            "contextWindow": max_context,
         }
         if supports_effort:
             model_entry["defaultReasoningEffort"] = reasoning_effort
@@ -200,6 +206,8 @@ except Exception as e:
                 "id": config_alias,
                 "name": config_alias,
                 "reasoning": is_reasoning,
+                "maxTokens": 65536,
+                "contextWindow": max_context,
             }
             if supports_effort:
                 alias_entry["defaultReasoningEffort"] = reasoning_effort

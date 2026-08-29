@@ -12,7 +12,7 @@ import time
 from datetime import datetime, timezone
 from typing import Any
 
-from eval.common import setup_logger, get_active_api_model
+from eval.common import setup_logger, get_active_api_model, get_vllm_model_info
 from eval.config import (
     DEFAULT_IDLE_TIMEOUT_MINUTES,
     DEFAULT_MAX_STEP_TIMEOUT_MINUTES,
@@ -29,11 +29,11 @@ logger = setup_logger("driver.opencode")
 
 @register_driver("opencode")
 class OpenCodeDriver(HarnessDriver):
-    """Driver for OpenCode CLI/Server agent harness."""
+    """Driver for managing OpenCode agent sessions and lifecycle."""
 
-    def __init__(self, port: int = DEFAULT_OPENCODE_PORT, provider_id: str = "sparky"):
+    def __init__(self, port: int = DEFAULT_OPENCODE_PORT):
         self.port = port
-        self.provider_id = provider_id
+        self.provider_id = "sparky"
         self._log_path = "/tmp/opencode_server.log"
 
     # ----- HarnessDriver interface -----
@@ -47,15 +47,17 @@ class OpenCodeDriver(HarnessDriver):
         reasoning_effort: str | None = None,
     ) -> str:
         """Configure OpenCode and start its server in the sandbox workspace."""
-        active_model = get_active_api_model(llm_base_url) or model_name
+        model_info = get_vllm_model_info(llm_base_url)
+        active_model = (model_info.get("id") if model_info else None) or get_active_api_model(llm_base_url) or model_name
+        max_context = int(model_info.get("max_model_len", 262144)) if model_info else 262144
 
         logger.info(
-            "Configured OpenCode with API model ID: '%s' (config alias: '%s', reasoning_effort: '%s')",
-            active_model, model_name, reasoning_effort,
+            "Configured OpenCode with API model ID: '%s' (config alias: '%s', context: %d, reasoning_effort: '%s')",
+            active_model, model_name, max_context, reasoning_effort,
         )
 
         # Build opencode.json config
-        self._write_config(sandbox, active_model, model_name, llm_base_url, reasoning_effort=reasoning_effort)
+        self._write_config(sandbox, active_model, model_name, llm_base_url, max_context=max_context, reasoning_effort=reasoning_effort)
 
         # Start server
         self._start_server(sandbox, workspace)
@@ -283,12 +285,17 @@ except Exception as e:
         active_model: str,
         config_alias: str,
         llm_base_url: str,
+        max_context: int = 262144,
         reasoning_effort: str | None = None,
     ) -> None:
         """Write opencode.json configuration inside the sandbox."""
         model_entry: dict[str, Any] = {
             "name": active_model,
             "modalities": {"input": ["text", "image"], "output": ["text"]},
+            "limit": {
+                "context": max_context,
+                "output": 65536,
+            },
         }
         if reasoning_effort and reasoning_effort not in ("off", "none"):
             model_entry["parameters"] = {"reasoningEffort": reasoning_effort}
@@ -298,6 +305,10 @@ except Exception as e:
             alias_entry: dict[str, Any] = {
                 "name": config_alias,
                 "modalities": {"input": ["text", "image"], "output": ["text"]},
+                "limit": {
+                    "context": max_context,
+                    "output": 65536,
+                },
             }
             if reasoning_effort and reasoning_effort not in ("off", "none"):
                 alias_entry["parameters"] = {"reasoningEffort": reasoning_effort}

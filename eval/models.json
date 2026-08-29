@@ -46,13 +46,6 @@
     "model-arg-platform": "--gpu-memory-utilization 0.7",
     "reasoning_effort": "on"
   },
-  "Qwen3.6-27B-NVFP4-NoThink": {
-    "model-arg": "vllm serve nvidia/Qwen3.6-27B-NVFP4 --enable-prefix-caching --max-num-batched-tokens 16384 --trust-remote-code --reasoning-parser qwen3 --enable-auto-tool-choice --tool-call-parser qwen3_coder --default-chat-template-kwargs '{\"enable_thinking\":false}'",
-    "model-arg-speculative": "--speculative-config '{\"method\": \"dflash\", \"model\": \"z-lab/Qwen3.6-27B-DFlash\", \"num_speculative_tokens\": 10}'",
-    "model-arg-kv-quant": "--kv-cache-dtype fp8",
-    "model-arg-platform": "--load-format fastsafetensors  --gpu-memory-utilization 0.7",
-    "reasoning_effort": "off"
-  },
   "Qwen3.6-27B-NVFP4": {
     "model-arg": "vllm serve nvidia/Qwen3.6-27B-NVFP4 --enable-prefix-caching --max-num-batched-tokens 16384 --trust-remote-code --reasoning-parser qwen3 --enable-auto-tool-choice --tool-call-parser qwen3_coder",
     "model-arg-speculative": "--speculative-config '{\"method\": \"dflash\", \"model\": \"z-lab/Qwen3.6-27B-DFlash\", \"num_speculative_tokens\": 10}'",

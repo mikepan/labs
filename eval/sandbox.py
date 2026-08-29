@@ -124,6 +124,32 @@ class SandboxClient:
         except UnicodeDecodeError:
             return self.write_file(remote_path, p.read_bytes())
 
+    def upload_dir(self, local_path: str | Path, remote_path: str) -> bool:
+        """Upload a local directory from host into a remote path inside the sandbox."""
+        p = Path(local_path)
+        if not p.is_dir():
+            return False
+        tar_cmd = f"mkdir -p '{remote_path}' && tar -xf - -C '{remote_path}'"
+        try:
+            p1 = subprocess.Popen(
+                ["tar", "-cf", "-", "-C", str(p), "."],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            p2 = subprocess.Popen(
+                ["sbx", "exec", self.name, "bash", "-c", tar_cmd],
+                stdin=p1.stdout,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            if p1.stdout:
+                p1.stdout.close()
+            _, err2 = p2.communicate(timeout=60)
+            return p2.returncode == 0
+        except Exception as e:
+            logger.error("Failed to upload directory %s -> %s: %s", local_path, remote_path, e)
+            return False
+
     def extract_artifacts(self, workspace_dir: str, dest_dir: str | Path) -> None:
         """Extract workspace files (excluding .git) from sandbox to a local directory."""
         dest = Path(dest_dir)

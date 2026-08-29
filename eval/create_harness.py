@@ -144,8 +144,8 @@ def install_evaluation_dependencies(sandbox: SandboxClient) -> None:
 
     # Install Python evaluation packages
     python3 -m pip install --upgrade --quiet --break-system-packages pip 2>/dev/null || true
-    python3 -m pip install --quiet --break-system-packages langdetect html5lib beautifulsoup4 2>/dev/null || \
-    python3 -m pip install --quiet langdetect html5lib beautifulsoup4 || true
+    python3 -m pip install --quiet --break-system-packages langdetect html5lib beautifulsoup4 pillow numpy 2>/dev/null || \
+    python3 -m pip install --quiet langdetect html5lib beautifulsoup4 pillow numpy || true
     """
 
     code, stdout, stderr = sandbox.exec(setup_script)
@@ -155,7 +155,7 @@ def install_evaluation_dependencies(sandbox: SandboxClient) -> None:
         logger.info("✓ System evaluation tools, OpenJDK, ktlint, and Python packages installed.")
 
     # Validation
-    val_cmd = 'git --version && python3 --version && java -version && ktlint --version && python3 -c "import langdetect, html5lib; print(\'✓ Evaluation Python modules validated (langdetect, html5lib).\')"'
+    val_cmd = 'git --version && python3 --version && java -version && ktlint --version && python3 -c "import langdetect, html5lib, PIL, numpy; print(\'✓ Evaluation Python modules validated (langdetect, html5lib, pillow, numpy).\')"'
     code, v_out, _ = sandbox.exec(val_cmd)
     if code == 0 and v_out:
         for line in v_out.splitlines():

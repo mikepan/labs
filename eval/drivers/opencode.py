@@ -34,7 +34,7 @@ class OpenCodeDriver(HarnessDriver):
     def __init__(self, port: int = DEFAULT_OPENCODE_PORT):
         self.port = port
         self.provider_id = "sparky"
-        self._log_path = "/tmp/opencode_server.log"
+        self._log_path = "/tmp/server.log"
 
     # ----- HarnessDriver interface -----
 

@@ -11,6 +11,7 @@ from typing import Any
 
 from eval.common import setup_logger, run_cmd, http_json, load_json_config
 from eval.config import (
+    API_BASE_URL,
     BENCHMARK_DATA_FILE,
     MODELS_CONFIG_FILE,
     REMOTE_HOST,
@@ -43,11 +44,16 @@ def calculate_model_memory_gb(host: str = REMOTE_HOST) -> float:
              - CUDA Graph memory + 1 full KV context
     """
     try:
-        res = run_cmd("ssh", host, "docker logs --tail 5000 vllm_node 2>&1", timeout=10)
+        res = run_cmd(
+            "ssh",
+            host,
+            "docker logs vllm_node 2>&1 | grep -E 'Actual usage|kv cache memory|Available KV cache memory|Maximum concurrency'",
+            timeout=10,
+        )
         logs = res.stdout
 
         m_usage = re.search(
-            r"Actual usage is ([\d\.]+) GiB for consumed memory.*?([\d\.]+) GiB for peak activation.*?([-\d\.]+) GiB for CUDAGraph memory",
+            r"Actual usage is ([\d\.]+) GiB for consumed memory.*?([-\d\.]+) GiB for peak activation.*?([-\d\.]+) GiB for CUDAGraph memory",
             logs,
         )
         m_kv = (
@@ -58,16 +64,20 @@ def calculate_model_memory_gb(host: str = REMOTE_HOST) -> float:
 
         if m_usage and m_kv and m_conc:
             consumed = float(m_usage.group(1))
-            peak_act = float(m_usage.group(2))
-            cudagraph = float(m_usage.group(3))
+            raw_peak_act = float(m_usage.group(2))
+            raw_cudagraph = float(m_usage.group(3))
             kv_total = float(m_kv.group(1))
             concurrency = float(m_conc.group(1))
 
+            # Clamp negative profiling artifacts from vLLM MTP issue #44740
+            peak_act = max(0.0, raw_peak_act)
+            cudagraph = max(0.0, raw_cudagraph)
+
             kv_1_context = (kv_total / concurrency) if concurrency > 0 else 0.0
-            total_memory_gb = round(consumed + peak_act - abs(cudagraph) + kv_1_context, 1)
+            total_memory_gb = round(consumed + peak_act + cudagraph + kv_1_context, 1)
             logger.info(
-                "Dynamic memory: consumed=%.2fG, peak_act=%.2fG, cudagraph=%.2fG, kv_1ctx=%.2fG => %.1f GB",
-                consumed, peak_act, cudagraph, kv_1_context, total_memory_gb,
+                "Dynamic memory: consumed=%.2fG, peak_act=%.2fG (raw=%.2f), cudagraph=%.2fG (raw=%.2f), kv_1ctx=%.2fG => %.1f GB",
+                consumed, peak_act, raw_peak_act, cudagraph, raw_cudagraph, kv_1_context, total_memory_gb,
             )
             return total_memory_gb
     except Exception as e:
@@ -76,7 +86,7 @@ def calculate_model_memory_gb(host: str = REMOTE_HOST) -> float:
     return 0.0
 
 
-def get_model_metadata(model_name: str, base_url: str) -> dict[str, Any]:
+def get_model_metadata(model_name: str, base_url: str, memory_gb: float | None = None) -> dict[str, Any]:
     """Build model metadata from models.json and live server endpoints."""
     launch_cfg = "vllm serve"
     spec_type = "off"
@@ -110,7 +120,8 @@ def get_model_metadata(model_name: str, base_url: str) -> dict[str, Any]:
     # Single API call for both model ID and context length
     vllm_info = get_vllm_model_info(base_url=base_url)
     context_length = int(vllm_info.get("max_model_len", 0)) if vllm_info else 0
-    memory_gb = calculate_model_memory_gb()
+    if memory_gb is None or memory_gb <= 0:
+        memory_gb = calculate_model_memory_gb()
 
     return {
         "display_name": model_name,
@@ -163,7 +174,8 @@ def save_evaluation_results(
     harness_name: str,
     harness_version: str,
     evaluation_output: dict[str, Any],
-    base_url: str,
+    base_url: str = API_BASE_URL,
+    memory_gb: float | None = None,
 ) -> str:
     """Save full results, trace, artifacts and update benchmark-data.json."""
     eval_id = evaluation_output["eval_id"]
@@ -188,7 +200,7 @@ def save_evaluation_results(
         shutil.rmtree(stage_root, ignore_errors=True)
 
     # 2. Calculate aggregate scores & metadata
-    meta = get_model_metadata(model_name, base_url=base_url)
+    meta = get_model_metadata(model_name, base_url=base_url, memory_gb=memory_gb)
     total_completion = 0.0
     total_time = 0.0
     num_tests = len(test_results_summary)

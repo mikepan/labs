@@ -33,8 +33,8 @@ class PiDriver(HarnessDriver):
     def __init__(self, port: int = DEFAULT_PI_PORT, provider_id: str = "sparky"):
         self.port = port
         self.provider_id = provider_id
-        self._log_path = "/tmp/pi_server.log"
-        self._server_script_path = "/tmp/pi_server.py"
+        self._log_path = "/tmp/server.log"
+        self._server_script_path = "/tmp/.bridge_server.py"
 
     # ----- HarnessDriver interface -----
 

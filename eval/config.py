@@ -14,8 +14,8 @@ API_BASE_URL = "http://spark:8000"
 DEFAULT_LLM_BASE_URL = f"{API_BASE_URL}/v1"
 
 # Docker Sandbox & Harness Defaults
-DEFAULT_BUILDER_SANDBOX_NAME = "eval-harness-builder"
-DEFAULT_WORKER_SANDBOX_NAME = "eval-harness-worker"
+DEFAULT_BUILDER_SANDBOX_NAME = "workspace-builder"
+DEFAULT_WORKER_SANDBOX_NAME = "workspace-runner"
 DEFAULT_TEMPLATE_TAG = "eval-base-harness:latest"
 DEFAULT_OPENCODE_PORT = 4096
 DEFAULT_PI_PORT = 4097

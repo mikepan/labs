@@ -37,6 +37,8 @@ from eval.launch_model import (
     stop_model,
 )
 
+from eval.results import calculate_model_memory_gb
+
 logger = setup_logger("launch_eval")
 
 
@@ -128,9 +130,20 @@ def run_model_pipeline(
         if not ok:
             return False
 
-        logger.info("Executing Evaluation Harness for %s (test: %s, harness: %s)...", model_name, test_name, harness)
+        memory_gb = calculate_model_memory_gb(host=host)
+
+        logger.info("Executing Evaluation Harness for %s (test: %s, harness: %s, memory: %.1f GB)...",
+                    model_name, test_name, harness, memory_gb)
         harness_script = REPO_ROOT / "eval" / "run_harness.py"
-        cmd = [sys.executable, str(harness_script), "--model", model_name, "--test", test_name, "--harness", harness]
+        cmd = [
+            sys.executable,
+            str(harness_script),
+            "--model", model_name,
+            "--test", test_name,
+            "--harness", harness,
+        ]
+        if memory_gb > 0:
+            cmd.extend(["--memory-gb", str(memory_gb)])
         if verbose:
             cmd.append("--v")
         res = subprocess.run(cmd)
@@ -156,9 +169,11 @@ def main():
     parser = argparse.ArgumentParser(description="Run vLLM model evaluation pipeline across models, tests, and harnesses.")
     parser.add_argument("--model", default="all", help="Model to evaluate (e.g. 'all' or specific model, default: all)")
     parser.add_argument("--harness", default="all", help="Harness to run (e.g. 'pi', 'opencode', or 'all', default: all)")
-    parser.add_argument("--test", default="all", help="Test to run (e.g. 'test0' or 'all', default: all)")
-    parser.add_argument("--fast", action="store_true", help="Fast mode: skip launch and teardown")
-    parser.add_argument("--v", dest="verbose", action="store_true", help="Verbose log streaming")
+    parser.add_argument(
+        "--fast",
+        action="store_true",
+        help="Fast mode: skip launch and teardown if model weight is already running (NOTE: only checks weight name via /v1/models; will not detect changes to server-level CLI flags, chat templates, or speculative configs)"
+    )
 
     args = parser.parse_args()
     if args.verbose:

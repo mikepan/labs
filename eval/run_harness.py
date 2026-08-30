@@ -200,8 +200,7 @@ def run_test_suite_on_agent(
         logger.info("RUNNING TEST: %s (%d steps)", test_id, len(test_obj.steps))
 
         # Setup workspace and start agent
-        clean_name = test_id.replace("eval_", "").replace("test_", "").replace("test", "project").replace("eval", "project")
-        test_ws = f"/tmp/project_{clean_name}"
+        test_ws = "/home/agent/workspace"
         sandbox.setup_test_workspace(test_ws, test_obj.setup)
 
         # Upload test data assets (excluding .py files, hidden directories, and private test assets)
@@ -518,6 +517,7 @@ def main():
     parser.add_argument("--model", required=True, help="Model name (e.g. qwen/Qwen3.6-27B-FP8)")
     parser.add_argument("--test", default="all", help="Specific test to run (e.g. 'test0' or 'all', default: all)")
     parser.add_argument("--harness", default="all", help="Harness name (e.g. 'pi', 'opencode', or 'all', default: all)")
+    parser.add_argument("--memory-gb", type=float, default=None, help="Measured runtime GPU memory in GB")
     parser.add_argument("--v", dest="verbose", action="store_true", help="Verbose debug logging")
     args = parser.parse_args()
 
@@ -581,6 +581,7 @@ def main():
                 harness_version=harness_version,
                 evaluation_output=evaluation_output,
                 base_url=DEFAULT_LLM_BASE_URL,
+                memory_gb=args.memory_gb,
             )
         finally:
             sandbox.remove()

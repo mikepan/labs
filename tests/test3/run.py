@@ -161,13 +161,27 @@ def validate_normal_map_classification(workspace_dir: str) -> tuple[bool, str]:
         return False, "No test normal map images were found to evaluate."
 
     accuracy = (correct / total) * 100
+    inverted_correct = sum(
+        1 for filename, expected_fmt in GROUND_TRUTH.items()
+        if (mixed_dir / filename).exists() and mismatches and any(
+            filename in m and f"expected={expected_fmt}" in m and f"got={'d3d' if expected_fmt == 'ogl' else 'ogl'}" in m
+            for m in mismatches
+        )
+    )
+    inverted_pct = (inverted_correct / total) * 100
 
     if accuracy < 80.0:
-        sample_errors = mismatches[:5]
+        if inverted_pct >= 80.0:
+            return (
+                False,
+                f"Classification results are completely flipped from reality ({correct}/{total} correct, "
+                f"{inverted_correct}/{total} ({inverted_pct:.1f}%) inverted). "
+                f"Expected at least 80% accuracy.",
+            )
         return (
             False,
             f"Classification accuracy too low: {correct}/{total} ({accuracy:.1f}%). "
-            f"Expected at least 80% accuracy. Sample errors: {sample_errors}",
+            f"Expected at least 80% accuracy.",
         )
 
     return (

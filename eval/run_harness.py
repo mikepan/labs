@@ -19,7 +19,6 @@ import json
 import logging
 import os
 from pathlib import Path
-import re
 import tempfile
 import time
 import uuid
@@ -427,8 +426,6 @@ def run_test_suite_on_agent(
 
             # Step context usage
             step_peak_ctx = turn.peak_context_tokens
-            vllm_info = get_vllm_model_info(base_url=DEFAULT_LLM_BASE_URL)
-            max_ctx = int(vllm_info.get("max_model_len", 0)) if vllm_info else 0
             step_context_used_pct = round((step_peak_ctx / max_ctx) * 100.0, 2) if max_ctx > 0 else 0.0
 
             step_traces.append(StepTrace(

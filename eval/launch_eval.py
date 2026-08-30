@@ -7,12 +7,11 @@ with upfront validation of all parameters before starting any containers.
 
 Usage:
     python3 eval/launch_eval.py [--model model_name] [--harness harness_name] [--test test_name] [--fast] [--v]
+
 """
 
 import argparse
-import json
 import logging
-import os
 import subprocess
 import sys
 from typing import Any
@@ -22,7 +21,6 @@ from eval.config import (
     MODELS_CONFIG_FILE,
     REMOTE_HOST,
     REPO_ROOT,
-    TESTS_DIR,
 )
 from eval.common import (
     setup_logger,
@@ -40,12 +38,6 @@ from eval.launch_model import (
 from eval.results import calculate_model_memory_gb
 
 logger = setup_logger("launch_eval")
-
-
-def get_available_harnesses() -> list[str]:
-    """Retrieve all configured harness names from harnesses configuration."""
-    return list(load_harnesses_config().keys())
-
 
 
 def validate_arguments(
@@ -76,15 +68,16 @@ def validate_arguments(
     if test_arg != "all" and test_arg not in available_tests:
         matched_tests = [t for t in available_tests if test_arg.lower() in t.lower()]
         if len(matched_tests) >= 1:
+            original_test_arg = test_arg
             test_arg = matched_tests[0]
-            logger.info("Matched test filter '%s' -> '%s'", test_arg, matched_tests[0])
+            logger.info("Matched test filter '%s' -> '%s'", original_test_arg, test_arg)
         else:
             avail_str = ", ".join(available_tests) or "(none)"
             logger.error("Unknown test '%s'. Available tests: %s (or 'all')", test_arg, avail_str)
             sys.exit(1)
 
     # 3. Validate Harness
-    available_harnesses = get_available_harnesses()
+    available_harnesses = list(load_harnesses_config().keys())
     if harness_arg != "all":
         harness_match = None
         for h in available_harnesses:
@@ -169,11 +162,13 @@ def main():
     parser = argparse.ArgumentParser(description="Run vLLM model evaluation pipeline across models, tests, and harnesses.")
     parser.add_argument("--model", default="all", help="Model to evaluate (e.g. 'all' or specific model, default: all)")
     parser.add_argument("--harness", default="all", help="Harness to run (e.g. 'pi', 'opencode', or 'all', default: all)")
+    parser.add_argument("--test", default="all", help="Test to run (e.g. 'test0' or 'all', default: all)")
     parser.add_argument(
         "--fast",
         action="store_true",
         help="Fast mode: skip launch and teardown if model weight is already running (NOTE: only checks weight name via /v1/models; will not detect changes to server-level CLI flags, chat templates, or speculative configs)"
     )
+    parser.add_argument("--v", dest="verbose", action="store_true", help="Verbose log streaming")
 
     args = parser.parse_args()
     if args.verbose:

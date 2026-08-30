@@ -11,7 +11,8 @@ import time
 from datetime import datetime, timezone
 from typing import Any
 
-from eval.common import setup_logger, get_active_api_model, get_vllm_model_info
+from eval.common import setup_logger
+from eval.results import resolve_model_info
 from eval.config import (
     DEFAULT_IDLE_TIMEOUT_MINUTES,
     DEFAULT_MAX_STEP_TIMEOUT_MINUTES,
@@ -47,9 +48,7 @@ class PiDriver(HarnessDriver):
         reasoning_effort: str | None = None,
     ) -> str:
         """Configure Pi and start the Pi RPC bridge server inside the sandbox."""
-        model_info = get_vllm_model_info(llm_base_url)
-        active_model = (model_info.get("id") if model_info else None) or get_active_api_model(llm_base_url) or model_name
-        max_context = int(model_info.get("max_model_len", 262144)) if model_info else 262144
+        active_model, max_context = resolve_model_info(llm_base_url, fallback_name=model_name)
 
         logger.info(
             "Configured Pi with API model ID: '%s' (config alias: '%s', context: %d, reasoning_effort: '%s')",

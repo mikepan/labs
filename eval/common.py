@@ -5,6 +5,7 @@ eval.common - Shared helpers, logging formatters, and utility functions.
 import json
 import logging
 import os
+from pathlib import Path
 import subprocess
 import sys
 import urllib.request
@@ -52,11 +53,11 @@ def setup_logger(name: str, level: int = logging.INFO) -> logging.Logger:
 
 def load_json_config(path: str | os.PathLike, label: str = "config") -> dict:
     """Load a JSON config file, exiting with an error if not found."""
-    if not os.path.exists(path):
+    p = Path(path)
+    if not p.is_file():
         print(f"[ERROR] {label} file not found: {path}", file=sys.stderr)
         sys.exit(1)
-    with open(path, "r", encoding="utf-8") as f:
-        return json.load(f)
+    return json.loads(p.read_text(encoding="utf-8"))
 
 
 def run_cmd(*cmd: str, input: str | None = None, check: bool = False, timeout: int | None = None, cwd: str | None = None) -> subprocess.CompletedProcess:
@@ -84,36 +85,17 @@ def get_available_tests() -> list[str]:
     if not TESTS_DIR.exists():
         return []
     return [
-        item for item in sorted(os.listdir(TESTS_DIR))
-        if (TESTS_DIR / item / "run.py").is_file()
+        d.name for d in sorted(TESTS_DIR.iterdir())
+        if (d / "run.py").is_file()
     ]
 
 
 def load_harnesses_config() -> dict:
     """Load harnesses configuration dictionary from HARNESSES_CONFIG_FILE."""
     from eval.config import HARNESSES_CONFIG_FILE
-    if os.path.exists(HARNESSES_CONFIG_FILE):
-        try:
-            with open(HARNESSES_CONFIG_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except Exception:
-            pass
-    return {"pi": {}, "opencode cli": {}}
+    return load_json_config(HARNESSES_CONFIG_FILE, label="harnesses config")
 
 
-def get_vllm_model_info(base_url: str) -> dict | None:
-    """Query /v1/models on LLM server and return the model metadata dictionary."""
-    url = f"{base_url}/models" if not base_url.endswith("/models") else base_url
-    data = http_json(url, timeout=3)
-    if data and "data" in data and len(data["data"]) > 0:
-        return data["data"][0]
-    return None
-
-
-def get_active_api_model(base_url: str) -> str | None:
-    """Query /v1/models on LLM server and return the first active model ID."""
-    info = get_vllm_model_info(base_url)
-    return info.get("id") if info else None
 
 
 def prevent_system_sleep() -> subprocess.Popen | None:

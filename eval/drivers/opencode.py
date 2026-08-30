@@ -12,7 +12,8 @@ import time
 from datetime import datetime, timezone
 from typing import Any
 
-from eval.common import setup_logger, get_active_api_model, get_vllm_model_info
+from eval.common import setup_logger
+from eval.results import resolve_model_info
 from eval.config import (
     DEFAULT_IDLE_TIMEOUT_MINUTES,
     DEFAULT_MAX_STEP_TIMEOUT_MINUTES,
@@ -25,6 +26,21 @@ from eval.trace import ToolCallEvent, TurnData
 __all__ = ["OpenCodeDriver"]
 
 logger = setup_logger("driver.opencode")
+
+
+def _build_model_entry(name: str, max_context: int = 262144, reasoning_effort: str | None = None) -> dict[str, Any]:
+    """Construct a model configuration entry dict for opencode."""
+    entry: dict[str, Any] = {
+        "name": name,
+        "modalities": {"input": ["text", "image"], "output": ["text"]},
+        "limit": {
+            "context": max_context,
+            "output": 65536,
+        },
+    }
+    if reasoning_effort and reasoning_effort not in ("off", "none"):
+        entry["parameters"] = {"reasoningEffort": reasoning_effort}
+    return entry
 
 
 @register_driver("opencode")
@@ -47,9 +63,7 @@ class OpenCodeDriver(HarnessDriver):
         reasoning_effort: str | None = None,
     ) -> str:
         """Configure OpenCode and start its server in the sandbox workspace."""
-        model_info = get_vllm_model_info(llm_base_url)
-        active_model = (model_info.get("id") if model_info else None) or get_active_api_model(llm_base_url) or model_name
-        max_context = int(model_info.get("max_model_len", 262144)) if model_info else 262144
+        active_model, max_context = resolve_model_info(llm_base_url, fallback_name=model_name)
 
         logger.info(
             "Configured OpenCode with API model ID: '%s' (config alias: '%s', context: %d, reasoning_effort: '%s')",
@@ -289,30 +303,11 @@ except Exception as e:
         reasoning_effort: str | None = None,
     ) -> None:
         """Write opencode.json configuration inside the sandbox."""
-        model_entry: dict[str, Any] = {
-            "name": active_model,
-            "modalities": {"input": ["text", "image"], "output": ["text"]},
-            "limit": {
-                "context": max_context,
-                "output": 65536,
-            },
+        models_config: dict[str, Any] = {
+            active_model: _build_model_entry(active_model, max_context, reasoning_effort)
         }
-        if reasoning_effort and reasoning_effort not in ("off", "none"):
-            model_entry["parameters"] = {"reasoningEffort": reasoning_effort}
-
-        models_config: dict[str, Any] = {active_model: model_entry}
         if active_model != config_alias:
-            alias_entry: dict[str, Any] = {
-                "name": config_alias,
-                "modalities": {"input": ["text", "image"], "output": ["text"]},
-                "limit": {
-                    "context": max_context,
-                    "output": 65536,
-                },
-            }
-            if reasoning_effort and reasoning_effort not in ("off", "none"):
-                alias_entry["parameters"] = {"reasoningEffort": reasoning_effort}
-            models_config[config_alias] = alias_entry
+            models_config[config_alias] = _build_model_entry(config_alias, max_context, reasoning_effort)
 
         config_data = {
             "$schema": "https://opencode.ai/config.json",
@@ -334,13 +329,13 @@ except Exception as e:
     def _start_server(self, sandbox: SandboxClient, workspace: str) -> None:
         """Start OpenCode server and wait for it to become responsive."""
         logger.info("Starting OpenCode server in %s on port %d...", workspace, self.port)
-        run_cmd = (
+        start_cmd = (
             f"killall opencode 2>/dev/null || true; "
             f"export PATH=$HOME/.opencode/bin:$HOME/.local/bin:$PATH; "
             f"cd {workspace} && (nohup opencode serve --port {self.port} --hostname 0.0.0.0 "
             f"--print-logs --log-level DEBUG </dev/null >{self._log_path} 2>&1 & disown)"
         )
-        sandbox.exec(run_cmd)
+        sandbox.exec(start_cmd)
 
         # Poll until responsive
         check_script = f"""import urllib.request, sys

@@ -206,11 +206,13 @@ def main():
     models = load_json_config(MODELS_CONFIG_FILE)
     parser = argparse.ArgumentParser(description="Launch, manage, or test vLLM models on remote cluster.")
     parser.add_argument("--model", default="all", help="Model to launch or 'all'")
+    parser.add_argument("--stop", action="store_true", help="Stop running model container")
     parser.add_argument(
         "--fast",
         action="store_true",
         help="Fast mode: skip launch if model weight is already running (NOTE: only checks weight name via /v1/models; will not detect changes to server-level CLI flags, chat templates, or speculative configs)",
     )
+    parser.add_argument("--v", dest="verbose", action="store_true", help="Verbose log streaming")
 
     args = parser.parse_args()
     if args.verbose:

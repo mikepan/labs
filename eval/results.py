@@ -6,7 +6,6 @@ import json
 import os
 import re
 import shutil
-import subprocess
 from typing import Any
 
 from eval.common import setup_logger, run_cmd, http_json, load_json_config
@@ -20,6 +19,7 @@ from eval.config import (
 
 __all__ = [
     "get_vllm_model_info",
+    "resolve_model_info",
     "calculate_model_memory_gb",
     "get_model_metadata",
     "save_evaluation_results",
@@ -37,11 +37,19 @@ def get_vllm_model_info(base_url: str) -> dict[str, Any] | None:
     return None
 
 
+def resolve_model_info(base_url: str, fallback_name: str = "") -> tuple[str, int]:
+    """Query /v1/models on LLM server and resolve active model ID and max context length."""
+    model_info = get_vllm_model_info(base_url)
+    active_model = (model_info.get("id") if model_info else None) or fallback_name
+    max_context = int(model_info.get("max_model_len", 262144)) if model_info else 262144
+    return active_model, max_context
+
+
 def calculate_model_memory_gb(host: str = REMOTE_HOST) -> float:
     """Parse memory metrics from vLLM engine startup logs on remote host.
 
-    Formula: Consumed memory (weights + non-torch) + Peak activation
-             - CUDA Graph memory + 1 full KV context
+    Formula: Consumed memory (weights + non-torch) + Peak activation (clamped >= 0)
+             + CUDA Graph memory (clamped >= 0) + 1 full KV context
     """
     try:
         res = run_cmd(

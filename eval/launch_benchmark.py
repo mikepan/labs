@@ -16,10 +16,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
-if str(REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT))
-
 from eval.common import setup_logger, load_json_config
 from eval.config import (
     API_BASE_URL,
@@ -38,8 +34,6 @@ DEFAULT_PROMPT_FILE = TESTS_DIR / "benchmark" / "long-prompt.kt"
 def load_prompt(prompt_file: Path | str = DEFAULT_PROMPT_FILE) -> str:
     """Load benchmark prompt text from file."""
     path = Path(prompt_file)
-    if not path.is_file():
-        path = REPO_ROOT / "tests" / "benchmark" / "long-prompt.kt"
     return f"Describe what this file does:\n\n```kotlin\n{path.read_text(encoding='utf-8', errors='ignore')}\n```"
 
 

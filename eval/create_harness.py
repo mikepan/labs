@@ -104,12 +104,6 @@ def save_as_template(sandbox: SandboxClient, template_tag: str) -> bool:
     sandbox.stop()
 
     logger.info("Saving sandbox '%s' snapshot to template tag '%s'...", sandbox.name, template_tag)
-    res = subprocess.run(["sbx", "template", "save", sandbox.name, template_tag], capture_output=True, text=True)
-    if res.returncode == 0:
-        logger.info("✓ Successfully saved template: %s", template_tag)
-        return True
-
-    # Try with y input if prompted
     res = subprocess.run(
         ["sbx", "template", "save", sandbox.name, template_tag],
         input="y\n",

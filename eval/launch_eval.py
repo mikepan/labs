@@ -29,7 +29,6 @@ from eval.common import (
     load_json_config,
     prevent_system_sleep,
 )
-from eval.drivers import get_driver
 from eval.launch_model import (
     ensure_model_running,
     stop_model,
@@ -79,20 +78,13 @@ def validate_arguments(
     # 3. Validate Harness
     available_harnesses = list(load_harnesses_config().keys())
     if harness_arg != "all":
-        harness_match = None
-        for h in available_harnesses:
-            if harness_arg.lower() in h.lower() or h.lower() in harness_arg.lower():
-                harness_match = h
-                break
-        if harness_match:
-            harness_arg = harness_match
+        matched = [h for h in available_harnesses if harness_arg.lower() in h.lower() or h.lower() in harness_arg.lower()]
+        if matched:
+            harness_arg = matched[0]
         else:
-            try:
-                get_driver(harness_arg)
-            except ValueError:
-                avail_str = ", ".join(available_harnesses) or "(none)"
-                logger.error("Unknown harness '%s'. Available harnesses: %s (or 'all')", harness_arg, avail_str)
-                sys.exit(1)
+            avail_str = ", ".join(available_harnesses) or "(none)"
+            logger.error("Unknown harness '%s'. Available harnesses: %s (or 'all')", harness_arg, avail_str)
+            sys.exit(1)
 
     return target_models, test_arg, harness_arg
 

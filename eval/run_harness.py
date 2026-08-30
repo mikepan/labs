@@ -27,6 +27,7 @@ from typing import Any
 
 from eval.common import setup_logger, load_harnesses_config, load_json_config, get_available_tests
 from eval.config import (
+    DEFAULT_HINT_SCORE_FACTOR,
     DEFAULT_IDLE_TIMEOUT_MINUTES,
     DEFAULT_LLM_BASE_URL,
     DEFAULT_MAX_STEP_TIMEOUT_MINUTES,
@@ -47,19 +48,31 @@ logger = setup_logger("run_harness")
 # Test Loading & Framework In-Memory Bundling
 # =====================================================================
 
-_FRAMEWORK_BUNDLE: tuple[str, str, str] | None = None
+def _get_runner_bundle() -> str:
+    """Build unified in-memory test framework module bundle."""
+    fw_dir = TESTS_DIR / "framework"
+    spec_code = (fw_dir / "spec.py").read_text(encoding="utf-8")
+    assertions_code = (fw_dir / "assertions.py").read_text(encoding="utf-8")
+    runner_code = (fw_dir / "runner.py").read_text(encoding="utf-8")
+    return f"""import json, os, re, subprocess, sys, time, types
+eval_mod = types.ModuleType('eval')
+eval_cfg = types.ModuleType('eval.config')
+eval_cfg.DEFAULT_STEP_POINT = 1
+eval_mod.config = eval_cfg
+sys.modules['eval'] = eval_mod
+sys.modules['eval.config'] = eval_cfg
 
-
-def _get_framework_bundle() -> tuple[str, str, str]:
-    """Load framework spec, assertions, and runner source code for in-memory sandbox evaluation."""
-    global _FRAMEWORK_BUNDLE
-    if _FRAMEWORK_BUNDLE is None:
-        fw_dir = TESTS_DIR / "framework"
-        spec_code = (fw_dir / "spec.py").read_text(encoding="utf-8")
-        assertions_code = (fw_dir / "assertions.py").read_text(encoding="utf-8")
-        runner_code = (fw_dir / "runner.py").read_text(encoding="utf-8")
-        _FRAMEWORK_BUNDLE = (spec_code, assertions_code, runner_code)
-    return _FRAMEWORK_BUNDLE
+tf = types.ModuleType('tests.framework')
+sys.modules['tests'] = types.ModuleType('tests')
+sys.modules['tests'].framework = tf
+sys.modules['tests.framework'] = tf
+sys.modules['tests.framework.spec'] = tf
+sys.modules['tests.framework.assertions'] = tf
+sys.modules['tests.framework.runner'] = tf
+exec({spec_code!r}, tf.__dict__)
+exec({assertions_code!r}, tf.__dict__)
+exec({runner_code!r}, tf.__dict__)
+"""
 
 
 def load_test_spec(test_name_or_path: str):
@@ -95,47 +108,16 @@ def evaluate_step_in_sandbox(
     step_idx: int,
     workspace_dir: str,
 ) -> dict[str, Any]:
-    """Execute step assertions directly inside the sandbox container in memory without disk persistence."""
-    spec_code, assertions_code, runner_code = _get_framework_bundle()
+    """Execute step assertions in sandbox RAM via stdin with zero disk footprint."""
+    runner_bundle = _get_runner_bundle()
     test_code = Path(test_run_file).read_text(encoding="utf-8")
 
-    eval_script = f"""import json, sys, types
-from pathlib import Path
-
-t_mod = types.ModuleType('tests')
-t_mod.__path__ = []
-tf_mod = types.ModuleType('tests.framework')
-tf_mod.__path__ = []
-
-spec_mod = types.ModuleType('tests.framework.spec')
-exec({spec_code!r}, spec_mod.__dict__)
-
-assertions_mod = types.ModuleType('tests.framework.assertions')
-exec({assertions_code!r}, assertions_mod.__dict__)
-
-runner_mod = types.ModuleType('tests.framework.runner')
-sys.modules['tests'] = t_mod
-sys.modules['tests.framework'] = tf_mod
-sys.modules['tests.framework.spec'] = spec_mod
-sys.modules['tests.framework.assertions'] = assertions_mod
-sys.modules['tests.framework.runner'] = runner_mod
-
-exec({runner_code!r}, runner_mod.__dict__)
-
-for mod in (spec_mod, assertions_mod, runner_mod):
-    for k in getattr(mod, '__all__', []):
-        setattr(tf_mod, k, getattr(mod, k))
-t_mod.framework = tf_mod
-
+    eval_script = f"""{runner_bundle}
 test_mod = types.ModuleType('test_module')
-test_mod.__file__ = '{workspace_dir}/run.py'
 exec({test_code!r}, test_mod.__dict__)
-
-test_obj = test_mod.TEST
-step = test_obj.steps[{step_idx}]
-res = runner_mod.evaluate_step(step, '{workspace_dir}')
-
-output = {{
+step = test_mod.TEST.steps[{step_idx}]
+res = sys.modules['tests.framework'].evaluate_step(step, {workspace_dir!r})
+out = {{
     "step_name": res.step_name,
     "passed": res.passed,
     "point": res.point,
@@ -146,7 +128,7 @@ output = {{
         for c in res.check_results
     ]
 }}
-print("__JSON_START__" + json.dumps(output) + "__JSON_END__")
+print("__JSON_START__" + json.dumps(out) + "__JSON_END__")
 """
     try:
         return sandbox.exec_python_json(eval_script, label=f"evaluate step {step_idx}")
@@ -202,22 +184,13 @@ def run_test_suite_on_agent(
         test_ws = "/home/agent/workspace"
         sandbox.setup_test_workspace(test_ws, test_obj.setup)
 
-        # Upload test data assets (excluding .py files, hidden directories, and private test assets)
+        # Upload test data assets in a single atomic tar batch
         test_dir = Path(test_path).parent
-        for asset_path in sorted(test_dir.iterdir()):
-            if (
-                asset_path.name.endswith(".py")
-                or asset_path.name.startswith(".")
-                or asset_path.name == "__pycache__"
-                or asset_path.name.lower() in ("private", "ground_truth")
-            ):
-                continue
-            remote_asset = f"{test_ws}/{asset_path.name}"
-            logger.debug("Uploading test asset %s -> %s", asset_path.name, remote_asset)
-            if asset_path.is_file():
-                sandbox.upload_file(asset_path, remote_asset)
-            elif asset_path.is_dir():
-                sandbox.upload_dir(asset_path, remote_asset)
+        sandbox.upload_tree(
+            test_dir,
+            test_ws,
+            exclude={"*.py", ".*", "__pycache__", "private", "ground_truth"},
+        )
 
         # Commit initial test data assets so git change tracking starts with a clean baseline
         sandbox.exec(f"cd {test_ws} && git add -A && git commit --allow-empty -m 'initial project assets'")
@@ -250,11 +223,8 @@ def run_test_suite_on_agent(
             step_start_iso = datetime.fromtimestamp(step_t0, timezone.utc).isoformat()
 
             # Track message count before sending so we can recover partial traces on failure
-            try:
-                prev_msgs = driver.get_all_messages(sandbox, session_id)
-                prev_msg_count = len(prev_msgs) if prev_msgs else 0
-            except Exception:
-                prev_msg_count = 0
+            prev_msgs = driver.get_all_messages(sandbox, session_id)
+            prev_msg_count = len(prev_msgs) if prev_msgs else 0
 
             # Send prompt through the driver — returns normalized TurnData
             try:
@@ -410,7 +380,7 @@ def run_test_suite_on_agent(
             if passed:
                 passed_steps += 1
                 if used_hint:
-                    step_score = round(step_point * 0.5, 2)
+                    step_score = round(step_point * DEFAULT_HINT_SCORE_FACTOR, 2)
                     logger.info("  ✓ Step %d PASSED WITH HINT (+%s/%d pts) (%.2fs)", idx + 1, step_score, step_point, step_elapsed)
                 else:
                     step_score = step_point
@@ -523,36 +493,19 @@ def main():
 
     harnesses_cfg = load_harnesses_config()
 
-    # Discover tests
-    available_tests = get_available_tests()
-    target_tests = available_tests if args.test == "all" else [args.test]
+    target_tests = get_available_tests() if args.test == "all" else [args.test]
     test_specs = []
     for t_name in target_tests:
         run_file = str(TESTS_DIR / t_name / "run.py") if not os.path.isfile(t_name) else t_name
         test_specs.append((run_file, load_test_spec(run_file)))
 
-
-    # Determine target harnesses to evaluate
-    if args.harness == "all":
-        target_harnesses = list(harnesses_cfg.keys())
-    else:
-        target_harnesses = [args.harness]
-
-    logger.info("Evaluating model '%s' across %d harness(es): %s",
-                args.model, len(target_harnesses), target_harnesses)
+    target_harnesses = list(harnesses_cfg.keys()) if args.harness == "all" else [args.harness]
 
     models_cfg = load_json_config(MODELS_CONFIG_FILE) if os.path.exists(MODELS_CONFIG_FILE) else {}
-    model_entry = models_cfg.get(args.model, {})
-    reasoning_effort = model_entry.get("reasoning_effort")
+    reasoning_effort = models_cfg.get(args.model, {}).get("reasoning_effort")
 
     for harness_name in target_harnesses:
-        # Determine harness version
-        harness_version = "unknown"
-        for k, v in harnesses_cfg.items():
-            if harness_name.lower() in k.lower() or k.lower() in harness_name.lower():
-                harness_version = v.get("version", harness_version)
-
-        # Select driver
+        harness_version = harnesses_cfg.get(harness_name, {}).get("version", "unknown")
         driver = get_driver(harness_name)
         logger.info("==================================================")
         logger.info("STARTING %s HARNESS (%s) FOR MODEL: %s (Reasoning Effort: %s, Tests: %s)",
@@ -560,7 +513,6 @@ def main():
                     [t[1].name for t in test_specs])
         logger.info("==================================================")
 
-        # Provision sandbox
         sandbox = SandboxClient()
         sandbox.ensure()
         try:

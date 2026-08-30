@@ -23,6 +23,15 @@ DEFAULT_PI_PORT = 4097
 # Timeout Defaults (in minutes)
 DEFAULT_MAX_STEP_TIMEOUT_MINUTES = 120  # Safety maximum ceiling per step
 DEFAULT_IDLE_TIMEOUT_MINUTES = 10       # Max cold prefill + reasoning baseline at high context
+DEFAULT_API_TIMEOUT_SECONDS = 30        # Standard internal API timeout for in-sandbox services
+
+# Evaluation & Scoring Defaults
+DEFAULT_STEP_POINT = 1                  # Default points allocated per test step
+DEFAULT_HINT_SCORE_FACTOR = 0.5         # Score multiplier when hint is utilized
+
+# Agent & Model Generation Limits
+DEFAULT_MAX_OUTPUT_TOKENS = 65536       # Max output tokens limit
+DEFAULT_CONTEXT_WINDOW = 262144         # Fallback max context window limit
 
 # Data & Config Paths (Path objects)
 MODELS_CONFIG_FILE = REPO_ROOT / "eval" / "models.json"

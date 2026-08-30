@@ -36,7 +36,7 @@ class CheckResult:
 class BaseAssertion:
     """Base class for all step assertions."""
 
-    def evaluate(self, workspace_dir: str) -> CheckResult:
+    def evaluate(self, workspace_dir: str, allowed_files: set[str] | None = None) -> CheckResult:
         raise NotImplementedError
 
 
@@ -182,7 +182,7 @@ class LangDetectAssert(BaseAssertion):
         self.filepath = filepath
         self.lang = lang.lower()
 
-    def evaluate(self, workspace_dir: str) -> CheckResult:
+    def evaluate(self, workspace_dir: str, allowed_files: set[str] | None = None) -> CheckResult:
         full_path = os.path.join(workspace_dir, self.filepath)
         if not os.path.exists(full_path):
             return CheckResult(False, f"File '{self.filepath}' not found for language detection.")
@@ -193,18 +193,12 @@ class LangDetectAssert(BaseAssertion):
         if not content:
             return CheckResult(False, f"File '{self.filepath}' is empty.")
 
-        # Language detection: try langdetect library, fallback to unicode heuristics
-        detected_lang = None
         try:
             import langdetect
 
             detected_lang = langdetect.detect(content)
-        except Exception:
-            has_cjk = bool(re.search(r"[\u4e00-\u9fff]", content))
-            if has_cjk:
-                detected_lang = "zh-cn"
-            else:
-                detected_lang = "en"
+        except Exception as e:
+            return CheckResult(False, f"Language detection error for '{self.filepath}': {e}")
 
         matched = (
             detected_lang.startswith(self.lang)
@@ -230,7 +224,7 @@ class FilesIdenticalAssert(BaseAssertion):
         self.file1 = file1
         self.file2 = file2
 
-    def evaluate(self, workspace_dir: str) -> CheckResult:
+    def evaluate(self, workspace_dir: str, allowed_files: set[str] | None = None) -> CheckResult:
         p1 = os.path.join(workspace_dir, self.file1)
         p2 = os.path.join(workspace_dir, self.file2)
 
@@ -260,7 +254,7 @@ class KotlinSyntaxAssert(BaseAssertion):
         self.filepath = filepath
         self.check_style = check_style
 
-    def evaluate(self, workspace_dir: str) -> CheckResult:
+    def evaluate(self, workspace_dir: str, allowed_files: set[str] | None = None) -> CheckResult:
         full_path = os.path.join(workspace_dir, self.filepath)
         if not os.path.exists(full_path):
             return CheckResult(False, f"Kotlin file '{self.filepath}' not found in workspace '{workspace_dir}'.")
@@ -309,7 +303,7 @@ class CustomAssert(BaseAssertion):
     def __init__(self, func: Callable[[str], bool | tuple[bool, str] | None]):
         self.func = func
 
-    def evaluate(self, workspace_dir: str) -> CheckResult:
+    def evaluate(self, workspace_dir: str, allowed_files: set[str] | None = None) -> CheckResult:
         try:
             res = self.func(workspace_dir)
             if res is None or res is True:

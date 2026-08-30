@@ -263,9 +263,6 @@ def main():
 
     models = load_json_config(MODELS_CONFIG_FILE)
     targets = list(models.keys()) if args.model in ("all", None) else [args.model]
-    if any(t not in models for t in targets):
-        logger.error("Unknown model. Available: %s", ", ".join(models.keys()))
-        sys.exit(1)
 
     prompt = load_prompt()
     logger.info("Starting benchmark across %d model(s): %s", len(targets), targets)

@@ -222,15 +222,7 @@ def main():
         ok = stop_model()
         sys.exit(0 if ok else 1)
 
-    chosen_model = args.model
-    if chosen_model in (None, "all"):
-        target_models = list(models.keys())
-    elif chosen_model in models:
-        target_models = [chosen_model]
-    else:
-        available = ", ".join(models.keys())
-        logger.error("Unknown model '%s'. Available models: %s", chosen_model, available)
-        sys.exit(1)
+    target_models = list(models.keys()) if args.model in (None, "all") else [args.model]
 
     for m_name in target_models:
         ok, _ = ensure_model_running(m_name, models[m_name], fast=args.fast, verbose=args.verbose)

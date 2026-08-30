@@ -7,6 +7,7 @@ and normalized trace conversion.
 """
 
 import json
+import os
 import time
 from datetime import datetime, timezone
 from typing import Any
@@ -14,7 +15,9 @@ from typing import Any
 from eval.common import setup_logger
 from eval.results import resolve_model_info
 from eval.config import (
+    DEFAULT_CONTEXT_WINDOW,
     DEFAULT_IDLE_TIMEOUT_MINUTES,
+    DEFAULT_MAX_OUTPUT_TOKENS,
     DEFAULT_MAX_STEP_TIMEOUT_MINUTES,
     DEFAULT_PI_PORT,
 )
@@ -66,16 +69,10 @@ class PiDriver(HarnessDriver):
 
     def create_session(self, sandbox: SandboxClient) -> str:
         """Create a new Pi session via the bridge server."""
-        script = f"""import urllib.request, json
-req = urllib.request.Request('http://127.0.0.1:{self.port}/session', data=b'{{}}', headers={{'Content-Type': 'application/json'}})
-res = urllib.request.urlopen(req, timeout=15)
-data = json.loads(res.read().decode('utf-8'))
-print(data.get('id', ''))
-"""
-        res = sandbox.exec_python(script)
-        if res.returncode != 0 or not res.stdout.strip():
-            raise RuntimeError(f"Failed to create Pi session: {res.stderr}\n{res.stdout}")
-        session_id = res.stdout.strip()
+        data = sandbox.api_request(self.port, "/session", method="POST", data={})
+        session_id = data.get("id", "")
+        if not session_id:
+            raise RuntimeError("Failed to create Pi session: missing id in response")
         logger.info("Pi session created: %s", session_id)
         return session_id
 
@@ -134,34 +131,17 @@ except Exception as e:
 
     def get_session_info(self, sandbox: SandboxClient, session_id: str) -> dict[str, Any]:
         """Retrieve session metadata from Pi."""
-        script = f"""import urllib.request, json, sys
-try:
-    req = urllib.request.Request('http://127.0.0.1:{self.port}/session/{session_id}')
-    res = urllib.request.urlopen(req, timeout=30)
-    data = json.loads(res.read().decode('utf-8'))
-    print("__JSON_START__" + json.dumps(data) + "__JSON_END__")
-except Exception as e:
-    print(f"ERROR:{{e}}", file=sys.stderr)
-"""
         try:
-            return sandbox.exec_python_json(script, label="session info")
-        except RuntimeError:
+            return sandbox.api_request(self.port, f"/session/{session_id}")
+        except Exception:
             return {}
 
     def get_all_messages(self, sandbox: SandboxClient, session_id: str) -> list[dict[str, Any]]:
         """Retrieve full message history from the session."""
-        script = f"""import urllib.request, json, sys
-try:
-    req = urllib.request.Request('http://127.0.0.1:{self.port}/session/{session_id}/messages')
-    res = urllib.request.urlopen(req, timeout=30)
-    data = json.loads(res.read().decode('utf-8'))
-    print("__JSON_START__" + json.dumps(data) + "__JSON_END__")
-except Exception as e:
-    print(f"ERROR:{{e}}", file=sys.stderr)
-"""
         try:
-            return sandbox.exec_python_json(script, label="session messages")
-        except RuntimeError:
+            res = sandbox.api_request(self.port, f"/session/{session_id}/messages")
+            return res if isinstance(res, list) else []
+        except Exception:
             return []
 
     def get_server_log(self, sandbox: SandboxClient) -> str:
@@ -180,7 +160,7 @@ except Exception as e:
         active_model: str,
         config_alias: str,
         llm_base_url: str,
-        max_context: int = 262144,
+        max_context: int = DEFAULT_CONTEXT_WINDOW,
         reasoning_effort: str | None = None,
     ) -> None:
         """Write ~/.pi/agent/models.json, settings.json, and trust.json inside sandbox."""
@@ -193,7 +173,7 @@ except Exception as e:
             "id": active_model,
             "name": active_model,
             "reasoning": is_reasoning,
-            "maxTokens": 65536,
+            "maxTokens": DEFAULT_MAX_OUTPUT_TOKENS,
             "contextWindow": max_context,
         }
         if supports_effort:
@@ -282,7 +262,7 @@ sessions_lock = threading.Lock()
 class PiSession:
     def __init__(self, session_id, cwd):
         self.session_id = session_id
-        self.cwd = cwd
+        self.cwd = cwd if os.path.exists(cwd) else os.path.expanduser("~")
         self.lock = threading.Lock()
         self.messages = []
         self.turns = []
@@ -292,13 +272,9 @@ class PiSession:
     def _start_process(self):
         if self.proc:
             try:
-                self.proc.terminate()
-                self.proc.wait(timeout=1.0)
-            except Exception:
-                try:
-                    self.proc.kill()
-                except Exception:
-                    pass
+                self.proc.kill()
+            except ProcessLookupError:
+                pass
             self.proc = None
 
         env = dict(os.environ)
@@ -394,22 +370,12 @@ class PiSession:
                     elapsed = time.time() - start_time
                     idle_elapsed = time.time() - last_activity_time
                     if elapsed > timeout:
-                        sys.stderr.write(f"[pi_server] Max timeout reached ({{elapsed:.1f}}s > {{timeout}}s), aborting and resetting\\n")
-                        try:
-                            self.proc.stdin.write(json.dumps({{"type": "abort"}}) + "\\n")
-                            self.proc.stdin.flush()
-                        except Exception:
-                            pass
+                        sys.stderr.write(f"[pi_server] Max timeout reached ({{elapsed:.1f}}s > {{timeout}}s), resetting process\\n")
                         self._start_process()
                         raise TimeoutError(f"Pi execution exceeded maximum ceiling of {{timeout // 60}} minutes ({{elapsed:.1f}}s elapsed).")
 
                     if idle_elapsed > idle_timeout:
-                        sys.stderr.write(f"[pi_server] Idle timeout reached ({{idle_elapsed:.1f}}s > {{idle_timeout}}s with no progress), aborting and resetting\\n")
-                        try:
-                            self.proc.stdin.write(json.dumps({{"type": "abort"}}) + "\\n")
-                            self.proc.stdin.flush()
-                        except Exception:
-                            pass
+                        sys.stderr.write(f"[pi_server] Idle timeout reached ({{idle_elapsed:.1f}}s > {{idle_timeout}}s with no progress), resetting process\\n")
                         self._start_process()
                         raise TimeoutError(f"Agent stalled: No activity received for {{idle_elapsed:.1f}}s (idle timeout of {{idle_timeout}}s based on max prefill).")
 
@@ -451,11 +417,6 @@ class PiSession:
                             sys.stderr.write(f"[pi_server] Pi prompt error: {{err_msg}}\\n")
                             if "already processing" in err_msg.lower():
                                 sys.stderr.write(f"[pi_server] Pi stuck in active processing state, resetting process...\\n")
-                                try:
-                                    self.proc.stdin.write(json.dumps({{"type": "abort"}}) + "\\n")
-                                    self.proc.stdin.flush()
-                                except Exception:
-                                    pass
                                 self._start_process()
                             raise RuntimeError(f"Pi prompt command rejected: {{err_msg}}")
 
@@ -675,12 +636,15 @@ class RequestHandler(http.server.BaseHTTPRequestHandler):
             data = {{}}
 
         if self.path == "/session":
-            session_id = str(uuid.uuid4())
-            cwd = data.get("workspace") or os.getcwd()
-            session = PiSession(session_id, cwd)
-            with sessions_lock:
-                sessions[session_id] = session
-            self._send_json({{"id": session_id}})
+            try:
+                session_id = str(uuid.uuid4())
+                cwd = data.get("workspace") or os.getcwd()
+                session = PiSession(session_id, cwd)
+                with sessions_lock:
+                    sessions[session_id] = session
+                self._send_json({{"id": session_id}})
+            except Exception as e:
+                self.send_error(500, str(e))
 
         elif self.path.startswith("/session/") and self.path.endswith("/message"):
             parts = self.path.strip("/").split("/")
@@ -719,6 +683,7 @@ class RequestHandler(http.server.BaseHTTPRequestHandler):
 
 
 def main():
+    http.server.HTTPServer.allow_reuse_address = True
     server = http.server.HTTPServer(("0.0.0.0", PORT), RequestHandler)
     sys.stderr.write(f"[pi_server] Listening on port {{PORT}}...\\n")
     try:
@@ -749,7 +714,8 @@ if __name__ == "__main__":
         """Deploy server script, start pi_server daemon, and wait for it to become responsive."""
         logger.info("Starting Pi bridge server in %s on port %d...", workspace, self.port)
 
-        sandbox.exec("pkill -9 -f '[p]i_server.py' 2>/dev/null || true")
+        script_base = os.path.basename(self._server_script_path)
+        sandbox.exec(f"pkill -9 -f '{script_base}' 2>/dev/null || true; pkill -9 -f '[p]i ' 2>/dev/null || true; fuser -k {self.port}/tcp 2>/dev/null || true")
 
         server_code = self._get_server_script(active_model, reasoning_effort=reasoning_effort)
         sandbox.write_file(self._server_script_path, server_code)

@@ -3,7 +3,9 @@ spec.py - Minimal, declarative data structures for defining multi-step agent eva
 """
 
 from dataclasses import dataclass, field
-from typing import Any, Callable
+from typing import Any
+
+from eval.config import DEFAULT_STEP_POINT
 
 __all__ = ["Step", "Test"]
 
@@ -14,7 +16,7 @@ class Step:
     prompt: str
     checks: list[Any] = field(default_factory=list)
     name: str = ""
-    point: int | float = 1
+    point: int | float = DEFAULT_STEP_POINT
     timeout_minutes: int | float | None = None
     hint: str | None = None
 

@@ -1,3 +1,5 @@
+import fnmatch
+import io
 import json
 import os
 from pathlib import Path
@@ -5,11 +7,18 @@ import re
 import shutil
 import subprocess
 import sys
+import tarfile
 import tempfile
 from typing import Any
 
 from eval.common import setup_logger, run_cmd
-from eval.config import DEFAULT_WORKER_SANDBOX_NAME, DEFAULT_TEMPLATE_TAG, DEFAULT_OPENCODE_PORT, DEFAULT_PI_PORT
+from eval.config import (
+    DEFAULT_API_TIMEOUT_SECONDS,
+    DEFAULT_OPENCODE_PORT,
+    DEFAULT_PI_PORT,
+    DEFAULT_TEMPLATE_TAG,
+    DEFAULT_WORKER_SANDBOX_NAME,
+)
 
 __all__ = ["SandboxClient"]
 
@@ -58,6 +67,31 @@ class SandboxClient:
         if not match:
             raise RuntimeError(f"Could not parse JSON from {label}: {res.stdout}\nStderr: {res.stderr}")
         return json.loads(match.group(1))
+
+    def api_request(
+        self,
+        port: int,
+        path: str,
+        method: str = "GET",
+        data: dict | list | None = None,
+        timeout: int = DEFAULT_API_TIMEOUT_SECONDS,
+    ) -> Any:
+        """Perform an HTTP request against a service inside the sandbox and return parsed JSON."""
+        endpoint = f"http://127.0.0.1:{port}{path if path.startswith('/') else '/' + path}"
+        payload_str = json.dumps(data) if data is not None else None
+        script = f"""import urllib.request, json, sys
+data = sys.stdin.read().encode('utf-8') if {payload_str is not None} else None
+headers = {{'Content-Type': 'application/json'}} if data else {{}}
+req = urllib.request.Request({endpoint!r}, data=data, headers=headers, method={method!r})
+try:
+    with urllib.request.urlopen(req, timeout={timeout}) as resp:
+        body = resp.read().decode('utf-8')
+        print("__JSON_START__" + (body if body.strip() else '{{}}') + "__JSON_END__")
+except Exception as e:
+    print(f"ERROR:{{e}}", file=sys.stderr)
+    sys.exit(1)
+"""
+        return self.exec_python_json(script, stdin=payload_str, label=f"{method} {path}")
 
     # ----- Lifecycle management -----
 
@@ -119,35 +153,44 @@ class SandboxClient:
         p = Path(local_path)
         if not p.is_file():
             return False
-        try:
-            return self.write_file(remote_path, p.read_text(encoding="utf-8"))
-        except UnicodeDecodeError:
-            return self.write_file(remote_path, p.read_bytes())
+        return self.write_file(remote_path, p.read_bytes())
 
     def upload_dir(self, local_path: str | Path, remote_path: str) -> bool:
         """Upload a local directory from host into a remote path inside the sandbox."""
-        p = Path(local_path)
-        if not p.is_dir():
+        return self.upload_tree(local_path, remote_path)
+
+    def upload_tree(self, local_path: str | Path, remote_path: str, exclude: set[str] | list[str] | None = None) -> bool:
+        """Upload a local directory tree into a remote sandbox path in a single atomic tar stream."""
+        src = Path(local_path)
+        if not src.is_dir():
             return False
-        tar_cmd = f"mkdir -p '{remote_path}' && tar -xf - -C '{remote_path}'"
+
+        exclude_set = set(exclude) if exclude else set()
+
+        def _filter(tarinfo: tarfile.TarInfo) -> tarfile.TarInfo | None:
+            parts = Path(tarinfo.name).parts
+            for p in parts:
+                if p.startswith(".") and p not in (".", ".."):
+                    return None
+                if p == "__pycache__" or p.lower() in ("private", "ground_truth"):
+                    return None
+                for pat in exclude_set:
+                    if fnmatch.fnmatch(p, pat):
+                        return None
+            return tarinfo
+
+        buf = io.BytesIO()
         try:
-            p1 = subprocess.Popen(
-                ["tar", "-cf", "-", "-C", str(p), "."],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-            )
-            p2 = subprocess.Popen(
-                ["sbx", "exec", self.name, "bash", "-c", tar_cmd],
-                stdin=p1.stdout,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-            )
-            if p1.stdout:
-                p1.stdout.close()
-            _, err2 = p2.communicate(timeout=60)
-            return p2.returncode == 0
+            with tarfile.open(fileobj=buf, mode="w") as tar:
+                tar.add(str(src), arcname="", filter=_filter)
+            tar_bytes = buf.getvalue()
+            import base64
+            b64 = base64.b64encode(tar_bytes).decode("ascii")
+            tar_cmd = f"mkdir -p '{remote_path}' && base64 -d | tar -xf - -C '{remote_path}'"
+            res = run_cmd("sbx", "exec", self.name, "bash", "-c", tar_cmd, input=b64)
+            return res.returncode == 0
         except Exception as e:
-            logger.error("Failed to upload directory %s -> %s: %s", local_path, remote_path, e)
+            logger.error("Failed to upload tree %s -> %s: %s", local_path, remote_path, e)
             return False
 
     def extract_artifacts(self, workspace_dir: str, dest_dir: str | Path) -> None:

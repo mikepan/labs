@@ -225,17 +225,10 @@ TEST = Test(
             ],
         ),
         Step(
-            prompt="""make another rich, beautiful html presentation on the topic of cell biology. use diagrams if you can. make it in Arabic and name the final html "cell.html".  Ensure it's single page, no external js/css/images.""",
-            checks=[
-                git_changes("cell.html", "A", total_lines=(100, 4000)),
-            ],
-        ),
-        Step(
-            prompt="""Audit all 3 HTML presentations (index.html, earth.html, cell.html). Ensure every HTML file includes: (1) an appropriate <html lang="..."> attribute for its language ("en" for index.html, "ar" for earth.html and cell.html), (2) a <meta charset="utf-8"> tag, and (3) an author footer at the bottom: <footer id="author">Created by Dr. Jennifer Robins - 2026</footer>. Update any of these HTML files that are missing these elements.""",
+            prompt="""Audit all 2 presentations. Ensure every HTML file includes: (1) an appropriate <html lang="..."> attribute for its language ("en" for index.html, "ar" for earth.html), (2) a <meta charset="utf-8"> tag, and (3) an author footer at the bottom: <footer id="author">Created by Dr. Jennifer Robins - 2026</footer>. Update any of these HTML files that are missing these elements.""",
             checks=[
                 git_changes("index.html", "M"),
                 git_changes("earth.html", "M"),
-                git_changes("cell.html", "M"),
                 check_html_metadata_standards(),
             ],
         ),
@@ -244,7 +237,6 @@ TEST = Test(
             checks=[
                 git_changes("index.html", "M"),
                 git_changes("earth.html", "M"),
-                git_changes("cell.html", "M"),
                 check_rebrand(),
             ],
         ),

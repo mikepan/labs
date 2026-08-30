@@ -104,13 +104,10 @@ def prevent_system_sleep() -> subprocess.Popen | None:
     if sys.platform == "darwin":
         caff = shutil.which("caffeinate")
         if caff:
-            try:
-                return subprocess.Popen(
-                    [caff, "-dimsu", "-w", str(os.getpid())],
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                )
-            except Exception:
-                pass
+            return subprocess.Popen(
+                [caff, "-dimsu", "-w", str(os.getpid())],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
     return None
 

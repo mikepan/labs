@@ -15,7 +15,9 @@ from typing import Any
 from eval.common import setup_logger
 from eval.results import resolve_model_info
 from eval.config import (
+    DEFAULT_CONTEXT_WINDOW,
     DEFAULT_IDLE_TIMEOUT_MINUTES,
+    DEFAULT_MAX_OUTPUT_TOKENS,
     DEFAULT_MAX_STEP_TIMEOUT_MINUTES,
     DEFAULT_OPENCODE_PORT,
 )
@@ -28,14 +30,14 @@ __all__ = ["OpenCodeDriver"]
 logger = setup_logger("driver.opencode")
 
 
-def _build_model_entry(name: str, max_context: int = 262144, reasoning_effort: str | None = None) -> dict[str, Any]:
+def _build_model_entry(name: str, max_context: int = DEFAULT_CONTEXT_WINDOW, reasoning_effort: str | None = None) -> dict[str, Any]:
     """Construct a model configuration entry dict for opencode."""
     entry: dict[str, Any] = {
         "name": name,
         "modalities": {"input": ["text", "image"], "output": ["text"]},
         "limit": {
             "context": max_context,
-            "output": 65536,
+            "output": DEFAULT_MAX_OUTPUT_TOKENS,
         },
     }
     if reasoning_effort and reasoning_effort not in ("off", "none"):
@@ -80,16 +82,10 @@ class OpenCodeDriver(HarnessDriver):
 
     def create_session(self, sandbox: SandboxClient) -> str:
         """Create a new OpenCode session via API."""
-        script = f"""import urllib.request, json
-req = urllib.request.Request('http://127.0.0.1:{self.port}/session', data=b'{{}}', headers={{'Content-Type': 'application/json'}})
-res = urllib.request.urlopen(req, timeout=10)
-data = json.loads(res.read().decode('utf-8'))
-print(data.get('id', ''))
-"""
-        res = sandbox.exec_python(script)
-        if res.returncode != 0 or not res.stdout.strip():
-            raise RuntimeError(f"Failed to create OpenCode session: {res.stderr}\n{res.stdout}")
-        session_id = res.stdout.strip()
+        data = sandbox.api_request(self.port, "/session", method="POST", data={})
+        session_id = data.get("id", "")
+        if not session_id:
+            raise RuntimeError("Failed to create OpenCode session: missing id in response")
         logger.info("OpenCode session created: %s", session_id)
         return session_id
 
@@ -184,23 +180,17 @@ last_msg_fingerprint = ""
 last_poll_time = 0
 
 if os.path.exists(log_path):
-    try:
-        last_log_size = os.path.getsize(log_path)
-    except Exception:
-        pass
+    last_log_size = os.path.getsize(log_path)
 
 while not done_event.wait(timeout=1.0):
     now = time.time()
 
     # 1. Check server log growth
     if os.path.exists(log_path):
-        try:
-            curr_size = os.path.getsize(log_path)
-            if curr_size > last_log_size:
-                mark_activity()
-                last_log_size = curr_size
-        except Exception:
-            pass
+        curr_size = os.path.getsize(log_path)
+        if curr_size > last_log_size:
+            mark_activity()
+            last_log_size = curr_size
 
     # 2. Periodic poll of session messages to detect in-flight state / deltas
     if now - last_poll_time >= 2.0:
@@ -213,7 +203,7 @@ while not done_event.wait(timeout=1.0):
                 if m_fp != last_msg_fingerprint:
                     mark_activity()
                     last_msg_fingerprint = m_fp
-        except Exception:
+        except urllib.error.URLError:
             pass
 
     with activity_lock:
@@ -249,18 +239,9 @@ elif 'type' in err_result:
 
     def get_session_info(self, sandbox: SandboxClient, session_id: str) -> dict[str, Any]:
         """Retrieve session metadata from OpenCode."""
-        script = f"""import urllib.request, json
-try:
-    req = urllib.request.Request('http://127.0.0.1:{self.port}/session/{session_id}')
-    res = urllib.request.urlopen(req, timeout=30)
-    data = json.loads(res.read().decode('utf-8'))
-    print("__JSON_START__" + json.dumps(data) + "__JSON_END__")
-except Exception as e:
-    print(f"ERROR:{{e}}", file=sys.stderr)
-"""
         try:
-            return sandbox.exec_python_json(script, label="session info")
-        except RuntimeError:
+            return sandbox.api_request(self.port, f"/session/{session_id}")
+        except Exception:
             return {}
 
     def get_all_messages(self, sandbox: SandboxClient, session_id: str) -> list[dict[str, Any]]:
@@ -279,18 +260,10 @@ except Exception as e:
 
     def _get_messages(self, sandbox: SandboxClient, session_id: str) -> list[dict[str, Any]]:
         """Retrieve all messages from an OpenCode session."""
-        script = f"""import urllib.request, json
-try:
-    req = urllib.request.Request('http://127.0.0.1:{self.port}/session/{session_id}/message')
-    res = urllib.request.urlopen(req, timeout=30)
-    data = json.loads(res.read().decode('utf-8'))
-    print("__JSON_START__" + json.dumps(data) + "__JSON_END__")
-except Exception as e:
-    print(f"ERROR:{{e}}", file=sys.stderr)
-"""
         try:
-            return sandbox.exec_python_json(script, label="session messages")
-        except RuntimeError:
+            res = sandbox.api_request(self.port, f"/session/{session_id}/message")
+            return res if isinstance(res, list) else []
+        except Exception:
             return []
 
     def _write_config(

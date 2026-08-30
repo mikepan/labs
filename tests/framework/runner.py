@@ -9,6 +9,7 @@ from typing import Any
 
 from tests.framework.assertions import BaseAssertion, CheckResult
 from tests.framework.spec import Step, Test
+from eval.config import DEFAULT_STEP_POINT
 
 __all__ = [
     "StepEvaluationResult",
@@ -21,7 +22,7 @@ __all__ = [
 class StepEvaluationResult:
     step_name: str
     passed: bool
-    point: int | float = 1
+    point: int | float = DEFAULT_STEP_POINT
     score: int | float = 0
     check_results: list[CheckResult] = field(default_factory=list)
     duration_seconds: float = 0.0
@@ -51,10 +52,7 @@ def evaluate_step(step: Step, workspace_dir: str, auto_commit: bool = True) -> S
 
     for check in step.checks:
         if isinstance(check, BaseAssertion):
-            try:
-                res = check.evaluate(workspace_dir, allowed_files=expected_step_files)
-            except TypeError:
-                res = check.evaluate(workspace_dir)
+            res = check.evaluate(workspace_dir, allowed_files=expected_step_files)
         elif callable(check):
             try:
                 r = check(workspace_dir)

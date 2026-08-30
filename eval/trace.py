@@ -59,6 +59,8 @@ class StepTrace:
     tokens_out: int = 0
     peak_context_tokens: int = 0
     context_used_pct: float = 0.0
+    hint: str | None = None
+    used_hint: bool = False
     events: list[dict[str, Any]] = field(default_factory=list)
     tool_calls: list[dict[str, Any]] = field(default_factory=list)
     reasoning_blocks: list[str] = field(default_factory=list)

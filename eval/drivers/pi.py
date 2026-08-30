@@ -535,7 +535,7 @@ class PiSession:
                     elif e_type == "agent_end":
                         gen_msgs = event.get("messages", [])
                         if gen_msgs:
-                            raw_messages.extend(gen_msgs)
+                            raw_messages = gen_msgs
                         if agent_started and not event.get("willRetry"):
                             sys.stderr.write(f"[pi_server] Received agent_end (willRetry=False). Turn complete.\\n")
                             break

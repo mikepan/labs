@@ -16,6 +16,7 @@ class Step:
     name: str = ""
     point: int | float = 1
     timeout_minutes: int | float | None = None
+    hint: str | None = None
 
 
 

@@ -53,22 +53,33 @@ def validate_arguments(
     models: dict[str, Any],
 ) -> tuple[list[str], str, str]:
     """Validate model, test, and harness arguments upfront before execution."""
-    # 1. Validate Model
+    # 1. Validate Model (supports exact match, 'all', or partial substring matching)
     if model_arg in (None, "all"):
         target_models = list(models.keys())
     elif model_arg in models:
         target_models = [model_arg]
     else:
-        available_models = ", ".join(models.keys()) or "(none)"
-        logger.error("Unknown model '%s'. Available models: %s (or 'all')", model_arg, available_models)
-        sys.exit(1)
+        # Match all models containing the search substring (case-insensitive)
+        matched = [m for m in models.keys() if model_arg.lower() in m.lower()]
+        if matched:
+            target_models = matched
+            logger.info("Matched %d model(s) for filter '%s': %s", len(target_models), model_arg, target_models)
+        else:
+            available_models = ", ".join(models.keys()) or "(none)"
+            logger.error("Unknown model or filter '%s'. Available models: %s (or 'all')", model_arg, available_models)
+            sys.exit(1)
 
     # 2. Validate Test
     available_tests = get_available_tests()
     if test_arg != "all" and test_arg not in available_tests:
-        avail_str = ", ".join(available_tests) or "(none)"
-        logger.error("Unknown test '%s'. Available tests: %s (or 'all')", test_arg, avail_str)
-        sys.exit(1)
+        matched_tests = [t for t in available_tests if test_arg.lower() in t.lower()]
+        if len(matched_tests) >= 1:
+            test_arg = matched_tests[0]
+            logger.info("Matched test filter '%s' -> '%s'", test_arg, matched_tests[0])
+        else:
+            avail_str = ", ".join(available_tests) or "(none)"
+            logger.error("Unknown test '%s'. Available tests: %s (or 'all')", test_arg, avail_str)
+            sys.exit(1)
 
     # 3. Validate Harness
     available_harnesses = get_available_harnesses()
@@ -78,7 +89,9 @@ def validate_arguments(
             if harness_arg.lower() in h.lower() or h.lower() in harness_arg.lower():
                 harness_match = h
                 break
-        if not harness_match:
+        if harness_match:
+            harness_arg = harness_match
+        else:
             try:
                 get_driver(harness_arg)
             except ValueError:

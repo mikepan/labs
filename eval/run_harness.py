@@ -349,7 +349,6 @@ def run_test_suite_on_agent(
                 continue
 
             step_elapsed = round(time.time() - step_t0, 2)
-            step_end_iso = datetime.now(timezone.utc).isoformat()
             total_tokens_in += turn.tokens_in
             total_tokens_out += turn.tokens_out
 
@@ -359,17 +358,73 @@ def run_test_suite_on_agent(
             eval_res = evaluate_step_in_sandbox(sandbox, test_path, idx, test_ws)
 
             passed = eval_res.get("passed", False)
-            step_score = eval_res.get("score", (step_point if passed else 0))
-            earned_score += step_score
+            used_hint = False
+
+            # If check fails and step defines a hint, supply hint and grant retry in the same session
+            if not passed and step.hint:
+                logger.info("  ℹ Step %d failed initial check. Supplying hint and granting retry...", idx + 1)
+                logger.debug("Hint: %s...", step.hint.strip()[:100])
+                try:
+                    hint_turn = driver.send_prompt(
+                        sandbox,
+                        session_id,
+                        step.hint,
+                        active_model,
+                        timeout=step_timeout_seconds,
+                        idle_timeout=step_idle_seconds,
+                        reasoning_effort=reasoning_effort,
+                    )
+                    used_hint = True
+                    total_tokens_in += hint_turn.tokens_in
+                    total_tokens_out += hint_turn.tokens_out
+                    turn.tokens_in += hint_turn.tokens_in
+                    turn.tokens_out += hint_turn.tokens_out
+                    turn.peak_context_tokens = max(turn.peak_context_tokens, hint_turn.peak_context_tokens)
+
+                    # Inject hint as a regular user prompt into the chronological events stream
+                    hint_ts = datetime.now(timezone.utc).isoformat()
+                    turn.events.append({
+                        "type": "user",
+                        "timestamp": hint_ts,
+                        "content": step.hint,
+                    })
+                    turn.events.extend(hint_turn.events)
+                    turn.reasoning.extend(hint_turn.reasoning)
+                    turn.text.extend(hint_turn.text)
+                    turn.tool_calls.extend(hint_turn.tool_calls)
+                    turn.raw_messages.append({
+                        "role": "user",
+                        "content": [{"type": "text", "text": step.hint}],
+                    })
+                    turn.raw_messages.extend(hint_turn.raw_messages)
+
+                    _log_turn(hint_turn)
+
+                    # Re-evaluate step assertions after hint
+                    eval_res = evaluate_step_in_sandbox(sandbox, test_path, idx, test_ws)
+                    passed = eval_res.get("passed", False)
+                except Exception as e_hint:
+                    logger.warning("  ✗ Hint attempt encountered driver error: %s", e_hint)
+
+            step_elapsed = round(time.time() - step_t0, 2)
+            step_end_iso = datetime.now(timezone.utc).isoformat()
 
             if passed:
                 passed_steps += 1
-                logger.info("  ✓ Step %d PASSED (+%d/%d pts) (%.2fs)", idx + 1, step_score, step_point, step_elapsed)
+                if used_hint:
+                    step_score = round(step_point * 0.5, 2)
+                    logger.info("  ✓ Step %d PASSED WITH HINT (+%s/%d pts) (%.2fs)", idx + 1, step_score, step_point, step_elapsed)
+                else:
+                    step_score = step_point
+                    logger.info("  ✓ Step %d PASSED (+%d/%d pts) (%.2fs)", idx + 1, step_score, step_point, step_elapsed)
             else:
+                step_score = 0
                 logger.warning("  ✗ Step %d FAILED (0/%d pts) (%.2fs)", idx + 1, step_point, step_elapsed)
                 for cr in eval_res.get("check_results", []):
                     if not cr.get("passed"):
                         logger.warning("    - Failure: %s", cr.get("message"))
+
+            earned_score += step_score
 
             # Step context usage
             step_peak_ctx = turn.peak_context_tokens
@@ -390,6 +445,8 @@ def run_test_suite_on_agent(
                 tokens_out=turn.tokens_out,
                 peak_context_tokens=step_peak_ctx,
                 context_used_pct=step_context_used_pct,
+                hint=step.hint,
+                used_hint=used_hint,
                 events=turn.events,
                 tool_calls=[tc.to_dict() for tc in turn.tool_calls],
                 reasoning_blocks=turn.reasoning,

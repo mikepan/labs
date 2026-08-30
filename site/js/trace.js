@@ -269,8 +269,9 @@ function renderTestStepsTimeline(testData) {
   }
 
   feed.innerHTML = steps.map((step, idx) => {
-    const isPassed = step.evaluation ? step.evaluation.passed : (step.earned_score >= step.max_score);
-    const scoreText = `${step.earned_score ?? 0} / ${step.max_score ?? step.point ?? 1} pts`;
+    const isPassed = step.evaluation ? step.evaluation.passed : (step.earned_score > 0);
+    const usedHint = Boolean(step.used_hint);
+    const scoreText = `${step.earned_score ?? 0} / ${step.max_score ?? step.point ?? 1} pts${usedHint && isPassed ? ' (50% Hint)' : ''}`;
     const durSec = step.duration_seconds !== undefined ? `${Math.round(Number(step.duration_seconds))}s` : '';
     const events = getStepEvents(step);
     const hasTools = events.some(e => e.type === 'tool');
@@ -283,6 +284,17 @@ function renderTestStepsTimeline(testData) {
       : '';
     const isCollapsed = currentViewMode === 'simple';
 
+    let badgeHtml = '';
+    if (isPassed) {
+      if (usedHint) {
+        badgeHtml = '<span class="badge badge-hint" style="background:#fef3c7; color:#b45309; border:1px solid #fde68a;">💡 Passed (Hint: 50%)</span>';
+      } else {
+        badgeHtml = '<span class="badge badge-success">✓ Passed</span>';
+      }
+    } else {
+      badgeHtml = '<span class="badge badge-failed">✗ Failed</span>';
+    }
+
     return `
       <article class="step-card ${isPassed ? 'passed' : 'failed'} ${isCollapsed ? 'collapsed' : ''}" data-has-tool="${hasTools}" data-has-reasoning="${hasReasoning}" data-passed="${isPassed}">
         <!-- Step Header Bar -->
@@ -294,9 +306,7 @@ function renderTestStepsTimeline(testData) {
           </div>
 
           <div class="step-header-right">
-            <span class="badge ${isPassed ? 'badge-success' : 'badge-failed'}">
-              ${isPassed ? '✓ Passed' : '✗ Failed'}
-            </span>
+            ${badgeHtml}
             <svg class="step-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <polyline points="6 9 12 15 18 9"></polyline>
             </svg>
@@ -417,17 +427,25 @@ function getStepEvents(step) {
     messages.forEach(msg => {
       const role = msg.role;
       const content = msg.content;
-      if (typeof content === 'string' && role === 'assistant') {
+      if (typeof content === 'string') {
         if (content.trim()) {
-          reconstructed.push({ type: 'response', content: content.trim() });
+          if (role === 'assistant') {
+            reconstructed.push({ type: 'response', content: content.trim() });
+          } else if (role === 'user') {
+            reconstructed.push({ type: 'user', content: content.trim() });
+          }
         }
       } else if (Array.isArray(content)) {
         content.forEach(part => {
           if (!part) return;
           if (part.type === 'thinking' && part.thinking && part.thinking.trim()) {
             reconstructed.push({ type: 'reasoning', content: part.thinking.trim() });
-          } else if (part.type === 'text' && part.text && part.text.trim() && role === 'assistant') {
-            reconstructed.push({ type: 'response', content: part.text.trim() });
+          } else if (part.type === 'text' && part.text && part.text.trim()) {
+            if (role === 'assistant') {
+              reconstructed.push({ type: 'response', content: part.text.trim() });
+            } else if (role === 'user') {
+              reconstructed.push({ type: 'user', content: part.text.trim() });
+            }
           } else if (part.type === 'toolCall') {
             const cid = part.id;
             const res = toolResults[cid] || {};
@@ -497,7 +515,26 @@ function renderChronologicalEvents(step, viewMode = 'simple') {
   }
 
   // Full View Mode: Render each event in exact sequential order
+  let isFirstUserSkipped = false;
   return events.map(ev => {
+    if (ev.type === 'user' || ev.type === 'user_prompt') {
+      // If this is an exact duplicate of the initial prompt at the very beginning, skip to avoid repeating the header prompt
+      if (!isFirstUserSkipped && ev.content && ev.content.trim() === (step.prompt || '').trim()) {
+        isFirstUserSkipped = true;
+        return '';
+      }
+      return `
+        <div class="grid-table-row row-user-prompt row-user-injected">
+          <div class="col-type">
+            <span class="type-pill pill-user" title="User Message">👤</span>
+          </div>
+          <div class="col-content">
+            <div class="content-text user-prompt-text">${escapeHtml(ev.content || '')}</div>
+          </div>
+        </div>
+      `;
+    }
+
     if (ev.type === 'reasoning') {
       return `
         <div class="grid-table-row row-thinking">

@@ -196,6 +196,9 @@ TEST = Test(
                 custom_check(validate_normal_map_classification),
             ],
             point=10,
+            hint = "Keep in mind these normal maps are generated from height maps. And there should be a way to tell them apart. \
+                Ensure you create a python script that takes the file input, \
+                and returns or prints 'd3d' or 'ogl' as the answer."
         ),
         
     ],

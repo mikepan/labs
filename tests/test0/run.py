@@ -1,7 +1,6 @@
 import os
 import re
 import subprocess
-import sys
 
 from tests.framework import Step, Test, git_changes, lang_detect, files_identical, custom_check
 

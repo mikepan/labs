@@ -10,4 +10,4 @@ Always check to see if the function you want to implement already exists in the 
 
 Keep the codebase clean and minimal at all times.
 
-Always run unittests (`python3 -m unittest eval/unittests/test_eval_pipeline.py`) after code changes to ensure pipeline correctness.
+If there is meaningful change to the code, run unittests (`python3 -m unittest eval/unittests/test_eval_pipeline.py`) after code changes to ensure pipeline correctness.

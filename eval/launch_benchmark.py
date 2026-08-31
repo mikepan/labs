@@ -8,7 +8,6 @@ Usage:
 
 import argparse
 import json
-import logging
 import sys
 import time
 import urllib.request
@@ -247,12 +246,13 @@ def format_leaderboard(summaries: list[dict[str, Any]]) -> str:
 
 
 def write_results_file(summaries: list[dict[str, Any]], filepath: Path = BENCHMARK_RESULT_FILE) -> None:
-    """Write benchmark leaderboard table to results file."""
+    """Append benchmark leaderboard table to results file."""
     if not summaries:
         return
     table = format_leaderboard(summaries)
-    filepath.write_text(table + "\n", encoding="utf-8")
-    logger.info("Updated benchmark results: %s", filepath)
+    with open(filepath, "a", encoding="utf-8") as f:
+        f.write(table + "\n")
+    logger.info("Appended benchmark results: %s", filepath)
 
 
 def main():
@@ -272,9 +272,9 @@ def main():
         res = benchmark_model(m, models[m], prompt, runs=args.runs)
         if res:
             summaries.append(res)
-            write_results_file(summaries)
 
     if summaries:
+        write_results_file(summaries)
         print("\n" + format_leaderboard(summaries) + "\n")
 
 

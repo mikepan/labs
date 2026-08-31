@@ -6,6 +6,8 @@ Use Edge for all web preview. Chrome is not available on this computer.
 Project:
 Ensure you never leak validation code or the idea that this is a test to the sandbox. The LLM should believe this is a real project operated by a real person.
 
-Always check to see if the function you wan to implement already exists in the code base and favor reuse.
+Always check to see if the function you want to implement already exists in the code base and favor reuse.
 
 Keep the codebase clean and minimal at all times.
+
+Always run unittests (`python3 -m unittest eval/unittests/test_eval_pipeline.py`) after code changes to ensure pipeline correctness.

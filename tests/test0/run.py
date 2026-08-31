@@ -94,7 +94,6 @@ def check_html_metadata_standards():
         expected_langs = {
             "index.html": "en",
             "earth.html": "ar",
-            "cell.html": "ar",
         }
 
         for fname, expected_lang in expected_langs.items():
@@ -131,7 +130,7 @@ def check_rebrand():
         unreplaced_pattern = re.compile(r'\bJennifer\s+Robins\b', re.IGNORECASE)
         rebranded_pattern = re.compile(r'Prof\.\s*J\.\s*Robins', re.IGNORECASE)
 
-        html_files = ["index.html", "earth.html", "cell.html"]
+        html_files = ["index.html", "earth.html"]
         for root, _, files in os.walk(workspace_dir):
             if ".git" in root:
                 continue

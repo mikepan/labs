@@ -95,7 +95,12 @@ except Exception as e:
 
     # ----- Lifecycle management -----
 
-    def ensure(self, template: str = DEFAULT_TEMPLATE_TAG, workspace: str | None = None) -> None:
+    def ensure(
+        self,
+        template: str = DEFAULT_TEMPLATE_TAG,
+        workspace: str | None = None,
+        publish_ports: bool = True,
+    ) -> None:
         """Provision a clean ephemeral sandbox from the base template with an isolated workspace."""
         self.remove()
 
@@ -106,17 +111,17 @@ except Exception as e:
             ws_path = self._ephemeral_dir
 
         logger.info("Provisioning sandbox '%s' from template '%s' (workspace: %s)...", self.name, template, ws_path)
-        res = run_cmd(
-            "sbx", "create",
-            "--name", self.name,
-            "--template", template,
-            "-p", f"{DEFAULT_OPENCODE_PORT}:{DEFAULT_OPENCODE_PORT}",
-            "-p", f"{DEFAULT_PI_PORT}:{DEFAULT_PI_PORT}",
-            "shell", ws_path,
-        )
+        cmd_args = ["sbx", "create", "--name", self.name, "--template", template]
+        if publish_ports:
+            cmd_args.extend([
+                "-p", f"{DEFAULT_OPENCODE_PORT}:{DEFAULT_OPENCODE_PORT}",
+                "-p", f"{DEFAULT_PI_PORT}:{DEFAULT_PI_PORT}",
+            ])
+        cmd_args.extend(["shell", ws_path])
+
+        res = run_cmd(*cmd_args)
         if res.returncode != 0:
-            logger.error("Error creating sandbox:\n%s\n%s", res.stderr, res.stdout)
-            sys.exit(1)
+            raise RuntimeError(f"Error creating sandbox '{self.name}':\n{res.stderr}\n{res.stdout}")
         logger.info("✓ Sandbox '%s' is ready.", self.name)
 
     def remove(self) -> None:

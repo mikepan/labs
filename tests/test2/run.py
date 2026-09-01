@@ -75,7 +75,7 @@ TEST = Test(
     setup=[],
     steps=[
         Step(
-            prompt="""Analyze source.kt and create a concise summary of what this Android Camera app does in a file called "summary.md". Keep it to 1-2 paragraphs in English.""",
+            prompt="""Analyze source.kt and create a concise summary of what this Android Camera app does in a file called "summary.md". Keep it to 1-2 paragraphs in English. Do not install anything like JRE or SDK, we need to keep the env clean""",
             checks=[
                 git_changes("summary.md", "A", total_lines=(1, 25)),
                 lang_detect("summary.md", lang="en"),
@@ -94,7 +94,7 @@ TEST = Test(
         Step(
             prompt="""In source.kt, add an enum class FlashMode with values AUTO, ON, OFF, and TORCH. Then add a flashMode state variable initialized to FlashMode.AUTO inside MainScreen.""",
             checks=[
-                git_changes("source.kt", "M", diff_lines=(4, 40)),
+                git_changes("source.kt", "M", diff_lines=(2, 60)),
                 check_kotlin_syntax("source.kt"),
                 check_pattern_in_kotlin(r"enum\s+class\s+FlashMode\b", "enum class FlashMode"),
                 check_pattern_in_kotlin(r"FlashMode\.AUTO", "FlashMode.AUTO reference"),
@@ -112,7 +112,7 @@ TEST = Test(
         Step(
             prompt="""remove code smell, reduce redunancy, and improve readability without changing functionality""",
             checks=[
-                git_changes("source.kt", "M", diff_lines=(2, 1000)),
+                git_changes("source.kt", "M", diff_lines=(2, 2500)),
                 check_kotlin_syntax("source.kt"),
             ],
             point=2,

@@ -50,17 +50,19 @@ def check_bilingual_merge():
             text = re.sub(r"^#+\s*", "", text, flags=re.MULTILINE)
             return re.sub(r"[*_`#]", "", text)
 
+        clean_merged = clean_md(merged_content)
+
         # If previous files are in git history, verify content retention
         if sky_en:
             en_sentences = [s.strip() for s in re.split(r"[.\n]+", clean_md(sky_en)) if len(s.strip()) > 20]
-            en_matched = sum(1 for s in en_sentences if s.lower() in merged_content.lower() or s[:20].lower() in merged_content.lower())
+            en_matched = sum(1 for s in en_sentences if s.lower() in clean_merged.lower() or s[:20].lower() in clean_merged.lower())
             en_ratio = (en_matched / len(en_sentences)) if en_sentences else 1.0
             if en_ratio < 0.50:
                 return False, f"English content retention in sky_bilingual.md is too low ({en_ratio:.1%})."
 
         if sky_zh:
             zh_sentences = [s.strip() for s in re.split(r"[。\n]+", clean_md(sky_zh)) if len(s.strip()) > 10]
-            zh_matched = sum(1 for s in zh_sentences if s in merged_content or s[:10] in merged_content)
+            zh_matched = sum(1 for s in zh_sentences if s in clean_merged or s[:10] in clean_merged)
             zh_ratio = (zh_matched / len(zh_sentences)) if zh_sentences else 1.0
             if zh_ratio < 0.50:
                 return False, f"Chinese content retention in sky_bilingual.md is too low ({zh_ratio:.1%})."

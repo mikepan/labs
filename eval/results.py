@@ -184,10 +184,12 @@ def save_evaluation_results(
     evaluation_output: dict[str, Any],
     base_url: str = API_BASE_URL,
     memory_gb: float | None = None,
+    results_dir: str = RESULTS_DIR,
+    benchmark_data_file: str | None = BENCHMARK_DATA_FILE,
 ) -> str:
-    """Save full results, trace, artifacts and update benchmark-data.json."""
+    """Save full results, trace, artifacts and optionally update benchmark-data.json."""
     eval_id = evaluation_output["eval_id"]
-    eval_dir = os.path.join(RESULTS_DIR, eval_id)
+    eval_dir = os.path.join(results_dir, eval_id)
     artifacts_dir = os.path.join(eval_dir, "artifacts")
     os.makedirs(artifacts_dir, exist_ok=True)
 
@@ -238,25 +240,26 @@ def save_evaluation_results(
         json.dump(suite_trace, f, indent=2)
 
     # 4. Update benchmark-data.json
-    results_record = {**common, "test_results": test_results_summary}
-    try:
-        os.makedirs(os.path.dirname(BENCHMARK_DATA_FILE), exist_ok=True)
-        if os.path.exists(BENCHMARK_DATA_FILE):
-            with open(BENCHMARK_DATA_FILE, "r", encoding="utf-8") as f:
-                bench_data = json.load(f)
-        else:
-            bench_data = {
-                "$schema": "../../eval/benchmark-data.schema.json",
-                "evaluations": [],
-            }
+    if benchmark_data_file:
+        results_record = {**common, "test_results": test_results_summary}
+        try:
+            os.makedirs(os.path.dirname(benchmark_data_file), exist_ok=True)
+            if os.path.exists(benchmark_data_file):
+                with open(benchmark_data_file, "r", encoding="utf-8") as f:
+                    bench_data = json.load(f)
+            else:
+                bench_data = {
+                    "$schema": "../../eval/benchmark-data.schema.json",
+                    "evaluations": [],
+                }
 
-        bench_data.get("evaluations", []).insert(0, results_record)
-        with open(BENCHMARK_DATA_FILE, "w", encoding="utf-8") as f:
-            json.dump(bench_data, f, indent=2)
-            f.write("\n")
-        logger.info("✓ Updated benchmark dataset: %s", BENCHMARK_DATA_FILE)
-    except Exception as e:
-        logger.warning("Could not update %s: %s", BENCHMARK_DATA_FILE, e)
+            bench_data.get("evaluations", []).insert(0, results_record)
+            with open(benchmark_data_file, "w", encoding="utf-8") as f:
+                json.dump(bench_data, f, indent=2)
+                f.write("\n")
+            logger.info("✓ Updated benchmark dataset: %s", benchmark_data_file)
+        except Exception as e:
+            logger.warning("Could not update %s: %s", benchmark_data_file, e)
 
     logger.info("EVALUATION RESULTS SAVED to: %s", eval_dir)
     return eval_dir

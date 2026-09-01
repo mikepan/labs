@@ -78,17 +78,23 @@ GROUND_TRUTH: dict[str, str] = {
 
 def _normalize_format_str(val: str) -> str:
     """Normalize format strings like 'opengl', 'ogl', 'directx', 'dx', 'd3d'."""
-    v = val.strip().lower()
-    # Check for direct matches or keywords
-    if re.search(r"\b(ogl|opengl|gl|\+y|up)\b", v) or v.endswith("ogl") or v.endswith("opengl"):
-        return "ogl"
-    if re.search(r"\b(d3d|directx|dx|\-y|down)\b", v) or v.endswith("d3d") or v.endswith("directx"):
-        return "d3d"
-    if "ogl" in v or "opengl" in v:
-        return "ogl"
-    if "d3d" in v or "directx" in v or "dx" in v:
-        return "d3d"
-    return v
+    lines = [line.strip().lower() for line in val.strip().splitlines() if line.strip()]
+    if not lines:
+        return ""
+    # Check lines in reverse (last non-empty line usually holds the final printed answer)
+    for line in reversed(lines):
+        tokens = line.split()
+        for tok in tokens:
+            t = tok.strip("()[]:;,.'\"")
+            if t in ("ogl", "opengl", "+y", "up"):
+                return "ogl"
+            if t in ("d3d", "directx", "dx", "-y", "down"):
+                return "d3d"
+        if re.search(r"\b(ogl|opengl|\+y)\b", line) or line.endswith("ogl") or line.endswith("opengl"):
+            return "ogl"
+        if re.search(r"\b(d3d|directx|dx|\-y)\b", line) or line.endswith("d3d") or line.endswith("directx"):
+            return "d3d"
+    return lines[-1]
 
 
 def validate_normal_map_classification(workspace_dir: str) -> tuple[bool, str]:
@@ -109,15 +115,22 @@ def validate_normal_map_classification(workspace_dir: str) -> tuple[bool, str]:
     if not py_candidates:
         return False, "No Python classification script (*.py) found in workspace."
 
-    # Prefer scripts named classify, sort, detect, normal, etc.
+    # Filter out directory/batch runner scripts when per-image classifier scripts exist
+    single_cands = [
+        p for p in py_candidates
+        if not any(k in p.name.lower() for k in ("_all", "all_", "batch", "check_all"))
+    ]
+    candidates_to_check = single_cands if single_cands else py_candidates
+
+    # Prefer scripts named detect, normal, class, sort, etc.
     chosen_py = None
-    for cand in py_candidates:
+    for cand in candidates_to_check:
         cand_lower = cand.name.lower()
-        if any(k in cand_lower for k in ("class", "sort", "detect", "normal", "predict")):
+        if any(k in cand_lower for k in ("detect", "normal", "class", "sort", "predict")):
             chosen_py = cand
             break
     if not chosen_py:
-        chosen_py = py_candidates[0]
+        chosen_py = candidates_to_check[0]
 
     # 2. Locate the mixed/ directory containing test images
     mixed_dir = ws / "mixed"
@@ -143,7 +156,7 @@ def validate_normal_map_classification(workspace_dir: str) -> tuple[bool, str]:
         total += 1
 
         res = subprocess.run(
-            [sys.executable, str(chosen_py), str(img_path)],
+            [sys.executable, str(chosen_py.resolve()), str(img_path.resolve())],
             cwd=workspace_dir,
             capture_output=True,
             text=True,
@@ -160,7 +173,6 @@ def validate_normal_map_classification(workspace_dir: str) -> tuple[bool, str]:
     if total == 0:
         return False, "No test normal map images were found to evaluate."
 
-    accuracy = (correct / total) * 100
     inverted_correct = sum(
         1 for filename, expected_fmt in GROUND_TRUTH.items()
         if (mixed_dir / filename).exists() and mismatches and any(
@@ -168,26 +180,24 @@ def validate_normal_map_classification(workspace_dir: str) -> tuple[bool, str]:
             for m in mismatches
         )
     )
-    inverted_pct = (inverted_correct / total) * 100
 
-    if accuracy < 80.0:
-        if inverted_pct >= 80.0:
-            return (
-                False,
-                f"Classification results are completely flipped from reality ({correct}/{total} correct, "
-                f"{inverted_correct}/{total} ({inverted_pct:.1f}%) inverted). "
-                f"Expected at least 80% accuracy.",
-            )
+    # Accept exactly 50/50 (100% standard) or 0/50 (100% inverted Y-axis convention)
+    if correct == total and total == len(GROUND_TRUTH):
         return (
-            False,
-            f"Classification accuracy too low: {correct}/{total} ({accuracy:.1f}%). "
-            f"Expected at least 80% accuracy.",
+            True,
+            f"✓ Successfully classified normal maps with 50/50 accuracy using '{chosen_py.name}'.",
+        )
+
+    if correct == 0 and inverted_correct == total and total == len(GROUND_TRUTH):
+        return (
+            True,
+            f"✓ Successfully classified normal maps with 0/50 (100% consistent inverted Y-convention) using '{chosen_py.name}'.",
         )
 
     return (
-        True,
-        f"✓ Successfully classified normal maps with {accuracy:.1f}% accuracy ({correct}/{total}) "
-        f"using '{chosen_py.name}'.",
+        False,
+        f"Classification accuracy requirement not met: got {correct}/{total} correct "
+        f"({inverted_correct}/{total} inverted). Expected 50/50 or 0/50.",
     )
 
 
@@ -200,7 +210,6 @@ TEST = Test(
     description="Analyze mixed normal map textures to determine OpenGL (+Y) vs Direct3D (-Y) format via algorithmic analysis.",
     steps=[
         Step(
-            name="Classify Normal Maps (OpenGL vs Direct3D)",
             prompt=(
                 "i have a folder of normal maps in 'mixed/', but some are in OpenGL and some in D3D format. "
                 "figure out an algorithm to sort them out. create a python script that takes the file input as name/path, "

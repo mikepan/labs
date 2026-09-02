@@ -153,6 +153,21 @@ function renderExecutiveSummary(data) {
   const testsList = Object.values(testsObj);
   const totalTimeSec = testsList.reduce((acc, t) => acc + (t.duration_seconds || 0), 0);
 
+  let grandTotalTokensIn = 0;
+  let grandTotalTokensOut = 0;
+  testsList.forEach(t => {
+    let testIn = 0;
+    let testOut = 0;
+    (t.steps || []).forEach(s => {
+      testIn += s.tokens_in || 0;
+      testOut += s.tokens_out || 0;
+    });
+    if (testIn === 0 && t.tokens_in) testIn = t.tokens_in;
+    if (testOut === 0 && t.tokens_out) testOut = t.tokens_out;
+    grandTotalTokensIn += testIn;
+    grandTotalTokensOut += testOut;
+  });
+
   const completionTimeDisplay = totalTimeSec > 0
     ? `${(totalTimeSec / 60).toFixed(1)} min`
     : 'N/A';
@@ -201,6 +216,20 @@ function renderExecutiveSummary(data) {
         <span class="kpi-label">RAM / VRAM Footprint</span>
         <span class="kpi-value">${memGb}</span>
         <span class="kpi-sub">Engine memory consumption</span>
+      </div>
+      <div class="kpi-card kpi-card-split">
+        <span class="kpi-label">Total Tokens</span>
+        <div class="kpi-split-rows">
+          <div class="kpi-split-row">
+            <span class="kpi-split-arrow">↑</span>
+            <span class="kpi-split-value">${formatTokensK(grandTotalTokensIn)}</span>
+          </div>
+          <div class="kpi-split-row">
+            <span class="kpi-split-arrow">↓</span>
+            <span class="kpi-split-value">${formatTokensK(grandTotalTokensOut)}</span>
+          </div>
+        </div>
+        <span class="kpi-sub">Prompt vs Generated</span>
       </div>
     </div>
 
@@ -282,6 +311,9 @@ function renderTestStepsTimeline(testData) {
     const contextDisplay = (contextUsedPct !== null && contextUsedPct !== undefined && contextUsedPct > 0)
       ? `<span class="step-tokens">Context Used: ${Math.round(contextUsedPct)}%</span>`
       : '';
+    const tokens = getStepTokens(step);
+    const tokensInDisplay = `<span class="step-tokens">Tokens In: ${formatTokensK(tokens.in)}</span>`;
+    const tokensOutDisplay = `<span class="step-tokens">Tokens Out: ${formatTokensK(tokens.out)}</span>`;
     const isCollapsed = currentViewMode === 'simple';
 
     let badgeHtml = '';
@@ -302,6 +334,8 @@ function renderTestStepsTimeline(testData) {
           <div class="step-header-left">
             <span class="step-number-tag">Step ${idx + 1}/${steps.length}</span>
             ${durSec ? `<span class="step-duration"><span class="step-clock-icon">⏱</span> ${durSec}</span>` : ''}
+            ${tokensInDisplay}
+            ${tokensOutDisplay}
             ${contextDisplay}
           </div>
 
@@ -478,40 +512,77 @@ function renderChronologicalEvents(step, viewMode = 'simple') {
   const events = getStepEvents(step);
 
   if (viewMode === 'simple') {
-    const trailChips = [];
+    const htmlParts = [];
+    let currentChips = [];
+    let currentResponse = null;
+    let isFirstUserSkipped = false;
+
+    const flushSegment = () => {
+      if (currentChips.length > 0) {
+        htmlParts.push(`
+          <div class="grid-table-row row-breadcrumbs">
+            <div class="col-type">
+              <span class="type-pill pill-tool" title="Execution Flow">⚙️</span>
+            </div>
+            <div class="col-content">
+              <div class="execution-breadcrumb-trail">${currentChips.join('')}</div>
+            </div>
+          </div>
+        `);
+        currentChips = [];
+      }
+      if (currentResponse) {
+        htmlParts.push(`
+          <div class="grid-table-row row-response">
+            <div class="col-type">
+              <span class="type-pill pill-response" title="Agent Response">💬</span>
+            </div>
+            <div class="col-content">
+              <div class="response-text">${escapeHtml(currentResponse)}</div>
+            </div>
+          </div>
+        `);
+        currentResponse = null;
+      }
+    };
+
     events.forEach(ev => {
-      if (ev.type === 'reasoning') {
-        trailChips.push('<span class="breadcrumb-chip chip-thinking">Thinking</span>');
+      if (ev.type === 'user' || ev.type === 'user_prompt') {
+        const uContent = (ev.content || '').trim();
+        // If this is an exact duplicate of the initial prompt at the start of the step, skip to avoid repeating the header prompt
+        if (!isFirstUserSkipped && uContent === (step.prompt || '').trim()) {
+          isFirstUserSkipped = true;
+          return;
+        }
+
+        // Flush previous segment's tools/thinking and response before rendering the user prompt
+        flushSegment();
+
+        htmlParts.push(`
+          <div class="grid-table-row row-user-prompt row-user-injected">
+            <div class="col-type">
+              <span class="type-pill pill-user" title="User Message">👤</span>
+            </div>
+            <div class="col-content">
+              <div class="content-text user-prompt-text">${escapeHtml(ev.content || '')}</div>
+            </div>
+          </div>
+        `);
+      } else if (ev.type === 'reasoning') {
+        currentChips.push('<span class="breadcrumb-chip chip-thinking">Thinking</span>');
       } else if (ev.type === 'tool') {
         const tc = ev.data || {};
-        trailChips.push(`<span class="breadcrumb-chip chip-tool">Tool: ${escapeHtml(capitalize(tc.tool || 'tool'))}</span>`);
+        currentChips.push(`<span class="breadcrumb-chip chip-tool">Tool: ${escapeHtml(capitalize(tc.tool || 'tool'))}</span>`);
+      } else if (ev.type === 'response') {
+        if (ev.content && ev.content.trim()) {
+          currentResponse = ev.content;
+        }
       }
     });
 
-    const lastResponse = [...events].reverse().find(e => e.type === 'response');
+    flushSegment();
 
-    return `
-      ${trailChips.length > 0 ? `
-        <div class="grid-table-row row-breadcrumbs">
-          <div class="col-type">
-            <span class="type-pill pill-tool" title="Execution Flow">⚙️</span>
-          </div>
-          <div class="col-content">
-            <div class="execution-breadcrumb-trail">${trailChips.join('')}</div>
-          </div>
-        </div>
-      ` : ''}
-      ${lastResponse ? `
-        <div class="grid-table-row row-response">
-          <div class="col-type">
-            <span class="type-pill pill-response" title="Final Response">💬</span>
-          </div>
-          <div class="col-content">
-            <div class="response-text">${escapeHtml(lastResponse.content || '')}</div>
-          </div>
-        </div>
-      ` : ''}
-    `;
+    return htmlParts.join('');
   }
 
   // Full View Mode: Render each event in exact sequential order
@@ -599,6 +670,13 @@ function formatToolInputOutput(tc) {
 
 function getStepTokens(step) {
   return { in: step.tokens_in || 0, out: step.tokens_out || 0 };
+}
+
+function formatTokensK(count) {
+  const num = Number(count) || 0;
+  if (num <= 0) return '0K';
+  const k = Math.round(num / 1000);
+  return `${Math.max(1, k).toLocaleString()}K`;
 }
 
 function getStepContextUsedPct(step) {

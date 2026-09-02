@@ -981,6 +981,52 @@ footer a:hover {
   margin-top: 0.25rem;
 }
 
+.kpi-card-split {
+  text-align: center;
+}
+
+.kpi-card-split .kpi-label {
+  text-align: center;
+}
+
+.kpi-card-split .kpi-split-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  justify-content: center;
+  align-items: center;
+  flex: 1;
+  min-height: 29px;
+  width: 100%;
+}
+
+.kpi-split-row {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+}
+
+.kpi-split-arrow {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  line-height: 1;
+}
+
+.kpi-split-value {
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-main);
+  line-height: 1.15;
+}
+
+.kpi-card-split .kpi-sub {
+  text-align: center;
+}
+
 .launch-config-box {
   margin-top: 1.25rem;
   background: rgba(148, 163, 184, 0.08);

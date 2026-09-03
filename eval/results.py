@@ -46,50 +46,20 @@ def resolve_model_info(base_url: str, fallback_name: str = "") -> tuple[str, int
 
 
 def calculate_model_memory_gb(host: str = REMOTE_HOST) -> float:
-    """Parse memory metrics from vLLM engine startup logs on remote host.
-
-    Formula: Consumed memory (weights + non-torch) + Peak activation (clamped >= 0)
-             + CUDA Graph memory (clamped >= 0) + 1 full KV context
-    """
+    """Query used GPU memory for compute processes via nvidia-smi."""
     try:
-        res = run_cmd(
-            "ssh",
-            host,
-            "docker logs vllm_node 2>&1 | grep -E 'Actual usage|kv cache memory|Available KV cache memory|Maximum concurrency'",
-            timeout=10,
-        )
-        logs = res.stdout
-
-        m_usage = re.search(
-            r"Actual usage is ([\d\.]+) GiB for consumed memory.*?([-\d\.]+) GiB for peak activation.*?([-\d\.]+) GiB for CUDAGraph memory",
-            logs,
-        )
-        m_kv = (
-            re.search(r"Current kv cache memory in use is ([\d\.]+) GiB", logs)
-            or re.search(r"Available KV cache memory:\s*([\d\.]+) GiB", logs)
-        )
-        m_conc = re.search(r"Maximum concurrency for [0-9,]+ tokens per request:\s*([\d\.]+)x", logs)
-
-        if m_usage and m_kv and m_conc:
-            consumed = float(m_usage.group(1))
-            raw_peak_act = float(m_usage.group(2))
-            raw_cudagraph = float(m_usage.group(3))
-            kv_total = float(m_kv.group(1))
-            concurrency = float(m_conc.group(1))
-
-            # Clamp negative profiling artifacts from vLLM MTP issue #44740
-            peak_act = max(0.0, raw_peak_act)
-            cudagraph = max(0.0, raw_cudagraph)
-
-            kv_1_context = (kv_total / concurrency) if concurrency > 0 else 0.0
-            total_memory_gb = round(consumed + peak_act + cudagraph + kv_1_context, 1)
-            logger.info(
-                "Dynamic memory: consumed=%.2fG, peak_act=%.2fG (raw=%.2f), cudagraph=%.2fG (raw=%.2f), kv_1ctx=%.2fG => %.1f GB",
-                consumed, peak_act, raw_peak_act, cudagraph, raw_cudagraph, kv_1_context, total_memory_gb,
-            )
-            return total_memory_gb
+        cmd = ["ssh", host, "nvidia-smi --query-compute-apps=used_gpu_memory --format=csv,noheader,nounits"] if host else [
+            "nvidia-smi", "--query-compute-apps=used_gpu_memory", "--format=csv,noheader,nounits"
+        ]
+        res = run_cmd(*cmd, timeout=5)
+        if res.stdout:
+            mems = [float(x) for x in res.stdout.split() if x.replace('.', '', 1).isdigit()]
+            if mems:
+                mem_gb = round(max(mems) / 1024.0, 1)
+                logger.info("nvidia-smi memory: %.1f GB", mem_gb)
+                return mem_gb
     except Exception as e:
-        logger.warning("Could not parse dynamic memory from vLLM log: %s", e)
+        logger.warning("Could not query GPU memory via nvidia-smi: %s", e)
 
     return 0.0
 

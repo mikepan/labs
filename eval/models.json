@@ -47,10 +47,19 @@
     "reasoning_effort": "medium"
   },
   "Qwen3.8-27B-NVFP4-xhigh": {
-    "model-arg": "vllm serve Inferact/Qwen3.8-27B-NVFP4 --enable-prefix-caching --max-num-batched-tokens 16384  --enable-chunked-prefill --async-scheduling --trust-remote-code --reasoning-parser qwen3 --tool-call-parser qwen3_xml --enable-auto-tool-choice",
+    "model-arg": "vllm serve RadixArk/Qwen3.8-27B-NVFP4 --enable-prefix-caching --max-num-batched-tokens 16384  --enable-chunked-prefill --async-scheduling --trust-remote-code --reasoning-parser qwen3 --tool-call-parser qwen3_xml --enable-auto-tool-choice",
     "model-arg-speculative": "--speculative-config '{\"method\": \"dflash\", \"model\": \"z-lab/Qwen3.8-27B-DFlash2\", \"num_speculative_tokens\": 8}'",
     "model-arg-kv-quant": "--kv-cache-dtype fp8",
     "model-arg-platform": "--load-format instanttensor  --gpu-memory-utilization 0.50",
+    "model-arg-env": "VLLM_MARLIN_USE_ATOMIC_ADD=1 TORCH_MATMUL_PRECISION=high FLASHINFER_DISABLE_VERSION_CHECK=1 NVIDIA_FORWARD_COMPAT=1",
+    "reasoning_effort": "xhigh"
+  },
+  "Qwen3.8-27B-AWQ-INT4": {
+    "model-arg": "vllm serve cyankiwi/Qwen3.8-27B-AWQ-INT4 --enable-prefix-caching --max-num-batched-tokens 16384  --enable-chunked-prefill --async-scheduling --trust-remote-code --reasoning-parser qwen3 --tool-call-parser qwen3_xml --enable-auto-tool-choice",
+    "model-arg-speculative": "--speculative-config '{\"method\": \"dflash\", \"model\": \"z-lab/Qwen3.8-27B-DFlash2\", \"num_speculative_tokens\": 8}'",
+    "model-arg-kv-quant": "--kv-cache-dtype fp8",
+    "model-arg-platform": "--load-format instanttensor  --gpu-memory-utilization 0.50",
+    "model-arg-env": "VLLM_MARLIN_USE_ATOMIC_ADD=1 TORCH_MATMUL_PRECISION=high FLASHINFER_DISABLE_VERSION_CHECK=1 NVIDIA_FORWARD_COMPAT=1",
     "reasoning_effort": "xhigh"
   }
 }

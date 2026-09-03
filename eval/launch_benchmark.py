@@ -10,6 +10,7 @@ import argparse
 import json
 import sys
 import time
+import urllib.error
 import urllib.request
 from datetime import datetime
 from pathlib import Path
@@ -24,7 +25,7 @@ from eval.config import (
     TESTS_DIR,
 )
 from eval.launch_model import ensure_model_running, stop_model
-from eval.results import calculate_model_memory_gb
+from eval.results import calculate_model_memory_gb, resolve_model_info
 
 logger = setup_logger("launch_benchmark")
 DEFAULT_PROMPT_FILE = TESTS_DIR / "benchmark" / "long-prompt.kt"
@@ -37,7 +38,7 @@ def load_prompt(prompt_file: Path | str = DEFAULT_PROMPT_FILE) -> str:
 
 
 def wait_until_idle(base_url: str = API_BASE_URL, timeout_sec: int = 30) -> None:
-    """Pause until vLLM server has 0 active running requests."""
+    """Pause until server has 0 active running requests."""
     start = time.perf_counter()
     while time.perf_counter() - start < timeout_sec:
         try:
@@ -45,9 +46,12 @@ def wait_until_idle(base_url: str = API_BASE_URL, timeout_sec: int = 30) -> None
             with urllib.request.urlopen(req, timeout=2.0) as res:
                 text = res.read().decode("utf-8", errors="ignore")
                 for line in text.splitlines():
-                    if line.startswith(("vllm:num_requests_running", "vllm_num_requests_running")):
+                    if line.startswith(("vllm:num_requests_running", "vllm_num_requests_running", "sglang:num_running_reqs")):
                         if float(line.split()[-1]) == 0:
                             return
+        except urllib.error.HTTPError as e:
+            if e.code == 404:
+                return
         except Exception:
             pass
         time.sleep(1.5)
@@ -59,7 +63,7 @@ def run_stream_benchmark(
     base_url: str = API_BASE_URL,
     verbose: bool = False,
 ) -> dict[str, Any] | None:
-    """Send streaming request to vLLM and calculate throughput metrics."""
+    """Send streaming request to server and calculate throughput metrics."""
     req = urllib.request.Request(
         f"{base_url}/v1/chat/completions",
         data=json.dumps({
@@ -158,9 +162,11 @@ def format_table(headers: list[str], rows: list[list[str]], title: str = "") -> 
 
 def benchmark_model(
     model_name: str,
-    cfg: dict[str, Any],
+    cfg: dict[str, Any] | None,
     prompt: str,
     runs: int = 1,
+    base_url: str = API_BASE_URL,
+    manage: bool = True,
 ) -> dict[str, Any] | None:
     """Run benchmark lifecycle for a single model."""
     logger.info("=" * 70)
@@ -168,9 +174,12 @@ def benchmark_model(
     logger.info("=" * 70)
 
     try:
-        ok, weight = ensure_model_running(model_name, cfg, host=REMOTE_HOST, base_url=API_BASE_URL, verbose=True)
-        if not ok:
-            return None
+        if manage and cfg:
+            ok, weight = ensure_model_running(model_name, cfg, host=REMOTE_HOST, base_url=base_url, verbose=True)
+            if not ok:
+                return None
+        else:
+            weight, _ = resolve_model_info(f"{base_url}/v1", fallback_name=model_name)
 
         memory_gb = calculate_model_memory_gb(host=REMOTE_HOST)
         session_id = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -178,9 +187,9 @@ def benchmark_model(
         run_data = []
 
         for idx in range(1, runs + 1):
-            wait_until_idle(base_url=API_BASE_URL)
+            wait_until_idle(base_url=base_url)
             logger.info("--- Starting Run %d/%d for '%s' ---", idx, runs, model_name)
-            res = run_stream_benchmark(weight, bench_prompt, base_url=API_BASE_URL, verbose=True)
+            res = run_stream_benchmark(weight, bench_prompt, base_url=base_url, verbose=True)
             if res:
                 run_data.append(res)
                 logger.info(
@@ -223,7 +232,8 @@ def benchmark_model(
             "gen_tokens": avg["completion_tokens"],
         }
     finally:
-        stop_model(host=REMOTE_HOST)
+        if manage:
+            stop_model(host=REMOTE_HOST)
 
 
 def format_leaderboard(summaries: list[dict[str, Any]]) -> str:
@@ -256,22 +266,30 @@ def write_results_file(summaries: list[dict[str, Any]], filepath: Path = BENCHMA
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Run serving benchmark across configured vLLM models.")
-    parser.add_argument("--model", default="all", help="Model name or 'all' (default: all)")
+    parser = argparse.ArgumentParser(description="Run serving benchmark across configured LLM models.")
+    parser.add_argument("--model", default=None, help="Model name or 'all' (default: all)")
     parser.add_argument("--runs", type=int, default=1, help="Number of benchmark runs per model (default: 1)")
+    parser.add_argument("--base-url", default=API_BASE_URL, help=f"Base URL of the serving server (default: {API_BASE_URL})")
+    parser.add_argument("--no-manage", action="store_true", help="Do not stop or start model, benchmark active server directly")
     args = parser.parse_args()
 
-    models = load_json_config(MODELS_CONFIG_FILE)
-    targets = list(models.keys()) if args.model in ("all", None) else [args.model]
-
     prompt = load_prompt()
-    logger.info("Starting benchmark across %d model(s): %s", len(targets), targets)
 
-    summaries = []
-    for m in targets:
-        res = benchmark_model(m, models[m], prompt, runs=args.runs)
-        if res:
-            summaries.append(res)
+    if args.no_manage:
+        active_model, _ = resolve_model_info(f"{args.base_url}/v1", fallback_name=args.model or "active-model")
+        model_name = args.model if args.model else active_model
+        logger.info("Starting direct benchmark on active server at %s for model '%s'", args.base_url, model_name)
+        res = benchmark_model(model_name, None, prompt, runs=args.runs, base_url=args.base_url, manage=False)
+        summaries = [res] if res else []
+    else:
+        models = load_json_config(MODELS_CONFIG_FILE)
+        targets = list(models.keys()) if args.model in ("all", None) else [args.model]
+        logger.info("Starting benchmark across %d model(s): %s", len(targets), targets)
+        summaries = []
+        for m in targets:
+            res = benchmark_model(m, models[m], prompt, runs=args.runs, base_url=args.base_url, manage=True)
+            if res:
+                summaries.append(res)
 
     if summaries:
         write_results_file(summaries)

@@ -14,3 +14,6 @@ site/results/*/
 private/
 **/private/
 TODO.md
+
+eval/runs/*
+eval/data/*

@@ -36,6 +36,7 @@ Qwen3.8-27B-FP8-xhigh           | 57.0 GB      | 960.61        | 960.61         
 Qwen3.6-35B-A3B-NVFP4           | 56.7 GB      | 5296.29       | 5296.29        | 95.28      | 89.98       | 1.966        | 3181.0 
 ===================================================================================================================================
 
+
 ===================================================================================================================================
 RUN 3: Qwen3.8 DFlash2 Speculative Decoding (z-lab/Qwen3.8-27B-DFlash2 Draft with 8 Speculative Tokens)
 Platform: NVIDIA GB10 Superchip (128 GB Unified LPDDR5X, 256-bit @ 8533 MT/s) | Driver 580.173.02 | CUDA 13.0
@@ -46,18 +47,72 @@ Description: Evaluated DFlash2 speculative decoding with 8 speculative tokens ac
 ===================================================================================================================================
 Model Name                | Runtime Size | Fresh Prefill | Cached Prefill | Decode tps | Eff Gen tps | Avg TTFT (s) | Gen Tok
 -----------------------------------------------------------------------------------------------------------------------------------
+Qwen3.8-27B-NVFP4-xhigh   | 50.3 GB      | 2016.08       | 2016.08        | 26.24      | 25.80       | 5.186        | 7950.0 
 Qwen3.8-27B-FP8-xhigh     | 65.9 GB      | 950.56        | 950.56         | 19.71      | 19.33       | 11.000       | 10854.0
 ===================================================================================================================================
 
 
 ===================================================================================================================================
-METRIC DEFINITIONS
+RUN 4: REFINED SUITE (vLLM 0.26.1rc1.dev1231 with B12X v1.2.6 - 2 Runs per Model)
+Platform: NVIDIA GB10 Superchip (128 GB Unified LPDDR5X, 256-bit @ 8533 MT/s) | Driver 580.173.02 | CUDA 13.0
+vLLM Docker: eugr/spark-vllm:latest (wheel: vllm-0.26.1rc1.dev1231+g7a9993878.d20260826)
+Description: Evaluated refined 7-model set with 2 iterations per model to measure cold prefill vs warm prefix KV cache reuse.
+             All Qwen3.8 models now use DFlash2 speculative decoding (8 speculative tokens).
 ===================================================================================================================================
-- Runtime Size   : Peak memory allocated in GB on the NVIDIA GB10 unified memory pool during execution.
-- Fresh Prefill  : Prompt ingestion throughput (tokens/second) on a cold KV cache.
-- Cached Prefill : Prompt ingestion throughput (tokens/second) with prefix KV cache reuse.
-- Decode tps     : Generation speed (tokens/second) during streaming autoregressive token decode.
-- Eff Gen tps    : Effective end-to-end generation throughput including Time-To-First-Token (TTFT) latency.
-- Avg TTFT (s)   : Average Time To First Token latency in seconds.
-- Gen Tok        : Total output tokens generated during the benchmark evaluation.
+Model Name                      | Runtime Size | Fresh Prefill | Cached Prefill | Decode tps | Eff Gen tps | Avg TTFT (s) | Gen Tok
+-----------------------------------------------------------------------------------------------------------------------------------
+diffusiongemma-26B-A4B-IT-NVFP4 | 45.3 GB      | 1941.91       | 4169.07        | 114.02     | 87.45       | 4.311        | 1638.0 
+Qwen3.6-35B-A3B-NVFP4           | 56.8 GB      | 6022.77       | 6208.78        | 97.38      | 92.96       | 1.703        | 3492.5 
+Qwen3.6-27B-NVFP4               | 67.0 GB      | 1086.15       | 1097.41        | 25.67      | 23.84       | 9.539        | 3182.5 
+Qwen3.6-27B-FP8                 | 63.0 GB      | 922.28        | 945.24         | 18.03      | 16.98       | 11.154       | 3265.0 
+Qwen3.8-27B-FP8-low             | 65.8 GB      | 961.17        | 971.41         | 19.42      | 18.70       | 10.821       | 5553.0 
+Qwen3.8-27B-FP8-medium          | 65.2 GB      | 961.46        | 971.87         | 17.93      | 17.46       | 10.817       | 8851.5 
+Qwen3.8-27B-NVFP4-xhigh         | 51.3 GB      | 1986.91       | 1997.35        | 22.74      | 22.16       | 5.249        | 6935.0 
+===================================================================================================================================
+
+
+
+===================================================================================================================================
+RUN 5: vLLM 0.26.1rc1 DFlash2 Speculative Decoding (RadixArk/Qwen3.8-27B-NVFP4 with z-lab/Qwen3.8-27B-DFlash2)
+Platform: NVIDIA GB10 Superchip (128 GB Unified LPDDR5X, 256-bit @ 8533 MT/s) | Driver 580.173.02 | CUDA 13.0
+vLLM Docker: eugr/spark-vllm:latest (wheel: vllm-0.26.1rc1.dev1231+g7a9993878.d20260826)
+Description: Evaluated vLLM serving with DFlash2 speculative decoding (8 speculative tokens, FP8 KV cache, instanttensor load).
+             Single-run evaluation on 10.5k token prompt to measure prefill and decode throughput.
+===================================================================================================================================
+Model Name                      | Runtime Size | Fresh Prefill | Cached Prefill | Decode tps | Eff Gen tps | Avg TTFT (s) | Gen Tok
+-----------------------------------------------------------------------------------------------------------------------------------
+Qwen3.8-27B-NVFP4-DFlash2-vLLM  | 47.2 GB      | 2073.79       | 2073.79        | 26.23      | 25.64       | 5.042        | 5842.0 
+===================================================================================================================================
+
+
+
+===========================================================================================================================
+OVERALL SERVING BENCHMARK LEADERBOARD
+===========================================================================================================================
+Model Name              | Runtime Size | Fresh Prefill | Cached Prefill | Decode tps | Eff Gen tps | Avg TTFT (s) | Gen Tok
+---------------------------------------------------------------------------------------------------------------------------
+Qwen3.8-27B-NVFP4-xhigh | 46.6 GB      | 2071.97       | 2071.97        | 25.16      | 24.70       | 5.046        | 6944.0 
+===========================================================================================================================
+===========================================================================================================================
+OVERALL SERVING BENCHMARK LEADERBOARD
+===========================================================================================================================
+Model Name              | Runtime Size | Fresh Prefill | Cached Prefill | Decode tps | Eff Gen tps | Avg TTFT (s) | Gen Tok
+---------------------------------------------------------------------------------------------------------------------------
+Qwen3.8-27B-NVFP4-xhigh | 47.0 GB      | 2076.53       | 2076.53        | 25.44      | 25.17       | 5.035        | 11872.0
+===========================================================================================================================
+
+Finalized model selection after some tinkering with SGLang to chase performance
+===================================================================================================================================
+OVERALL SERVING BENCHMARK LEADERBOARD
+===================================================================================================================================
+Model Name                      | Runtime Size | Fresh Prefill | Cached Prefill | Decode tps | Eff Gen tps | Avg TTFT (s) | Gen Tok
+-----------------------------------------------------------------------------------------------------------------------------------
+diffusiongemma-26B-A4B-IT-NVFP4 | 60.6 GB      | 2014.03       | 2988.01        | 108.16     | 81.48       | 4.747        | 1537.5 
+Qwen3.6-35B-A3B-NVFP4           | 36.3 GB      | 5909.70       | 6060.29        | 97.90      | 93.35       | 1.740        | 3507.5 
+Qwen3.6-27B-NVFP4               | 86.6 GB      | 1091.34       | 1097.15        | 26.45      | 24.67       | 9.517        | 3508.5 
+Qwen3.6-27B-FP8                 | 85.2 GB      | 941.96        | 948.62         | 18.16      | 17.05       | 11.017       | 3103.5 
+Qwen3.8-27B-FP8-low             | 59.2 GB      | 871.62        | 968.83         | 19.61      | 19.14       | 11.394       | 9162.0 
+Qwen3.8-27B-FP8-medium          | 59.2 GB      | 962.90        | 972.76         | 20.17      | 19.67       | 10.804       | 8755.5 
+Qwen3.8-27B-NVFP4-xhigh         | 56.6 GB      | 2032.82       | 2026.81        | 24.75      | 24.34       | 5.151        | 7674.5 
+Qwen3.8-27B-AWQ-INT4            | 56.6 GB      | 912.44        | 907.50         | 26.37      | 25.11       | 11.491       | 6212.0 
 ===================================================================================================================================

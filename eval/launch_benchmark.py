@@ -3,12 +3,14 @@
 launch_benchmark.py - High-throughput LLM serving benchmark across configured models.
 
 Usage:
-    python3 eval/launch_benchmark.py [--model model_name] [--runs 2] [--fast] [--v]
+    python3 eval/launch_benchmark.py [--model model_name] [--runs 2] [--v]
 """
 
 import argparse
 import json
+import subprocess
 import sys
+import tempfile
 import time
 import urllib.error
 import urllib.request
@@ -236,9 +238,11 @@ def benchmark_model(
             stop_model(host=REMOTE_HOST)
 
 
-def format_leaderboard(summaries: list[dict[str, Any]]) -> str:
+def format_leaderboard(summaries: list[dict[str, Any]], tool_eval_score: int | str | None = None) -> str:
     """Render overall serving benchmark leaderboard table."""
     headers = ["Model Name", "Runtime Size", "Fresh Prefill", "Cached Prefill", "Decode tps", "Eff Gen tps", "Avg TTFT (s)", "Gen Tok"]
+    if tool_eval_score is not None:
+        headers.append("Tool-Eval")
     rows = [
         [
             s["model"],
@@ -252,17 +256,70 @@ def format_leaderboard(summaries: list[dict[str, Any]]) -> str:
         ]
         for s in summaries
     ]
+    if tool_eval_score is not None:
+        if isinstance(tool_eval_score, (int, float)):
+            score_str = f"{int(tool_eval_score)}/176"
+        elif "/" in str(tool_eval_score) or tool_eval_score == "N/A":
+            score_str = str(tool_eval_score)
+        else:
+            score_str = f"{tool_eval_score}/176"
+        for i, row in enumerate(rows):
+            row.append(score_str if i == 0 else "")
     return format_table(headers, rows, title="OVERALL SERVING BENCHMARK LEADERBOARD")
 
 
-def write_results_file(summaries: list[dict[str, Any]], filepath: Path = BENCHMARK_RESULT_FILE) -> None:
+def write_results_file(summaries: list[dict[str, Any]], filepath: Path = BENCHMARK_RESULT_FILE, tool_eval_score: int | str | None = None) -> None:
     """Append benchmark leaderboard table to results file."""
     if not summaries:
         return
-    table = format_leaderboard(summaries)
+    table = format_leaderboard(summaries, tool_eval_score=tool_eval_score)
     with open(filepath, "a", encoding="utf-8") as f:
         f.write(table + "\n")
     logger.info("Appended benchmark results: %s", filepath)
+
+
+TOOL_EVAL_BENCH_BIN = "tool-eval-bench"
+
+
+def run_tool_eval_bench(base_url: str) -> tuple[int | str, str]:
+    """Run tool-eval-bench in hardmode (88 scenarios, 176 max points) against base URL and return (total_points, rating)."""
+    logger.info("=" * 70)
+    logger.info("RUNNING tool-eval-bench (hardmode: 88 scenarios, 176 max points) against %s", base_url)
+    logger.info("=" * 70)
+
+    with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as tmp:
+        tmp_path = tmp.name
+
+    cmd = [
+        TOOL_EVAL_BENCH_BIN,
+        "bench",
+        "--seed",
+        "42",
+        "--base-url",
+        base_url,
+        "--parallel",
+        "4",
+        "--timeout",
+        "240",
+        "--hardmode",
+        "--json-file",
+        tmp_path,
+    ]
+    proc = subprocess.run(cmd, capture_output=False, text=True)
+
+    try:
+        result = json.loads(Path(tmp_path).read_text(encoding="utf-8"))
+    except Exception as e:
+        logger.error("Failed to parse tool-eval-bench output: %s", e)
+        return "N/A", ""
+    finally:
+        Path(tmp_path).unlink(missing_ok=True)
+
+    if proc.returncode != 0:
+        logger.error("tool-eval-bench exited with code %d", proc.returncode)
+
+    scores = result.get("scores", {})
+    return scores.get("total_points", "N/A"), scores.get("rating", "")
 
 
 def main():
@@ -271,6 +328,7 @@ def main():
     parser.add_argument("--runs", type=int, default=1, help="Number of benchmark runs per model (default: 1)")
     parser.add_argument("--base-url", default=API_BASE_URL, help=f"Base URL of the serving server (default: {API_BASE_URL})")
     parser.add_argument("--no-manage", action="store_true", help="Do not stop or start model, benchmark active server directly")
+    parser.add_argument("--run-tool-eval-bench", action="store_true", help="Run tool-eval-bench quality benchmark against the server")
     args = parser.parse_args()
 
     prompt = load_prompt()
@@ -291,9 +349,13 @@ def main():
             if res:
                 summaries.append(res)
 
+    tool_eval_score = None
+    if args.run_tool_eval_bench:
+        tool_eval_score, _ = run_tool_eval_bench(args.base_url)
+
     if summaries:
-        write_results_file(summaries)
-        print("\n" + format_leaderboard(summaries) + "\n")
+        write_results_file(summaries, tool_eval_score=tool_eval_score)
+        print("\n" + format_leaderboard(summaries, tool_eval_score=tool_eval_score) + "\n")
 
 
 if __name__ == "__main__":

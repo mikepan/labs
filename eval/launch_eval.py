@@ -6,7 +6,7 @@ Orchestrates full evaluation pipeline across models, tests, and harnesses
 with upfront validation of all parameters before starting any containers.
 
 Usage:
-    python3 eval/launch_eval.py [--model model_name] [--harness harness_name] [--test test_name] [--fast] [--v]
+    python3 eval/launch_eval.py [--model model_name] [--harness harness_name] [--test test_name] [--keep-alive] [--v]
 
 """
 
@@ -94,7 +94,7 @@ def run_model_pipeline(
     model_config: dict[str, Any],
     host: str = REMOTE_HOST,
     base_url: str = API_BASE_URL,
-    fast: bool = False,
+    keep_alive: bool = False,
     verbose: bool = False,
     test_name: str = "all",
     harness: str = "all",
@@ -109,7 +109,6 @@ def run_model_pipeline(
             model_config=model_config,
             host=host,
             base_url=base_url,
-            fast=fast,
             verbose=verbose,
         )
         if not ok:
@@ -138,10 +137,10 @@ def run_model_pipeline(
 
         success = True
     finally:
-        if not fast:
+        if not keep_alive:
             stop_model(host=host)
         else:
-            logger.info("Fast mode enabled: leaving vLLM server running.")
+            logger.info("Keep-alive enabled: leaving vLLM server running.")
 
     status_str = "SUCCESS" if success else "FAILED"
     logger.info("FINISHED PIPELINE FOR: %s (Status: %s)", model_name, status_str)
@@ -156,9 +155,9 @@ def main():
     parser.add_argument("--harness", default="all", help="Harness to run (e.g. 'pi', 'opencode', or 'all', default: all)")
     parser.add_argument("--test", default="all", help="Test to run (e.g. 'test0' or 'all', default: all)")
     parser.add_argument(
-        "--fast",
+        "--keep-alive",
         action="store_true",
-        help="Fast mode: skip launch and teardown if model weight is already running (NOTE: only checks weight name via /v1/models; will not detect changes to server-level CLI flags, chat templates, or speculative configs)"
+        help="Keep model server running after evaluation completes (skips container teardown)",
     )
     parser.add_argument("--v", dest="verbose", action="store_true", help="Verbose log streaming")
 
@@ -181,7 +180,7 @@ def main():
         ok = run_model_pipeline(
             model_name,
             models[model_name],
-            fast=args.fast,
+            keep_alive=args.keep_alive,
             verbose=args.verbose,
             test_name=valid_test,
             harness=valid_harness,

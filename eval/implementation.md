@@ -42,8 +42,10 @@ To prevent agent data contamination, host tampering, and model cheating:
   - `results.py`: Model metadata, memory profiling, benchmark record construction, and result persistence.
   - `launch_eval.py`: End-to-end evaluation runner across models, tests, and harnesses with upfront validation.
   - `launch_model.py`: Dedicated remote vLLM model lifecycle manager (container start, probe, sanity test, teardown).
+  - `launch_benchmark.py`: High-throughput LLM serving benchmark orchestrator and tool-eval-bench quality runner.
   - `run_harness.py`: Sandbox test runner — dynamic test loading, asset streaming, in-memory step evaluation, and trace generation.
   - `create_harness.py`: Builds and snapshots the sandbox template with agent CLI installations.
+  - `test_analyzer.py`: Cross-model defect and pass-rate analysis tool.
   - `drivers/`: Pluggable harness driver implementations.
     - `__init__.py`: `HarnessDriver` ABC, `@register_driver` decorator, and `get_driver()` registry.
     - `opencode.py`: OpenCode CLI/Server driver (config, session management, message parsing).
@@ -81,11 +83,11 @@ To capture both competence and reliability, metrics are consolidated as follows:
 
 | Metric | Consolidation Method | Formula | Description |
 | :--- | :--- | :--- | :--- |
-| **Earned Score** | Mean ($\mu$) | $\mu_t = \frac{1}{N} \sum_{r=1}^N \text{score}_{t, r}$ | Captures average capability across runs without discarding partial successes. |
-| **Intelligence** | Weighted Mean Score % | $\frac{\sum_t \mu_t}{\sum_t \text{max_score}_t} \times 100$ | Standardized overall intelligence benchmark score. |
-| **Task Speed** | Mean Duration | $\frac{3600 \times \text{tasks}}{\sum_t \mu(\text{duration}_t)}$ | Average throughput in tasks/hour. |
-| **Consistency Rate** | Pass Agreement % | $\frac{\text{Fully Passed Runs}}{\text{Total Runs}} \times 100$ | Measures determinism across repetitions (e.g., 3/3 = 100%, 2/3 = 66.7%). |
-| **Context Peak** | Mean Peak Window | $\frac{1}{N} \sum_{r=1}^N \text{peak_ctx}_{t, r}$ | Average maximum context window required. |
+| **Earned Score** | Mean (avg) | avg(score_t) = (1/N) * sum(score_(t, r)) | Captures average capability across runs without discarding partial successes. |
+| **Intelligence** | Weighted Mean Score % | (sum(avg_score_t) / sum(max_score_t)) * 100 | Standardized overall intelligence benchmark score. |
+| **Task Speed** | Mean Duration | (3600 * tasks) / sum(avg_duration_t) | Average throughput in tasks/hour. |
+| **Consistency Rate** | Pass Agreement % | (Fully Passed Runs / Total Runs) * 100 | Measures determinism across repetitions (e.g., 3/3 = 100%, 2/3 = 66.7%). |
+| **Context Peak** | Mean Peak Window | avg(peak_ctx_t) = (1/N) * sum(peak_ctx_(t, r)) | Average maximum context window required. |
 
 ---
 
@@ -97,13 +99,13 @@ To capture both competence and reliability, metrics are consolidated as follows:
 python3 eval/launch_eval.py
 
 # Run a specific model across all harnesses and tests
-python3 eval/launch_eval.py --model Qwen3.6-27B-FP8-NoThink
+python3 eval/launch_eval.py --model Qwen3.6-27B-FP8
 
 # Run a specific model on a specific test suite with a specific harness
-python3 eval/launch_eval.py --model diffusiongemma-26B-A4B-IT-NVFP4-Reasoning --harness pi --test test0
+python3 eval/launch_eval.py --model diffusiongemma-26B-A4B-IT-NVFP4 --harness pi --test test0
 
-# Fast dev mode: attach to existing vLLM server without restarting/tearing down
-python3 eval/launch_eval.py --model Qwen3.6-27B-NVFP4 --harness pi --test test0 --fast
+# Keep-alive mode: keep model container running after evaluation completes (skips teardown)
+python3 eval/launch_eval.py --model Qwen3.6-27B-NVFP4 --harness pi --test test0 --keep-alive
 
 # Verbose mode: stream real-time container startup and debug logs
 python3 eval/launch_eval.py --model Qwen3.6-35B-A3B-NVFP4 --v
@@ -111,41 +113,56 @@ python3 eval/launch_eval.py --model Qwen3.6-35B-A3B-NVFP4 --v
 
 ### 2. Standalone Model Lifecycle Manager (`launch_model.py`)
 ```bash
-# Launch a model, wait for readiness probe, and execute sanity query
-python3 eval/launch_model.py --model Qwen3.6-27B-FP8-Thinking
+# Launch a model, wait for readiness probe, and execute sanity query (stops container when complete)
+python3 eval/launch_model.py --model Qwen3.6-27B-FP8
 
-# Launch model in fast mode (skips if already running and healthy)
-python3 eval/launch_model.py --model Qwen3.6-27B-FP8-Thinking --fast
+# Launch a model and keep the container running for external benchmarking (e.g. tool-eval-bench)
+python3 eval/launch_model.py --model Qwen3.6-27B-FP8 --keep-alive
 
 # Stop the running model container on the remote cluster
 python3 eval/launch_model.py --stop
 
 # Stream container startup logs
-python3 eval/launch_model.py --model Qwen3.6-27B-FP8-Thinking --v
+python3 eval/launch_model.py --model Qwen3.6-27B-FP8 --keep-alive --v
 ```
 
 ### 3. Direct Sandbox Harness Runner (`run_harness.py`)
 ```bash
 # Run test0 against an already running vLLM endpoint with default harness (all configured harnesses)
-python3 eval/run_harness.py --model Qwen3.6-27B-FP8-NoThink --test test0
+python3 eval/run_harness.py --model Qwen3.6-27B-FP8 --test test0
 
 # Run specific harness (e.g. pi or opencode)
-python3 eval/run_harness.py --model Qwen3.6-27B-FP8-NoThink --harness pi --test test0
+python3 eval/run_harness.py --model Qwen3.6-27B-FP8 --harness pi --test test0
 
 # Run all test suites across all harnesses
-python3 eval/run_harness.py --model Qwen3.6-27B-FP8-NoThink --test all --harness all
+python3 eval/run_harness.py --model Qwen3.6-27B-FP8 --test all --harness all
 
 # Verbose debug logging
-python3 eval/run_harness.py --model Qwen3.6-27B-FP8-NoThink --harness pi --test test0 --v
+python3 eval/run_harness.py --model Qwen3.6-27B-FP8 --harness pi --test test0 --v
 ```
 
-### 4. Serve Dashboard Web App
+### 4. High-Throughput Serving Benchmark & Quality Runner (`launch_benchmark.py`)
+```bash
+# Run serving throughput benchmark across all configured models
+python3 eval/launch_benchmark.py
+
+# Run benchmark for a specific model with 2 iterations
+python3 eval/launch_benchmark.py --model Qwen3.8-27B-NVFP4-xhigh --runs 2
+
+# Benchmark currently active server directly without stopping or starting containers
+python3 eval/launch_benchmark.py --no-manage
+
+# Run tool-eval-bench benchmark alongside throughput metrics
+python3 eval/launch_benchmark.py --model Qwen3.8-27B-NVFP4-xhigh --run-tool-eval-bench
+```
+
+### 5. Serve Dashboard Web App
 ```bash
 python3 -m http.server 8080 --directory site
 # Open http://localhost:8080
 ```
 
-### 5. Cross-Model Defect & Pass-Rate Analyzer (`test_analyzer.py`)
+### 6. Cross-Model Defect & Pass-Rate Analyzer (`test_analyzer.py`)
 ```bash
 # Scan evaluation traces, print step pass-rate matrix, and flag 0% pass steps
 python3 eval/test_analyzer.py

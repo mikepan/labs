@@ -6,8 +6,6 @@ session management, prompt execution, and response parsing.
 """
 
 import json
-import subprocess
-import sys
 import time
 from datetime import datetime, timezone
 from typing import Any
@@ -41,7 +39,10 @@ def _build_model_entry(name: str, max_context: int = DEFAULT_CONTEXT_WINDOW, rea
         },
     }
     if reasoning_effort and reasoning_effort not in ("off", "none"):
-        entry["parameters"] = {"reasoningEffort": reasoning_effort}
+        entry["parameters"] = {
+            "reasoningEffort": reasoning_effort,
+            "forceReasoning": True,
+        }
     return entry
 
 
@@ -112,7 +113,10 @@ class OpenCodeDriver(HarnessDriver):
             "modelID": model_name,
         }
         if reasoning_effort and reasoning_effort not in ("off", "none"):
-            model_payload["parameters"] = {"reasoningEffort": reasoning_effort}
+            model_payload["parameters"] = {
+                "reasoningEffort": reasoning_effort,
+                "forceReasoning": True,
+            }
 
         payload_json = json.dumps({
             "parts": [{"type": "text", "text": prompt}],
@@ -289,7 +293,7 @@ elif 'type' in err_result:
             "provider": {
                 self.provider_id: {
                     "name": self.provider_id,
-                    "npm": "@ai-sdk/openai-compatible",
+                    "npm": "@ai-sdk/openai",
                     "options": {"baseURL": llm_base_url, "apiKey": "dummy"},
                     "models": models_config,
                 },

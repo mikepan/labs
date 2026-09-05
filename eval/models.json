@@ -34,7 +34,7 @@
     "model-arg": "vllm serve Qwen/Qwen3.8-27B-FP8 --enable-prefix-caching --max-num-batched-tokens 16384 --trust-remote-code --reasoning-parser qwen3 --enable-auto-tool-choice --tool-call-parser qwen3_coder",
     "model-arg-speculative": "--speculative-config '{\"method\": \"dflash\", \"model\": \"z-lab/Qwen3.8-27B-DFlash2\", \"num_speculative_tokens\": 8}'",
     "model-arg-kv-quant": "--kv-cache-dtype fp8",
-    "model-arg-platform": "--load-format fastsafetensors  --gpu-memory-utilization 0.5",
+    "model-arg-platform": "--load-format fastsafetensors  --gpu-memory-utilization 0.6",
     "model-arg-env": "VLLM_USE_DEEP_GEMM=0",
     "reasoning_effort": "low"
   },
@@ -42,7 +42,7 @@
     "model-arg": "vllm serve Qwen/Qwen3.8-27B-FP8 --enable-prefix-caching --max-num-batched-tokens 16384 --trust-remote-code --reasoning-parser qwen3 --enable-auto-tool-choice --tool-call-parser qwen3_coder",
     "model-arg-speculative": "--speculative-config '{\"method\": \"dflash\", \"model\": \"z-lab/Qwen3.8-27B-DFlash2\", \"num_speculative_tokens\": 8}'",
     "model-arg-kv-quant": "--kv-cache-dtype fp8",
-    "model-arg-platform": "--load-format fastsafetensors  --gpu-memory-utilization 0.5",
+    "model-arg-platform": "--load-format fastsafetensors  --gpu-memory-utilization 0.6",
     "model-arg-env": "VLLM_USE_DEEP_GEMM=0",
     "reasoning_effort": "medium"
   },
@@ -50,7 +50,7 @@
     "model-arg": "vllm serve Qwen/Qwen3.8-27B-FP8 --enable-prefix-caching --max-num-batched-tokens 16384 --trust-remote-code --reasoning-parser qwen3 --enable-auto-tool-choice --tool-call-parser qwen3_coder",
     "model-arg-speculative": "--speculative-config '{\"method\": \"dflash\", \"model\": \"z-lab/Qwen3.8-27B-DFlash2\", \"num_speculative_tokens\": 8}'",
     "model-arg-kv-quant": "",
-    "model-arg-platform": "--load-format fastsafetensors  --gpu-memory-utilization 0.5",
+    "model-arg-platform": "--load-format fastsafetensors  --gpu-memory-utilization 0.7",
     "model-arg-env": "VLLM_USE_DEEP_GEMM=0",
     "reasoning_effort": "xhigh"
   },

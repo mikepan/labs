@@ -7,7 +7,9 @@ Usage:
 """
 
 import argparse
+import csv
 import json
+import random
 import subprocess
 import sys
 import tempfile
@@ -31,12 +33,57 @@ from eval.results import calculate_model_memory_gb, resolve_model_info
 
 logger = setup_logger("launch_benchmark")
 DEFAULT_PROMPT_FILE = TESTS_DIR / "benchmark" / "long-prompt.kt"
+NEWS_CSV_FILE = TESTS_DIR / "news.csv"
+
+# Approximate words-per-token ratio for token estimation
+_WORDS_PER_TOKEN = 0.75
 
 
 def load_prompt(prompt_file: Path | str = DEFAULT_PROMPT_FILE) -> str:
     """Load benchmark prompt text from file."""
     path = Path(prompt_file)
     return f"Describe what this file does:\n\n```kotlin\n{path.read_text(encoding='utf-8', errors='ignore')}\n```"
+
+
+def build_context_pressure_text(target_tokens: int, csv_file: Path = NEWS_CSV_FILE) -> str:
+    """Build filler text from news articles to approximately fill target_tokens.
+
+    Uses a simple word-count approximation (1 token ~= 0.75 words).
+    Articles are cycled as needed to reach the target.
+    """
+    target_words = int(target_tokens * _WORDS_PER_TOKEN)
+
+    articles: list[str] = []
+    with open(csv_file, encoding="utf-8", errors="ignore", newline="") as f:
+        reader = csv.reader(f)
+        for row in reader:
+            # CSV columns: title, text, subject, date
+            if len(row) >= 2 and row[1].strip():
+                articles.append(f"{row[0].strip()}\n\n{row[1].strip()}")
+
+    if not articles:
+        raise ValueError(f"No articles found in {csv_file}")
+
+    chunks: list[str] = []
+    total_words = 0
+    pool = articles[:]
+    random.shuffle(pool)
+    pool_idx = 0
+    while total_words < target_words:
+        if pool_idx >= len(pool):
+            random.shuffle(pool)
+            pool_idx = 0
+        article = pool[pool_idx]
+        chunks.append(article)
+        total_words += len(article.split())
+        pool_idx += 1
+
+    filler = "\n\n---\n\n".join(chunks)
+    logger.info(
+        "Context pressure: %d articles, ~%d words, target %d tokens (~%d words)",
+        len(chunks), total_words, target_tokens, target_words,
+    )
+    return filler
 
 
 def wait_until_idle(base_url: str = API_BASE_URL, timeout_sec: int = 30) -> None:
@@ -169,6 +216,7 @@ def benchmark_model(
     runs: int = 1,
     base_url: str = API_BASE_URL,
     manage: bool = True,
+    verbose: bool = False,
 ) -> dict[str, Any] | None:
     """Run benchmark lifecycle for a single model."""
     logger.info("=" * 70)
@@ -188,10 +236,17 @@ def benchmark_model(
         bench_prompt = f"[Session: {session_id}]\n" + prompt
         run_data = []
 
+        if verbose:
+            print("\n" + "=" * 70)
+            print("PROMPT SENT:")
+            print("=" * 70)
+            print(bench_prompt)
+            print("=" * 70 + "\n")
+
         for idx in range(1, runs + 1):
             wait_until_idle(base_url=base_url)
             logger.info("--- Starting Run %d/%d for '%s' ---", idx, runs, model_name)
-            res = run_stream_benchmark(weight, bench_prompt, base_url=base_url, verbose=True)
+            res = run_stream_benchmark(weight, bench_prompt, base_url=base_url, verbose=verbose)
             if res:
                 run_data.append(res)
                 logger.info(
@@ -329,15 +384,22 @@ def main():
     parser.add_argument("--base-url", default=API_BASE_URL, help=f"Base URL of the serving server (default: {API_BASE_URL})")
     parser.add_argument("--no-manage", action="store_true", help="Do not stop or start model, benchmark active server directly")
     parser.add_argument("--run-tool-eval-bench", action="store_true", help="Run tool-eval-bench quality benchmark against the server")
+    parser.add_argument("--context-pressure", type=int, default=None, metavar="TOKENS",
+                        help="Stuff the prompt with news articles to fill approximately TOKENS of context before benchmarking")
+    parser.add_argument("--verbose", action="store_true", help="Print full prompt sent and stream response tokens to stdout")
     args = parser.parse_args()
 
     prompt = load_prompt()
+    if args.context_pressure:
+        logger.info("Building context pressure filler: target %d tokens", args.context_pressure)
+        filler = build_context_pressure_text(args.context_pressure)
+        prompt = f"<context>\n{filler}\n</context>\n\n{prompt}"
 
     if args.no_manage:
         active_model, _ = resolve_model_info(f"{args.base_url}/v1", fallback_name=args.model or "active-model")
         model_name = args.model if args.model else active_model
         logger.info("Starting direct benchmark on active server at %s for model '%s'", args.base_url, model_name)
-        res = benchmark_model(model_name, None, prompt, runs=args.runs, base_url=args.base_url, manage=False)
+        res = benchmark_model(model_name, None, prompt, runs=args.runs, base_url=args.base_url, manage=False, verbose=args.verbose)
         summaries = [res] if res else []
     else:
         models = load_json_config(MODELS_CONFIG_FILE)
@@ -345,7 +407,7 @@ def main():
         logger.info("Starting benchmark across %d model(s): %s", len(targets), targets)
         summaries = []
         for m in targets:
-            res = benchmark_model(m, models[m], prompt, runs=args.runs, base_url=args.base_url, manage=True)
+            res = benchmark_model(m, models[m], prompt, runs=args.runs, base_url=args.base_url, manage=True, verbose=args.verbose)
             if res:
                 summaries.append(res)
 

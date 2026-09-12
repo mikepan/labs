@@ -74,7 +74,7 @@ TEST = Test(
     setup=[],
     steps=[
         Step(
-            prompt="""Analyze source.kt and create a concise summary of what this Android Camera app does in a file called "summary.md". Keep it to 1-2 paragraphs in English. Do not install anything like JRE or SDK, we need to keep the env clean""",
+            prompt="""Please review source.kt and create a concise 1-2 paragraph architectural and functional summary of this Android Camera application in 'summary.md'.""",
             checks=[
                 git_changes("summary.md", "A", total_lines=(1, 25)),
                 lang_detect("summary.md", lang="en"),
@@ -82,7 +82,7 @@ TEST = Test(
             point=2,
         ),
         Step(
-            prompt="""In source.kt, add a helper function formatShutterSpeed(exposureTimeNs: Long): String that converts exposure time in nanoseconds to a camera shutter speed string (for example, "1/30s", "1/1000s", or fractional seconds like "0.5s"). Ensure source.kt maintains valid Kotlin syntax.""",
+            prompt="""In source.kt, add a helper function formatShutterSpeed(exposureTimeNs: Long): String to convert exposure time in nanoseconds to a camera shutter speed string (for example, "1/30s", "1/1000s", or fractional seconds like "0.5s"). Ensure source.kt maintains valid Kotlin syntax.""",
             checks=[
                 git_changes("source.kt", "M", diff_lines=(4, 80)),
                 check_kotlin_syntax("source.kt"),
@@ -101,7 +101,7 @@ TEST = Test(
             point=2,
         ), 
         Step(
-            prompt="""Strip all comments""",
+            prompt="""Clean up source.kt by removing all comments (both single-line and multi-line) from the file while keeping all code syntax intact.""",
             checks=[
                 check_kotlin_syntax("source.kt"),
                 check_no_comments_in_kotlin("source.kt"),
@@ -109,7 +109,7 @@ TEST = Test(
             point=2,
         ),
         Step(
-            prompt="""remove code smell, reduce redunancy, and improve readability without changing functionality""",
+            prompt="""Refactor source.kt to improve readability, eliminate redundancies, and clean up code smells without changing any runtime functionality.""",
             checks=[
                 git_changes("source.kt", "M", diff_lines=(2, 2500)),
                 check_kotlin_syntax("source.kt"),

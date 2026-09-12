@@ -63,6 +63,22 @@
     "model-arg-env": "VLLM_MARLIN_USE_ATOMIC_ADD=1 TORCH_MATMUL_PRECISION=high FLASHINFER_DISABLE_VERSION_CHECK=1 NVIDIA_FORWARD_COMPAT=1",
     "reasoning_effort": "xhigh"
   },
+  "Qwen3.8-Flash-Next-NVFP4-low": {
+    "model-arg": "vllm serve local-inference-lab/Qwen3.8-Flash-Next-NVFP4 --enable-prefix-caching --enable-chunked-prefill --max-num-batched-tokens 4096 --trust-remote-code --reasoning-parser qwen3 --tool-call-parser qwen3_xml --enable-auto-tool-choice --mamba-cache-mode align --dtype bfloat16 --quantization modelopt_mixed --block-size 16 --gdn-decode-kernel b12x --linear-backend b12x --moe-backend b12x --no-enable-flashinfer-autotune --mm-encoder-tp-mode data --compilation-config '{\"pass_config\":{\"fuse_act_quant\":true}}'",
+    "model-arg-speculative": "--speculative-config '{\"method\":\"mtp\",\"num_speculative_tokens\":4}'",
+    "model-arg-kv-quant": "--kv-cache-dtype fp8",
+    "model-arg-platform": "--load-format b12x --gpu-memory-utilization 0.80 --async-scheduling",
+    "model-arg-env": "VLLM_PLE_TABLE_MEMORY=disk CUTE_DSL_ARCH=sm_121a SAFETENSORS_FAST_GPU=1 VLLM_WORKER_MULTIPROC_METHOD=spawn VLLM_SSM_CONV_STATE_LAYOUT=DS VLLM_USE_AOT_COMPILE=1 VLLM_USE_MEGA_AOT_ARTIFACT=1 VLLM_USE_V2_MODEL_RUNNER=1 B12X_POLICY_MODE=auto",
+    "reasoning_effort": "low"
+  },
+  "Qwen3.8-Flash-Next-NVFP4-medium": {
+    "model-arg": "vllm serve local-inference-lab/Qwen3.8-Flash-Next-NVFP4 --enable-prefix-caching --enable-chunked-prefill --max-num-batched-tokens 4096 --trust-remote-code --reasoning-parser qwen3 --tool-call-parser qwen3_xml --enable-auto-tool-choice --mamba-cache-mode align --dtype bfloat16 --quantization modelopt_mixed --block-size 16 --gdn-decode-kernel b12x --linear-backend b12x --moe-backend b12x --no-enable-flashinfer-autotune --mm-encoder-tp-mode data --compilation-config '{\"pass_config\":{\"fuse_act_quant\":true}}'",
+    "model-arg-speculative": "--speculative-config '{\"method\":\"mtp\",\"num_speculative_tokens\":4}'",
+    "model-arg-kv-quant": "--kv-cache-dtype fp8",
+    "model-arg-platform": "--load-format b12x --gpu-memory-utilization 0.80 --async-scheduling",
+    "model-arg-env": "VLLM_PLE_TABLE_MEMORY=disk CUTE_DSL_ARCH=sm_121a SAFETENSORS_FAST_GPU=1 VLLM_WORKER_MULTIPROC_METHOD=spawn VLLM_SSM_CONV_STATE_LAYOUT=DS VLLM_USE_AOT_COMPILE=1 VLLM_USE_MEGA_AOT_ARTIFACT=1 VLLM_USE_V2_MODEL_RUNNER=1 B12X_POLICY_MODE=auto",
+    "reasoning_effort": "medium"
+  },
   "Qwen3.8-Flash-Next-NVFP4": {
     "model-arg": "vllm serve local-inference-lab/Qwen3.8-Flash-Next-NVFP4 --enable-prefix-caching --enable-chunked-prefill --max-num-batched-tokens 4096 --trust-remote-code --reasoning-parser qwen3 --tool-call-parser qwen3_xml --enable-auto-tool-choice --mamba-cache-mode align --dtype bfloat16 --quantization modelopt_mixed --block-size 16 --gdn-decode-kernel b12x --linear-backend b12x --moe-backend b12x --no-enable-flashinfer-autotune --mm-encoder-tp-mode data --compilation-config '{\"pass_config\":{\"fuse_act_quant\":true}}'",
     "model-arg-speculative": "--speculative-config '{\"method\":\"mtp\",\"num_speculative_tokens\":4}'",

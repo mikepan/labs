@@ -164,52 +164,46 @@ TEST = Test(
     name="multilingual_science_presentation",
     steps=[
         Step(
-            prompt="""Why is the sky blue? Explain it at 3 different levels (3 yearsold, teenager, science PhD) and produce a markdown file called 'sky.md' with a headings for each of those levels.""",
+            prompt="""Why is the sky blue? Explain it for 3 different audiences (a 3-year-old toddler, a high school teenager, and a physics PhD) and save it as a markdown file called 'sky.md' with clear headings for each level.""",
             checks=[
                 git_changes("sky.md", "A", total_lines=(6, 100)),
                 lang_detect("sky.md", lang="en"),
             ],
         ),
         Step(
-            prompt="make a copy of this file and rename it to sky2.md",
+            prompt="Make a copy of sky.md and name it sky2.md.",
             checks=[
                 git_changes("sky2.md", "A"),
                 files_identical("sky.md", "sky2.md"),
             ],
         ),
         Step(
-            prompt="translate sky2.md to simplified chinese and write back to the same file",
+            prompt="Translate sky2.md into Simplified Chinese and save the translation back to the same file.",
             checks=[
                 git_changes("sky2.md", "M", total_lines=(6, 100)),
                 lang_detect("sky2.md", lang="zh"),
             ],
         ),
         Step(
-            prompt="""Create a beautiful single page html(index.html) to present this content, showing the english and chinese content side by side. Be sure that the js/css are all embedded. Dont load any external resources from the web.""",
+            prompt="""Create a clean, single-page HTML presentation in 'index.html' to display this bilingual content side-by-side (English and Chinese). Keep all CSS and JavaScript embedded directly without loading external resources.""",
             checks=[
                 git_changes("index.html", "A", total_lines=(50, 1000)),
             ],
         ),
         Step(
-            prompt="""Add a copyright Jennifer Robins 2026 notice at the bottom  of the page""",
+            prompt="""Please add a copyright notice for Jennifer Robins (2026) to the footer of index.html.""",
             checks=[
-                git_changes("index.html", "M", diff_lines=(1,100)),
+                git_changes("index.html", "M", diff_lines=(1, 100)),
             ],
         ),
         Step(
-            prompt="""Add a theme toggle button to index.html that allows switching between 'Day Mode' (light blue) and 'Night Mode' (dark starry sky) with smooth CSS transitions.""",
+            prompt="""Add a theme toggle button to index.html that lets users switch between 'Day Mode' (light blue) and 'Night Mode' (dark starry sky) with smooth CSS transitions.""",
             checks=[
                 git_changes("index.html", "M", total_lines=(50, 2000), diff_lines=(10, 1500)),
             ],
         ),
         Step(
-            prompt="""let's not use any javascript""",
-            checks=[
-                git_changes("index.html", "M", total_lines=(50, 2000)),
-            ],
-        ),
-        Step(
-            prompt="""Merge sky.md and sky2.md into a single file called sky_bilingual.md. For each explanation level (3 year old, teenager, PhD), show the English explanation first, then the Chinese translation directly below it. Delete sky.md and sky2.md afterwards.""",
+            prompt="""Merge sky.md and sky2.md into a single file called 'sky_bilingual.md'. For each explanation level (3-year-old, teenager, PhD), show the English section first followed by the Chinese translation directly below it. Delete sky.md and sky2.md once merged.""",
             checks=[
                 git_changes("sky_bilingual.md", "A", total_lines=(10, 200)),
                 git_changes("sky.md", "D"),
@@ -218,18 +212,19 @@ TEST = Test(
             ],
         ),
         Step(
-            prompt="""ok lets create a rich, beautiful html presentation on the inner layers of the earth geology. use diagrams if you can. make it in Arabic and name the final html "earth.html".  Ensure it's single page, no external js/css/images.""",
+            prompt="""Let's create a rich, self-contained visual presentation in Arabic on Earth's geological layers (crust, mantle, core). Name it 'earth.html'. Keep all styling and diagrams embedded with no external dependencies.""",
             checks=[
                 git_changes("earth.html", "A", total_lines=(100, 2000)),
             ],
         ),
         Step(
-            prompt="""Audit all 2 presentations. Ensure every HTML file includes: (1) an appropriate <html lang="..."> attribute for its language ("en" for index.html, "ar" for earth.html), (2) a <meta charset="utf-8"> tag, and (3) an author footer at the bottom: <footer id="author">Created by Dr. Jennifer Robins - 2026</footer>. Update any of these HTML files that are missing these elements.""",
+            prompt="""Let's do a QA pass across our HTML pages (index.html and earth.html). Ensure every HTML file includes: (1) an appropriate <html lang="..."> attribute for its language ("en" for index.html, "ar" for earth.html), (2) a <meta charset="utf-8"> tag, and (3) an author footer at the bottom: <footer id="author">Created by Dr. Jennifer Robins - 2026</footer>. Update any HTML files that are missing these elements.""",
             checks=[
                 git_changes("index.html", "M"),
                 git_changes("earth.html", "M"),
                 check_html_metadata_standards(),
             ],
+            point=2,
         )
     ],
 )

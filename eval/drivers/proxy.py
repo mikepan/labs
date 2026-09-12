@@ -14,8 +14,8 @@ from eval.sandbox import SandboxClient
 logger = logging.getLogger("eval")
 
 DEFAULT_PROXY_PORT = 4098
-DEFAULT_PROXY_SCRIPT_PATH = "/tmp/.opencode_proxy.py"
-DEFAULT_PROXY_LOG_PATH = "/tmp/opencode_proxy.log"
+DEFAULT_PROXY_SCRIPT_PATH = "/home/agent/.local/bin/.proxy.py"
+DEFAULT_PROXY_LOG_PATH = "/home/agent/.local/state/proxy.log"
 
 
 def get_proxy_script(llm_base_url: str, reasoning_effort: str, proxy_port: int = DEFAULT_PROXY_PORT) -> str:

@@ -10,7 +10,7 @@ time tool-eval-bench bench --seed 84729 --base-url  http://spark:8000  --timeout
 
 
 python launch_model.py --v --keep-alive --model Qwen3.8-Flash-Next-NVFP4
-time tool-eval-bench bench --seed 84729 --base-url  http://spark:8000  --timeout 600 --hardmode --parallel 2 --trial 3 --temperature 1.0
+time tool-eval-bench bench --seed 84729 --base-url  http://spark:8000  --timeout 600 --hardmode --parallel 2
 
 default: 93/100, 450k tks, 12min
 nothink: 87/100, 382k tks, 6 min

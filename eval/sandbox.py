@@ -1,3 +1,4 @@
+import atexit
 import fnmatch
 import io
 import json
@@ -5,10 +6,12 @@ import os
 from pathlib import Path
 import re
 import shutil
+import signal
 import subprocess
 import sys
 import tarfile
 import tempfile
+import threading
 from typing import Any
 
 from eval.common import setup_logger, run_cmd
@@ -20,9 +23,78 @@ from eval.config import (
     DEFAULT_WORKER_SANDBOX_NAME,
 )
 
-__all__ = ["SandboxClient"]
+__all__ = ["SandboxClient", "cleanup_all_sandboxes"]
 
 logger = setup_logger("sandbox")
+
+_ACTIVE_SANDBOXES: set[str] = set()
+_ACTIVE_EPHEMERAL_DIRS: set[str] = set()
+_REGISTRY_LOCK = threading.Lock()
+
+
+def _register_active_sandbox(name: str) -> None:
+    with _REGISTRY_LOCK:
+        _ACTIVE_SANDBOXES.add(name)
+
+
+def _unregister_active_sandbox(name: str) -> None:
+    with _REGISTRY_LOCK:
+        _ACTIVE_SANDBOXES.discard(name)
+
+
+def _register_active_dir(path: str) -> None:
+    with _REGISTRY_LOCK:
+        _ACTIVE_EPHEMERAL_DIRS.add(path)
+
+
+def _unregister_active_dir(path: str) -> None:
+    with _REGISTRY_LOCK:
+        _ACTIVE_EPHEMERAL_DIRS.discard(path)
+
+
+def cleanup_all_sandboxes() -> None:
+    """Tear down all currently active sandboxes and ephemeral workspaces."""
+    with _REGISTRY_LOCK:
+        sandboxes = list(_ACTIVE_SANDBOXES)
+        dirs = list(_ACTIVE_EPHEMERAL_DIRS)
+        _ACTIVE_SANDBOXES.clear()
+        _ACTIVE_EPHEMERAL_DIRS.clear()
+
+    if not sandboxes and not dirs:
+        return
+
+    for sbx_name in sandboxes:
+        try:
+            logger.info("Cleaning up active sandbox '%s'...", sbx_name)
+            run_cmd("sbx", "rm", "-f", sbx_name, timeout=10)
+        except Exception:
+            pass
+
+    for d in dirs:
+        try:
+            if os.path.exists(d):
+                shutil.rmtree(d, ignore_errors=True)
+        except Exception:
+            pass
+
+
+def _signal_handler(signum: int, frame: Any) -> None:
+    sig_name = signal.Signals(signum).name if hasattr(signal, "Signals") else str(signum)
+    logger.warning("Received signal %s (%d): cleaning up all active sandboxes...", sig_name, signum)
+    cleanup_all_sandboxes()
+    sys.exit(128 + signum)
+
+
+def _init_lifecycle_hooks() -> None:
+    atexit.register(cleanup_all_sandboxes)
+    try:
+        signal.signal(signal.SIGINT, _signal_handler)
+        signal.signal(signal.SIGTERM, _signal_handler)
+    except (ValueError, RuntimeError, AttributeError):
+        pass
+
+
+_init_lifecycle_hooks()
 
 
 class SandboxClient:
@@ -99,7 +171,7 @@ except Exception as e:
         self,
         template: str = DEFAULT_TEMPLATE_TAG,
         workspace: str | None = None,
-        publish_ports: bool = True,
+        publish_ports: bool = False,
     ) -> None:
         """Provision a clean ephemeral sandbox from the base template with an isolated workspace."""
         self.remove()
@@ -109,7 +181,9 @@ except Exception as e:
         else:
             self._ephemeral_dir = tempfile.mkdtemp(prefix="sbx_empty_ws_")
             ws_path = self._ephemeral_dir
+            _register_active_dir(self._ephemeral_dir)
 
+        _register_active_sandbox(self.name)
         logger.info("Provisioning sandbox '%s' from template '%s' (workspace: %s)...", self.name, template, ws_path)
         cmd_args = ["sbx", "create", "--name", self.name, "--template", template]
         if publish_ports:
@@ -121,15 +195,19 @@ except Exception as e:
 
         res = run_cmd(*cmd_args)
         if res.returncode != 0:
+            self.remove()
             raise RuntimeError(f"Error creating sandbox '{self.name}':\n{res.stderr}\n{res.stdout}")
         logger.info("✓ Sandbox '%s' is ready.", self.name)
 
     def remove(self) -> None:
         """Clean up and remove the sandbox container and ephemeral workspace."""
+        _unregister_active_sandbox(self.name)
         logger.info("Cleaning up sandbox '%s'...", self.name)
         run_cmd("sbx", "rm", "-f", self.name)
-        if self._ephemeral_dir and os.path.exists(self._ephemeral_dir):
-            shutil.rmtree(self._ephemeral_dir, ignore_errors=True)
+        if self._ephemeral_dir:
+            _unregister_active_dir(self._ephemeral_dir)
+            if os.path.exists(self._ephemeral_dir):
+                shutil.rmtree(self._ephemeral_dir, ignore_errors=True)
             self._ephemeral_dir = None
 
     def exists(self) -> bool:
@@ -252,10 +330,10 @@ except Exception as e:
             f"cd {workspace_dir}",
             *setup_cmds,
             "git init",
-            "git config user.email 'dev@project.local'",
-            "git config user.name 'Developer'",
+            "git config user.email 'alex.chen@innovatech.io'",
+            "git config user.name 'Alex Chen'",
             "git add -A",
-            "git commit --allow-empty -m 'initial commit'",
+            "git commit --allow-empty -m 'chore: initialize project structure'",
         ]
         combined_script = " && ".join(cmds)
         self.exec(combined_script)

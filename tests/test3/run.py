@@ -2,12 +2,9 @@
 tests.test3.run - Normal Map Format Classification Evaluation (OpenGL vs Direct3D).
 
 Evaluates the agent's ability to analyze normal map texture conventions (OpenGL +Y vs DirectX/D3D -Y)
-and produce an accurate, reusable Python classification script that classifies normal map images into 'd3d' or 'ogl'.
+and sort mixed normal map images into 'ogl' and 'd3d' folders.
 """
 
-import re
-import subprocess
-import sys
 from pathlib import Path
 
 from tests.framework import Step, Test, custom_check
@@ -75,128 +72,85 @@ GROUND_TRUTH: dict[str, str] = {
 # Validators
 # ==============================================================================
 
-def _normalize_format_str(val: str) -> str:
-    """Normalize format strings like 'opengl', 'ogl', 'directx', 'dx', 'd3d'."""
-    lines = [line.strip().lower() for line in val.strip().splitlines() if line.strip()]
-    if not lines:
-        return ""
-    # Check lines in reverse (last non-empty line usually holds the final printed answer)
-    for line in reversed(lines):
-        tokens = line.split()
-        for tok in tokens:
-            t = tok.strip("()[]:;,.'\"")
-            if t in ("ogl", "opengl", "+y", "up"):
-                return "ogl"
-            if t in ("d3d", "directx", "dx", "-y", "down"):
-                return "d3d"
-        if re.search(r"\b(ogl|opengl|\+y)\b", line) or line.endswith("ogl") or line.endswith("opengl"):
-            return "ogl"
-        if re.search(r"\b(d3d|directx|dx|\-y)\b", line) or line.endswith("d3d") or line.endswith("directx"):
-            return "d3d"
-    return lines[-1]
-
-
 def validate_normal_map_classification(workspace_dir: str) -> tuple[bool, str]:
-    """Execute the agent's Python script on all 50 mixed normal maps and verify accuracy."""
+    """Verify that all 50 mixed normal maps have been copied/sorted into 'ogl' and 'd3d' folders."""
     ws = Path(workspace_dir)
 
-    # 1. Locate the Python classification script
-    py_candidates = [
-        p for p in ws.glob("*.py")
-        if p.name not in ("run.py", "eval.py", "test.py") and not p.name.startswith(".")
-    ]
-    if not py_candidates:
-        py_candidates = [
-            p for p in ws.glob("**/*.py")
-            if p.name not in ("run.py", "eval.py", "test.py") and not p.name.startswith(".")
-        ]
+    # 1. Locate ogl and d3d folders
+    def find_dir(names: list[str]) -> Path | None:
+        for name in names:
+            p = ws / name
+            if p.is_dir():
+                return p
+        for name in names:
+            for cand in ws.glob(f"**/{name}"):
+                if cand.is_dir():
+                    return cand
+        return None
 
-    if not py_candidates:
-        return False, "No Python classification script (*.py) found in workspace."
+    ogl_dir = find_dir(["ogl", "opengl", "OpenGL", "OGL"])
+    d3d_dir = find_dir(["d3d", "direct3d", "Direct3D", "directx", "DirectX", "dx", "D3D", "DX"])
 
-    # Filter out directory/batch runner scripts when per-image classifier scripts exist
-    single_cands = [
-        p for p in py_candidates
-        if not any(k in p.name.lower() for k in ("_all", "all_", "batch", "check_all"))
-    ]
-    candidates_to_check = single_cands if single_cands else py_candidates
+    if not ogl_dir and not d3d_dir:
+        return False, "Could not find either 'ogl' or 'd3d' folders in workspace."
+    if not ogl_dir:
+        return False, "Could not find 'ogl' folder in workspace."
+    if not d3d_dir:
+        return False, "Could not find 'd3d' folder in workspace."
 
-    # Prefer scripts named detect, normal, class, sort, etc.
-    chosen_py = None
-    for cand in candidates_to_check:
-        cand_lower = cand.name.lower()
-        if any(k in cand_lower for k in ("detect", "normal", "class", "sort", "predict")):
-            chosen_py = cand
-            break
-    if not chosen_py:
-        chosen_py = candidates_to_check[0]
-
-    # 2. Locate the mixed/ directory containing test images
-    mixed_dir = ws / "mixed"
-    if not mixed_dir.exists():
-        for cand_dir in [ws] + list(ws.glob("**/")):
-            if any((cand_dir / fn).exists() for fn in list(GROUND_TRUTH.keys())[:3]):
-                mixed_dir = cand_dir
-                break
-
-    if not mixed_dir.exists():
-        return False, "Could not find 'mixed/' directory containing normal map textures."
-
-    # 3. Test the script against all ground truth images
+    # 2. Check placement of all ground truth images
     correct = 0
-    total = 0
+    inverted_correct = 0
+    missing: list[str] = []
     mismatches: list[str] = []
+    duplicates: list[str] = []
 
     for filename, expected_fmt in sorted(GROUND_TRUTH.items()):
-        img_path = mixed_dir / filename
-        if not img_path.exists():
-            continue
+        in_ogl = (ogl_dir / filename).exists()
+        in_d3d = (d3d_dir / filename).exists()
 
-        total += 1
-
-        res = subprocess.run(
-            [sys.executable, str(chosen_py.resolve()), str(img_path.resolve())],
-            cwd=workspace_dir,
-            capture_output=True,
-            text=True,
-            timeout=15,
-        )
-
-        detected_fmt = _normalize_format_str(res.stdout.strip())
-
-        if detected_fmt == expected_fmt:
-            correct += 1
+        if in_ogl and in_d3d:
+            duplicates.append(filename)
+        elif in_ogl:
+            if expected_fmt == "ogl":
+                correct += 1
+            else:
+                inverted_correct += 1
+                mismatches.append(f"{filename} in ogl/ (expected d3d)")
+        elif in_d3d:
+            if expected_fmt == "d3d":
+                correct += 1
+            else:
+                inverted_correct += 1
+                mismatches.append(f"{filename} in d3d/ (expected ogl)")
         else:
-            mismatches.append(f"{filename}: expected={expected_fmt}, got={detected_fmt or 'unknown'}")
+            missing.append(filename)
 
-    if total == 0:
-        return False, "No test normal map images were found to evaluate."
+    total_expected = len(GROUND_TRUTH)
 
-    inverted_correct = sum(
-        1 for filename, expected_fmt in GROUND_TRUTH.items()
-        if (mixed_dir / filename).exists() and mismatches and any(
-            filename in m and f"expected={expected_fmt}" in m and f"got={'d3d' if expected_fmt == 'ogl' else 'ogl'}" in m
-            for m in mismatches
-        )
-    )
+    if duplicates:
+        return False, f"Found {len(duplicates)} files duplicated in both folders (e.g. {duplicates[:3]})."
 
-    # Accept exactly 50/50 (100% standard) or 0/50 (100% inverted Y-axis convention)
-    if correct == total and total == len(GROUND_TRUTH):
+    if missing:
+        return False, f"Missing {len(missing)}/{total_expected} files from 'ogl' and 'd3d' folders (e.g. {missing[:3]})."
+
+    # Accept 50/50 standard classification or 50/50 inverted Y convention
+    if correct == total_expected:
         return (
             True,
-            f"✓ Successfully classified normal maps with 50/50 accuracy using '{chosen_py.name}'.",
+            f"✓ Successfully sorted all {total_expected} normal maps into 'ogl' and 'd3d' folders with 100% accuracy.",
         )
 
-    if correct == 0 and inverted_correct == total and total == len(GROUND_TRUTH):
+    if inverted_correct == total_expected:
         return (
             True,
-            f"✓ Successfully classified normal maps with 0/50 (100% consistent inverted Y-convention) using '{chosen_py.name}'.",
+            f"✓ Successfully sorted all {total_expected} normal maps (100% consistent inverted Y convention) into 'ogl' and 'd3d' folders.",
         )
 
     return (
         False,
-        f"Classification accuracy requirement not met: got {correct}/{total} correct "
-        f"({inverted_correct}/{total} inverted). Expected 50/50 or 0/50.",
+        f"Classification accuracy requirement not met: {correct}/{total_expected} correct "
+        f"({inverted_correct}/{total_expected} inverted). Mismatches: {', '.join(mismatches[:5])}",
     )
 
 
@@ -209,19 +163,19 @@ TEST = Test(
     steps=[
         Step(
             prompt=(
-                "i have a folder of normal maps in 'mixed/', but some are in OpenGL and some in D3D format. "
-                "figure out an algorithm to sort them out. create a python script that takes the file input as name/path, "
-                "and returns or prints 'd3d' or 'ogl' as the answer."
+                "The previous artist forgot to flip the correct toggle during export, so now "
+                "we have a folder of normal maps in 'mixed/' where some are in OpenGL format and others in D3D format. "
+                "Figure out an algorithm to sort them out, and copy them into 2 folders: 'ogl' and 'd3d'."
             ),
             checks=[
                 custom_check(validate_normal_map_classification),
             ],
             point=10,
-            hint = "Keep in mind these normal maps are generated from height maps. And there should be a way to tell them apart. \
-                Ensure you create a python script that takes the file input, \
-                and returns or prints 'd3d' or 'ogl' as the answer."
+            hint=(
+                "Normal maps generated from height maps have distinct directional gradient characteristics. "
+                "Sort the files into the 'ogl' and 'd3d' directories."
+            ),
         ),
-        
     ],
 )
 

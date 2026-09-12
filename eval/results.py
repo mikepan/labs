@@ -2,10 +2,12 @@
 eval.results - Evaluation results saving, model metadata, and benchmark dataset management.
 """
 
+import fcntl
 import json
 import os
 import re
 import shutil
+import uuid
 from typing import Any
 
 from eval.common import setup_logger, run_cmd, http_json, load_json_config
@@ -209,24 +211,34 @@ def save_evaluation_results(
     with open(trace_path, "w", encoding="utf-8") as f:
         json.dump(suite_trace, f, separators=(",", ":"))
 
-    # 4. Update benchmark-data.json
+    # 4. Update benchmark-data.json with exclusive file lock & atomic replace
     if benchmark_data_file:
         results_record = {**common, "test_results": test_results_summary}
         try:
-            os.makedirs(os.path.dirname(benchmark_data_file), exist_ok=True)
-            if os.path.exists(benchmark_data_file):
-                with open(benchmark_data_file, "r", encoding="utf-8") as f:
-                    bench_data = json.load(f)
-            else:
-                bench_data = {
-                    "$schema": "../../eval/benchmark-data.schema.json",
-                    "evaluations": [],
-                }
+            parent_dir = os.path.dirname(benchmark_data_file)
+            if parent_dir:
+                os.makedirs(parent_dir, exist_ok=True)
+            lock_path = f"{benchmark_data_file}.lock"
+            with open(lock_path, "w", encoding="utf-8") as lock_file:
+                fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+                try:
+                    if os.path.exists(benchmark_data_file):
+                        with open(benchmark_data_file, "r", encoding="utf-8") as f:
+                            bench_data = json.load(f)
+                    else:
+                        bench_data = {
+                            "$schema": "../../eval/benchmark-data.schema.json",
+                            "evaluations": [],
+                        }
 
-            bench_data.get("evaluations", []).insert(0, results_record)
-            with open(benchmark_data_file, "w", encoding="utf-8") as f:
-                json.dump(bench_data, f, indent=2)
-                f.write("\n")
+                    bench_data.setdefault("evaluations", []).insert(0, results_record)
+                    temp_file = f"{benchmark_data_file}.tmp.{os.getpid()}_{uuid.uuid4().hex[:8]}"
+                    with open(temp_file, "w", encoding="utf-8") as f:
+                        json.dump(bench_data, f, indent=2)
+                        f.write("\n")
+                    os.replace(temp_file, benchmark_data_file)
+                finally:
+                    fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
             logger.info("✓ Updated benchmark dataset: %s", benchmark_data_file)
         except Exception as e:
             logger.warning("Could not update %s: %s", benchmark_data_file, e)

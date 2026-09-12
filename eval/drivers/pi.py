@@ -34,11 +34,11 @@ logger = setup_logger("driver.pi")
 class PiDriver(HarnessDriver):
     """Driver for Pi coding agent harness (https://pi.dev/docs/latest/rpc)."""
 
-    def __init__(self, port: int = DEFAULT_PI_PORT, provider_id: str = "sparky"):
+    def __init__(self, port: int = DEFAULT_PI_PORT, provider_id: str = "vllm-local"):
         self.port = port
         self.provider_id = provider_id
-        self._log_path = "/tmp/server.log"
-        self._server_script_path = "/tmp/.bridge_server.py"
+        self._log_path = "/home/agent/.local/state/pi_server.log"
+        self._server_script_path = "/home/agent/.local/bin/.pi_bridge.py"
 
     # ----- HarnessDriver interface -----
 
@@ -305,7 +305,6 @@ class PiSession:
             elif eff in ("minimal", "low", "medium", "high", "xhigh", "max"):
                 cmd.extend(["--thinking", eff])
 
-        sys.stderr.write(f"[pi_server] Spawning pi RPC process: {{cmd}} in {{self.cwd}}\\n")
         self.proc = subprocess.Popen(
             cmd,
             stdin=subprocess.PIPE,
@@ -718,6 +717,7 @@ if __name__ == "__main__":
         sandbox.exec(f"pkill -9 -f '{script_base}' 2>/dev/null || true; pkill -9 -f '[p]i ' 2>/dev/null || true; fuser -k {self.port}/tcp 2>/dev/null || true")
 
         server_code = self._get_server_script(active_model, reasoning_effort=reasoning_effort)
+        sandbox.exec(f"mkdir -p $(dirname '{self._server_script_path}') $(dirname '{self._log_path}')")
         sandbox.write_file(self._server_script_path, server_code)
         sandbox.exec(f"chmod +x {self._server_script_path}")
 

@@ -14,6 +14,8 @@ Usage:
 """
 
 import argparse
+import concurrent.futures
+import copy
 import importlib.util
 import json
 import logging
@@ -194,7 +196,7 @@ def run_test_suite_on_agent(
         )
 
         # Commit initial test data assets so git change tracking starts with a clean baseline
-        sandbox.exec(f"cd {test_ws} && git add -A && git commit --allow-empty -m 'initial project assets'")
+        sandbox.exec(f"cd {test_ws} && git add -A && git commit --allow-empty -m 'feat: import project assets and resources'")
 
         active_model = driver.start(sandbox, test_ws, model_name, DEFAULT_LLM_BASE_URL, reasoning_effort=reasoning_effort)
         session_id = driver.create_session(sandbox)
@@ -549,7 +551,7 @@ def main():
         run_file = str(TESTS_DIR / t_name / "run.py") if not os.path.isfile(t_name) else t_name
         test_specs.append((run_file, load_test_spec(run_file)))
 
-    for harness_name in target_harnesses:
+    def run_single_harness(harness_name: str) -> None:
         harness_version = harnesses_cfg.get(harness_name, {}).get("version", "unknown")
         driver = get_driver(harness_name)
         logger.info("==================================================")
@@ -558,7 +560,7 @@ def main():
                     [t[1].name for t in test_specs])
         logger.info("==================================================")
 
-        sandbox = SandboxClient()
+        sandbox = SandboxClient(name=f"workspace-runner-{harness_name}")
         sandbox.ensure()
         try:
             evaluation_output = run_test_suite_on_agent(
@@ -569,10 +571,10 @@ def main():
                 reasoning_effort=reasoning_effort,
             )
 
-            # Attach pre-computed tool-eval-bench results
+            # Attach pre-computed tool-eval-bench results (deep copy for thread safety)
             if tool_eval_output:
-                evaluation_output["test_results_summary"][TOOL_EVAL_TEST_KEY] = tool_eval_output["summary"]
-                evaluation_output["suite_trace"]["tests"][TOOL_EVAL_TEST_KEY] = tool_eval_output["trace"]
+                evaluation_output["test_results_summary"][TOOL_EVAL_TEST_KEY] = copy.deepcopy(tool_eval_output["summary"])
+                evaluation_output["suite_trace"]["tests"][TOOL_EVAL_TEST_KEY] = copy.deepcopy(tool_eval_output["trace"])
 
             save_evaluation_results(
                 model_name=args.model,
@@ -584,6 +586,15 @@ def main():
             )
         finally:
             sandbox.remove()
+
+    if len(target_harnesses) == 1:
+        run_single_harness(target_harnesses[0])
+    else:
+        logger.info("Executing %d harnesses concurrently in parallel: %s", len(target_harnesses), target_harnesses)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=len(target_harnesses)) as executor:
+            futures = [executor.submit(run_single_harness, h) for h in target_harnesses]
+            for f in concurrent.futures.as_completed(futures):
+                f.result()
 
 
 if __name__ == "__main__":

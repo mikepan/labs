@@ -62,8 +62,8 @@ class OpenCodeDriver(HarnessDriver):
     def __init__(self, port: int = DEFAULT_OPENCODE_PORT, proxy_port: int = DEFAULT_PROXY_PORT):
         self.port = port
         self.proxy_port = proxy_port
-        self.provider_id = "sparky"
-        self._log_path = "/tmp/server.log"
+        self.provider_id = "vllm-local"
+        self._log_path = "/home/agent/.local/state/opencode_server.log"
         self._proxy_log_path = DEFAULT_PROXY_LOG_PATH
 
     # ----- HarnessDriver interface -----
@@ -338,6 +338,7 @@ elif 'type' in err_result:
         logger.info("Starting OpenCode server in %s on port %d...", workspace, self.port)
         start_cmd = (
             f"killall opencode 2>/dev/null || true; "
+            f"mkdir -p $(dirname '{self._log_path}'); "
             f"export PATH=$HOME/.opencode/bin:$HOME/.local/bin:$PATH; "
             f"cd {workspace} && (nohup opencode serve --port {self.port} --hostname 0.0.0.0 "
             f"--print-logs --log-level DEBUG </dev/null >{self._log_path} 2>&1 & disown)"

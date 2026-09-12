@@ -1,11 +1,8 @@
 """
 eval.drivers.proxy - In-sandbox HTTP proxy for OpenAI-compatible reasoning parameter injection.
 
-NOTE: This proxy was previously needed because OpenCode configured custom OpenAI-compatible
-providers with `@ai-sdk/openai-compatible`, which dropped `reasoningEffort` parameters.
-It is no longer called/needed because OpenCode is now configured natively with
-`"npm": "@ai-sdk/openai"` along with `reasoningEffort` and `forceReasoning: true`.
-The file is kept for standalone reference/troubleshooting if needed.
+Intercepts /chat/completions requests from agents (such as OpenCode) and injects the
+requested reasoning_effort into the request payload before forwarding to the LLM/vLLM backend.
 """
 
 import logging
@@ -52,7 +49,7 @@ class ProxyHandler(http.server.BaseHTTPRequestHandler):
         if self.path.endswith("/chat/completions") and REASONING_EFFORT:
             try:
                 data = json.loads(body.decode("utf-8"))
-                if REASONING_EFFORT in ("low", "medium", "xhigh"):
+                if REASONING_EFFORT not in ("off", "none", "on", ""):
                     data["reasoning_effort"] = REASONING_EFFORT
                 body = json.dumps(data).encode("utf-8")
             except Exception:

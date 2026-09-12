@@ -204,10 +204,10 @@ def save_evaluation_results(
 
     suite_trace.update(common)
 
-    # Save full_trace.json
+    # Save full_trace.json (compact minified)
     trace_path = os.path.join(eval_dir, "full_trace.json")
     with open(trace_path, "w", encoding="utf-8") as f:
-        json.dump(suite_trace, f, indent=2)
+        json.dump(suite_trace, f, separators=(",", ":"))
 
     # 4. Update benchmark-data.json
     if benchmark_data_file:

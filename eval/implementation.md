@@ -91,69 +91,79 @@ To capture both competence and reliability, metrics are consolidated as follows:
 
 ---
 
-## Usage
+## Environment Setup & Usage
 
-### 1. End-to-End Evaluation Runner (`launch_eval.py`)
+### 0. Environment Setup (Recommended)
+From the `labs/` directory, install the package in editable mode so `eval` and `tests` are available globally across all subprocesses:
+```bash
+pip install -e ".[eval]"
+```
+
+Alternatively, prefix your commands with `PYTHONPATH=.` so child processes (like `run_harness.py` spawned by `launch_eval.py`) inherit the package root.
+
+---
+
+### 1. End-to-End Evaluation Runner (`eval.launch_eval`)
 ```bash
 # Run all configured models across all harnesses and tests (default: --model all --harness all --test all)
-python3 eval/launch_eval.py
+PYTHONPATH=. python3 -m eval.launch_eval
 
 # Run a specific model across all harnesses and tests
-python3 eval/launch_eval.py --model Qwen3.6-27B-FP8
+PYTHONPATH=. python3 -m eval.launch_eval --model Qwen3.8
 
 # Run a specific model on a specific test suite with a specific harness
-python3 eval/launch_eval.py --model diffusiongemma-26B-A4B-IT-NVFP4 --harness pi --test test0
+PYTHONPATH=. python3 -m eval.launch_eval --model Qwen3.8 --harness "opencode cli" --test test0
 
 # Keep-alive mode: keep model container running after evaluation completes (skips teardown)
-python3 eval/launch_eval.py --model Qwen3.6-27B-NVFP4 --harness pi --test test0 --keep-alive
+PYTHONPATH=. python3 -m eval.launch_eval --model Qwen3.8-27B-FP8-low --harness pi --test test0 --keep-alive
 
 # Verbose mode: stream real-time container startup and debug logs
-python3 eval/launch_eval.py --model Qwen3.6-35B-A3B-NVFP4 --v
+PYTHONPATH=. python3 -m eval.launch_eval --model Qwen3.8-27B-FP8-low --v
 ```
 
-### 2. Standalone Model Lifecycle Manager (`launch_model.py`)
+### 2. Standalone Model Lifecycle Manager (`eval.launch_model`)
 ```bash
 # Launch a model, wait for readiness probe, and execute sanity query (stops container when complete)
-python3 eval/launch_model.py --model Qwen3.6-27B-FP8
+PYTHONPATH=. python3 -m eval.launch_model --model Qwen3.8-27B-FP8-low
 
 # Launch a model and keep the container running for external benchmarking (e.g. tool-eval-bench)
-python3 eval/launch_model.py --model Qwen3.6-27B-FP8 --keep-alive
+PYTHONPATH=. python3 -m eval.launch_model --model Qwen3.8-27B-FP8-low --keep-alive
 
 # Stop the running model container on the remote cluster
-python3 eval/launch_model.py --stop
+PYTHONPATH=. python3 -m eval.launch_model --stop
 
 # Stream container startup logs
-python3 eval/launch_model.py --model Qwen3.6-27B-FP8 --keep-alive --v
+PYTHONPATH=. python3 -m eval.launch_model --model Qwen3.8-27B-FP8-low --keep-alive --v
 ```
 
-### 3. Direct Sandbox Harness Runner (`run_harness.py`)
+### 3. Direct Sandbox Harness Runner (`eval.run_harness`)
 ```bash
 # Run test0 against an already running vLLM endpoint with default harness (all configured harnesses)
-python3 eval/run_harness.py --model Qwen3.6-27B-FP8 --test test0
+PYTHONPATH=. python3 -m eval.run_harness --model Qwen3.8-27B-FP8-low --test test0
 
-# Run specific harness (e.g. pi or opencode)
-python3 eval/run_harness.py --model Qwen3.6-27B-FP8 --harness pi --test test0
+# Run specific harness (e.g. pi or opencode cli)
+PYTHONPATH=. python3 -m eval.run_harness --model Qwen3.8-27B-FP8-low --harness "opencode cli" --test test0
 
 # Run all test suites across all harnesses
-python3 eval/run_harness.py --model Qwen3.6-27B-FP8 --test all --harness all
+PYTHONPATH=. python3 -m eval.run_harness --model Qwen3.8-27B-FP8-low --test all --harness all
 
 # Verbose debug logging
-python3 eval/run_harness.py --model Qwen3.6-27B-FP8 --harness pi --test test0 --v
+PYTHONPATH=. python3 -m eval.run_harness --model Qwen3.8-27B-FP8-low --harness pi --test test0 --v
 ```
 
-### 4. High-Throughput Serving Benchmark & Quality Runner (`launch_benchmark.py`)
+### 4. High-Throughput Serving Benchmark & Quality Runner (`eval.launch_benchmark`)
 ```bash
 # Run serving throughput benchmark across all configured models
-python3 eval/launch_benchmark.py
+PYTHONPATH=. python3 -m eval.launch_benchmark
 
 # Run benchmark for a specific model with 2 iterations
-python3 eval/launch_benchmark.py --model Qwen3.8-27B-NVFP4-xhigh --runs 2
+PYTHONPATH=. python3 -m eval.launch_benchmark --model Qwen3.8-27B-NVFP4-xhigh --runs 2
 
 # Benchmark currently active server directly without stopping or starting containers
-python3 eval/launch_benchmark.py --no-manage
+PYTHONPATH=. python3 -m eval.launch_benchmark --no-manage
 
 # Run tool-eval-bench benchmark alongside throughput metrics
-python3 eval/launch_benchmark.py --model Qwen3.8-27B-NVFP4-xhigh --run-tool-eval-bench
+PYTHONPATH=. python3 -m eval.launch_benchmark --model Qwen3.8-27B-NVFP4-xhigh --run-tool-eval-bench
 ```
 
 ### 5. Serve Dashboard Web App
@@ -162,8 +172,8 @@ python3 -m http.server 8080 --directory site
 # Open http://localhost:8080
 ```
 
-### 6. Cross-Model Defect & Pass-Rate Analyzer (`test_analyzer.py`)
+### 6. Cross-Model Defect & Pass-Rate Analyzer (`eval.test_analyzer`)
 ```bash
 # Scan evaluation traces, print step pass-rate matrix, and flag 0% pass steps
-python3 eval/test_analyzer.py
+PYTHONPATH=. python3 -m eval.test_analyzer
 ```

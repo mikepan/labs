@@ -170,7 +170,6 @@ def run_test_suite_on_agent(
     suite_trace: dict[str, Any] = {
         "eval_id": eval_id,
         "model": model_name,
-        "reasoning_effort": reasoning_effort,
         "start_time": datetime.now(timezone.utc).isoformat(),
         "tests": {},
     }
@@ -263,6 +262,9 @@ def run_test_suite_on_agent(
                 partial_events: list[dict] = []
                 partial_reasoning: list[str] = []
                 partial_text: list[str] = []
+                partial_tokens_in: int = 0
+                partial_tokens_out: int = 0
+                partial_peak_ctx: int = 0
                 try:
                     all_msgs = driver.get_all_messages(sandbox, session_id)
                     if all_msgs and len(all_msgs) > prev_msg_count:
@@ -274,6 +276,9 @@ def run_test_suite_on_agent(
                             partial_events = partial_turn.events
                             partial_reasoning = partial_turn.reasoning
                             partial_text = partial_turn.text
+                            partial_tokens_in = partial_turn.tokens_in
+                            partial_tokens_out = partial_turn.tokens_out
+                            partial_peak_ctx = partial_turn.peak_context_tokens
                             total_tokens_in += partial_turn.tokens_in
                             total_tokens_out += partial_turn.tokens_out
                         n_tool_calls = len(partial_tool_calls)
@@ -285,9 +290,9 @@ def run_test_suite_on_agent(
                 except Exception as recover_err:
                     logger.debug("    Could not recover partial messages: %s", recover_err)
 
-                # Build step trace with recovered partial data
-                response_parts = partial_text or []
-                response_parts.append(f"[{fail_reason}] {friendly_msg}")
+                # Step context usage
+                step_context_used_pct = round((partial_peak_ctx / max_ctx) * 100.0, 2) if max_ctx > 0 else 0.0
+
                 step_traces.append(StepTrace(
                     step_index=idx,
                     step_name=step_name,
@@ -297,19 +302,13 @@ def run_test_suite_on_agent(
                     max_score=step_point,
                     start_time=step_start_iso,
                     end_time=step_end_iso,
-                    tokens_in=0,
-                    tokens_out=0,
+                    tokens_in=partial_tokens_in,
+                    tokens_out=partial_tokens_out,
+                    peak_context_tokens=partial_peak_ctx,
+                    context_used_pct=step_context_used_pct,
                     events=partial_events,
-                    tool_calls=partial_tool_calls,
-                    reasoning_blocks=partial_reasoning,
-                    response_text="\n\n".join(response_parts),
-                    messages=partial_messages,
                     evaluation={
-                        "step_name": step_name,
                         "passed": False,
-                        "point": step_point,
-                        "score": 0,
-                        "duration_seconds": step_elapsed,
                         "check_results": [{"passed": False, "message": friendly_msg}],
                     },
                     duration_seconds=step_elapsed,
@@ -411,13 +410,8 @@ def run_test_suite_on_agent(
                 tokens_out=turn.tokens_out,
                 peak_context_tokens=step_peak_ctx,
                 context_used_pct=step_context_used_pct,
-                hint=step.hint,
                 used_hint=used_hint,
                 events=turn.events,
-                tool_calls=[tc.to_dict() for tc in turn.tool_calls],
-                reasoning_blocks=turn.reasoning,
-                response_text="\n\n".join(turn.text),
-                messages=turn.raw_messages,
                 evaluation=eval_res,
                 duration_seconds=step_elapsed,
             ).to_dict())
@@ -451,20 +445,23 @@ def run_test_suite_on_agent(
                 f.write(log_content)
 
         session_info = driver.get_session_info(sandbox, session_id)
-        all_messages = driver.get_all_messages(sandbox, session_id)
 
         completion_rate = round((earned_score / max_score) * 100.0, 1) if max_score > 0 else 100.0
         suite_trace["tests"][test_id] = {
+            "name": test_obj.description or test_id,
             "completion_rate": completion_rate,
             "earned_score": earned_score,
             "max_score": max_score,
             "passed_steps": passed_steps,
             "total_steps": len(test_obj.steps),
             "duration_seconds": test_duration,
+            "tokens_in": total_tokens_in,
+            "tokens_out": total_tokens_out,
+            "peak_context_tokens": test_peak_ctx,
+            "context_used_pct": test_context_used_pct,
             "session_id": session_id,
             "session_info": session_info,
             "steps": step_traces,
-            "all_session_messages": all_messages,
         }
 
         logger.info("✓ Test '%s' complete: score %d/%d (%.1f%%) in %.2fs",

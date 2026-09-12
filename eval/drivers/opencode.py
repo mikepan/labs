@@ -20,6 +20,12 @@ from eval.config import (
     DEFAULT_OPENCODE_PORT,
 )
 from eval.drivers import HarnessDriver, register_driver
+from eval.drivers.proxy import (
+    DEFAULT_PROXY_LOG_PATH,
+    DEFAULT_PROXY_PORT,
+    start_reasoning_proxy,
+    stop_reasoning_proxy,
+)
 from eval.sandbox import SandboxClient
 from eval.trace import ToolCallEvent, TurnData
 
@@ -40,6 +46,9 @@ def _build_model_entry(name: str, max_context: int = DEFAULT_CONTEXT_WINDOW, rea
     }
     if reasoning_effort and reasoning_effort not in ("off", "none"):
         entry["parameters"] = {
+            "extraBody": {
+                "reasoning_effort": reasoning_effort,
+            },
             "reasoningEffort": reasoning_effort,
             "forceReasoning": True,
         }
@@ -50,10 +59,12 @@ def _build_model_entry(name: str, max_context: int = DEFAULT_CONTEXT_WINDOW, rea
 class OpenCodeDriver(HarnessDriver):
     """Driver for managing OpenCode agent sessions and lifecycle."""
 
-    def __init__(self, port: int = DEFAULT_OPENCODE_PORT):
+    def __init__(self, port: int = DEFAULT_OPENCODE_PORT, proxy_port: int = DEFAULT_PROXY_PORT):
         self.port = port
+        self.proxy_port = proxy_port
         self.provider_id = "sparky"
         self._log_path = "/tmp/server.log"
+        self._proxy_log_path = DEFAULT_PROXY_LOG_PATH
 
     # ----- HarnessDriver interface -----
 
@@ -73,8 +84,18 @@ class OpenCodeDriver(HarnessDriver):
             active_model, model_name, max_context, reasoning_effort,
         )
 
+        target_llm_url = llm_base_url
+        if reasoning_effort and reasoning_effort not in ("off", "none"):
+            target_llm_url = start_reasoning_proxy(
+                sandbox,
+                llm_base_url=llm_base_url,
+                reasoning_effort=reasoning_effort,
+                proxy_port=self.proxy_port,
+                log_path=self._proxy_log_path,
+            )
+
         # Build opencode.json config
-        self._write_config(sandbox, active_model, model_name, llm_base_url, max_context=max_context, reasoning_effort=reasoning_effort)
+        self._write_config(sandbox, active_model, model_name, target_llm_url, max_context=max_context, reasoning_effort=reasoning_effort)
 
         # Start server
         self._start_server(sandbox, workspace)
@@ -114,6 +135,9 @@ class OpenCodeDriver(HarnessDriver):
         }
         if reasoning_effort and reasoning_effort not in ("off", "none"):
             model_payload["parameters"] = {
+                "extraBody": {
+                    "reasoning_effort": reasoning_effort,
+                },
                 "reasoningEffort": reasoning_effort,
                 "forceReasoning": True,
             }
@@ -253,8 +277,15 @@ elif 'type' in err_result:
         return self._get_messages(sandbox, session_id)
 
     def get_server_log(self, sandbox: SandboxClient) -> str:
-        """Retrieve OpenCode server log."""
-        return sandbox.read_file(self._log_path)
+        """Retrieve OpenCode server log and reasoning proxy log if available."""
+        logs = []
+        server_log = sandbox.read_file(self._log_path)
+        if server_log:
+            logs.append(f"=== OpenCode Server Log ===\n{server_log}")
+        proxy_log = sandbox.read_file(self._proxy_log_path)
+        if proxy_log:
+            logs.append(f"=== Reasoning Proxy Log ===\n{proxy_log}")
+        return "\n\n".join(logs) if logs else ""
 
     @property
     def server_log_filename(self) -> str:
@@ -293,7 +324,6 @@ elif 'type' in err_result:
             "provider": {
                 self.provider_id: {
                     "name": self.provider_id,
-                    "npm": "@ai-sdk/openai",
                     "options": {"baseURL": llm_base_url, "apiKey": "dummy"},
                     "models": models_config,
                 },

@@ -215,7 +215,7 @@ function renderExecutiveSummary(data) {
       <div class="kpi-card">
         <span class="kpi-label">RAM / VRAM Footprint</span>
         <span class="kpi-value">${memGb}</span>
-        <span class="kpi-sub">Engine memory consumption</span>
+        <span class="kpi-sub">Engine memory consumption with 2 Full size KV cache</span>
       </div>
       <div class="kpi-card kpi-card-split">
         <span class="kpi-label">Total Tokens</span>

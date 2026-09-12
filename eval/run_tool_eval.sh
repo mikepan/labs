@@ -1,24 +1,19 @@
-# python launch_model.py --v --fast --model Qwen3.6-35B-A3B-NVFP4
-# tool-eval-bench bench --seed 42 --base-url  http://spark:8000
-#86/69
+python launch_model.py --v --keep-alive --model Qwen3.8-27B-NVFP4-xhigh
+time tool-eval-bench bench --seed 84729 --base-url  http://spark:8000 --timeout 600 --hardmode --parallel 2
+#hardmode 0.1 context" 90 @ 51min 160/176
+#hardmodeonly 0.75 context" 84 @ 130min
 
-# python launch_model.py --v --fast --model Qwen3.6-27B-NVFP4
-# tool-eval-bench bench --seed 42 --base-url  http://spark:8000
-#89/25
-
-python launch_model.py --v --fast --model Qwen3.6-27B-FP8
-tool-eval-bench bench --seed 42 --base-url  http://spark:8000
-
-python launch_model.py --v --fast --model Qwen3.8-27B-FP8-low
-tool-eval-bench bench --seed 42 --base-url  http://spark:8000
-
-python launch_model.py --v --fast --model Qwen3.8-27B-FP8-medium
-tool-eval-bench bench --seed 42 --base-url  http://spark:8000
-
-python launch_model.py --v --fast --model Qwen3.8-27B-NVFP4-xhigh
-tool-eval-bench bench --seed 42 --base-url  http://spark:8000
-
-python launch_model.py --v --fast --model Qwen3.8-27B-AWQ-INT4
-tool-eval-bench bench --seed 42 --base-url  http://spark:8000
+python launch_model.py --v --keep-alive --model Qwen3.8-27B-AWQ-INT4
+time tool-eval-bench bench --seed 84729 --base-url  http://spark:8000  --timeout 600 --hardmode --parallel 2
+#hardmode 0.1 context: 89 @ 113min. 156/176 (for -medium)
+#hardmodeonly 0.75 context: 89 @ 198min
 
 
+python launch_model.py --v --keep-alive --model Qwen3.8-Flash-Next-NVFP4
+time tool-eval-bench bench --seed 84729 --base-url  http://spark:8000  --timeout 600 --hardmode --parallel 2 --trial 3 --temperature 1.0
+
+default: 93/100, 450k tks, 12min
+nothink: 87/100, 382k tks, 6 min
+low: 92/100, 416k, 8min
+medium:93/100, 415k, 10min
+xhigh: 91, 450k, 12min

@@ -71,7 +71,6 @@ def check_no_comments_in_kotlin(filepath: str = "source.kt"):
 
 TEST = Test(
     name="kotlin_code",
-    description="Kotlin code comprehension, refactoring, and feature expansion on Android Camera app",
     setup=[],
     steps=[
         Step(

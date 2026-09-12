@@ -63,7 +63,7 @@ def validate_arguments(
             sys.exit(1)
 
     # 2. Validate Test
-    available_tests = get_available_tests()
+    available_tests = get_available_tests() + ["tool-eval-bench"]
     if test_arg != "all" and test_arg not in available_tests:
         matched_tests = [t for t in available_tests if test_arg.lower() in t.lower()]
         if len(matched_tests) >= 1:

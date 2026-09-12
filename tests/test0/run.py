@@ -162,7 +162,6 @@ def check_rebrand():
 
 TEST = Test(
     name="multilingual_science_presentation",
-    description="Multi-step multilingual content creation with translation, HTML presentation, and iterative refinement",
     steps=[
         Step(
             prompt="""Why is the sky blue? Explain it at 3 different levels (3 yearsold, teenager, science PhD) and produce a markdown file called 'sky.md' with a headings for each of those levels.""",

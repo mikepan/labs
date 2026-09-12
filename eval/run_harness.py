@@ -27,6 +27,7 @@ from typing import Any
 
 from eval.common import setup_logger, load_harnesses_config, load_json_config, get_available_tests
 from eval.config import (
+    API_BASE_URL,
     DEFAULT_HINT_SCORE_FACTOR,
     DEFAULT_IDLE_TIMEOUT_MINUTES,
     DEFAULT_LLM_BASE_URL,
@@ -38,6 +39,7 @@ from eval.config import (
 from eval.drivers import HarnessDriver, get_driver
 from eval.results import get_vllm_model_info, save_evaluation_results
 from eval.sandbox import SandboxClient
+from eval.tool_eval import run_tool_eval_benchmark, TOOL_EVAL_TEST_KEY
 from eval.trace import StepTrace, TurnData
 
 
@@ -423,7 +425,7 @@ def run_test_suite_on_agent(
         test_context_used_pct = round((test_peak_ctx / max_ctx) * 100.0, 2) if max_ctx > 0 else 0.0
 
         test_results_summary[test_id] = {
-            "name": test_obj.description or test_id,
+            "name": test_obj.name or test_id,
             "earned_score": earned_score,
             "max_score": max_score,
             "run_time_sec": test_duration,
@@ -448,7 +450,7 @@ def run_test_suite_on_agent(
 
         completion_rate = round((earned_score / max_score) * 100.0, 1) if max_score > 0 else 100.0
         suite_trace["tests"][test_id] = {
-            "name": test_obj.description or test_id,
+            "name": test_obj.name or test_id,
             "completion_rate": completion_rate,
             "earned_score": earned_score,
             "max_score": max_score,
@@ -479,7 +481,7 @@ def run_test_suite_on_agent(
 def main():
     parser = argparse.ArgumentParser(description="Drive evaluation harness inside isolated Docker sandbox")
     parser.add_argument("--model", required=True, help="Model name (e.g. qwen/Qwen3.6-27B-FP8)")
-    parser.add_argument("--test", default="all", help="Specific test to run (e.g. 'test0' or 'all', default: all)")
+    parser.add_argument("--test", default="all", help="Specific test to run (e.g. 'test0', 'tool-eval-bench', or 'all', default: all)")
     parser.add_argument("--harness", default="all", help="Harness name (e.g. 'pi', 'opencode', or 'all', default: all)")
     parser.add_argument("--memory-gb", type=float, default=None, help="Measured runtime GPU memory in GB")
     parser.add_argument("--v", dest="verbose", action="store_true", help="Verbose debug logging")
@@ -489,17 +491,55 @@ def main():
         logger.setLevel(logging.DEBUG)
 
     harnesses_cfg = load_harnesses_config()
-
-    target_tests = get_available_tests() if args.test == "all" else [args.test]
-    test_specs = []
-    for t_name in target_tests:
-        run_file = str(TESTS_DIR / t_name / "run.py") if not os.path.isfile(t_name) else t_name
-        test_specs.append((run_file, load_test_spec(run_file)))
-
     target_harnesses = list(harnesses_cfg.keys()) if args.harness == "all" else [args.harness]
 
     models_cfg = load_json_config(MODELS_CONFIG_FILE) if os.path.exists(MODELS_CONFIG_FILE) else {}
     reasoning_effort = models_cfg.get(args.model, {}).get("reasoning_effort")
+
+    should_run_tool_eval = args.test in ("all", TOOL_EVAL_TEST_KEY)
+    tool_eval_output = None
+
+    # If only running tool-eval-bench, execute standalone without sandbox harness
+    if args.test == TOOL_EVAL_TEST_KEY:
+        tool_eval_output = run_tool_eval_benchmark(base_url=API_BASE_URL, verbose=args.verbose)
+        for harness_name in target_harnesses:
+            harness_version = harnesses_cfg.get(harness_name, {}).get("version", "unknown")
+            eval_id = str(uuid.uuid4())
+            suite_trace = {
+                "eval_id": eval_id,
+                "model": args.model,
+                "start_time": datetime.now(timezone.utc).isoformat(),
+                "tests": {
+                    TOOL_EVAL_TEST_KEY: tool_eval_output["trace"]
+                } if tool_eval_output else {},
+                "end_time": datetime.now(timezone.utc).isoformat(),
+            }
+            test_results_summary = {
+                TOOL_EVAL_TEST_KEY: tool_eval_output["summary"]
+            } if tool_eval_output else {}
+            evaluation_output = {
+                "eval_id": eval_id,
+                "suite_trace": suite_trace,
+                "test_results_summary": test_results_summary,
+                "stage_dir": None,
+            }
+            save_evaluation_results(
+                model_name=args.model,
+                harness_name=harness_name,
+                harness_version=harness_version,
+                evaluation_output=evaluation_output,
+                base_url=DEFAULT_LLM_BASE_URL,
+                memory_gb=args.memory_gb,
+            )
+        return
+
+    target_tests = get_available_tests() if args.test == "all" else [args.test]
+    test_specs = []
+    for t_name in target_tests:
+        if t_name == TOOL_EVAL_TEST_KEY:
+            continue
+        run_file = str(TESTS_DIR / t_name / "run.py") if not os.path.isfile(t_name) else t_name
+        test_specs.append((run_file, load_test_spec(run_file)))
 
     for harness_name in target_harnesses:
         harness_version = harnesses_cfg.get(harness_name, {}).get("version", "unknown")
@@ -521,6 +561,14 @@ def main():
                 reasoning_effort=reasoning_effort,
             )
 
+            # Run tool-eval-bench once per model and merge into evaluation output
+            if should_run_tool_eval:
+                if tool_eval_output is None:
+                    tool_eval_output = run_tool_eval_benchmark(base_url=API_BASE_URL, verbose=args.verbose)
+                if tool_eval_output:
+                    evaluation_output["test_results_summary"][TOOL_EVAL_TEST_KEY] = tool_eval_output["summary"]
+                    evaluation_output["suite_trace"]["tests"][TOOL_EVAL_TEST_KEY] = tool_eval_output["trace"]
+
             save_evaluation_results(
                 model_name=args.model,
                 harness_name=harness_name,
@@ -535,3 +583,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

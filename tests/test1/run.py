@@ -487,7 +487,6 @@ def check_channel_performance_csv(filepath: str = "channel-performance.csv") -> 
 
 TEST = Test(
     name="data_analytics",
-    description="Multi-step data analytics and business intelligence evaluation on bookstore orders dataset",
     setup=[],
     steps=[
         Step(

@@ -27,6 +27,6 @@ class Test:
     """A multi-step evaluation test specification."""
     name: str
     steps: list[Step] = field(default_factory=list)
-    description: str = ""
     setup: list[str] = field(default_factory=list)
+
 

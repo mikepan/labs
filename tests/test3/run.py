@@ -5,7 +5,6 @@ Evaluates the agent's ability to analyze normal map texture conventions (OpenGL 
 and produce an accurate, reusable Python classification script that classifies normal map images into 'd3d' or 'ogl'.
 """
 
-import os
 import re
 import subprocess
 import sys
@@ -206,8 +205,7 @@ def validate_normal_map_classification(workspace_dir: str) -> tuple[bool, str]:
 # ==============================================================================
 
 TEST = Test(
-    name="normal_map_format_classification",
-    description="Analyze mixed normal map textures to determine OpenGL (+Y) vs Direct3D (-Y) format via algorithmic analysis.",
+    name="normal_map_classification",
     steps=[
         Step(
             prompt=(

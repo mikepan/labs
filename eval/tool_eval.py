@@ -202,12 +202,13 @@ def run_tool_eval_benchmark(
     timeout: int = DEFAULT_TOOL_EVAL_TIMEOUT_SECONDS,
     parallel: int = DEFAULT_TOOL_EVAL_PARALLEL,
     hardmode: bool = True,
+    reasoning_effort: str | None = None,
     verbose: bool = False,
 ) -> dict[str, Any] | None:
     """Execute tool-eval-bench directly against the serving endpoint and return parsed results.
 
     Command executed:
-        tool-eval-bench bench --base-url <base_url> --timeout <timeout> --hardmode --parallel <parallel> --json
+        tool-eval-bench bench --base-url <base_url> --timeout <timeout> --hardmode --parallel <parallel> --json [--backend-kwargs '{"reasoning_effort": "<effort>"}']
     """
     bin_path = find_tool_eval_bench_bin()
     cmd = [
@@ -224,9 +225,14 @@ def run_tool_eval_benchmark(
     if hardmode:
         cmd.append("--hardmode")
 
+    # Only pass reasoning_effort if it is in ('low', 'medium', 'xhigh')
+    normalized_effort = str(reasoning_effort).lower().strip() if reasoning_effort else ""
+    if normalized_effort in ("low", "medium", "xhigh"):
+        cmd.extend(["--backend-kwargs", json.dumps({"reasoning_effort": normalized_effort})])
+
     logger.info("=" * 70)
-    logger.info("RUNNING tool-eval-bench (hardmode, timeout=%ds, parallel=%d) against %s",
-                timeout, parallel, base_url)
+    logger.info("RUNNING tool-eval-bench (hardmode, timeout=%ds, parallel=%d, reasoning_effort=%s) against %s",
+                timeout, parallel, normalized_effort or "default", base_url)
     logger.info("Command: %s", " ".join(cmd))
     logger.info("=" * 70)
 

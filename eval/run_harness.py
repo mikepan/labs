@@ -499,13 +499,16 @@ def main():
     should_run_tool_eval = args.test in ("all", TOOL_EVAL_TEST_KEY)
     tool_eval_output = None
 
-    # If only running tool-eval-bench, execute standalone without sandbox harness
-    if args.test == TOOL_EVAL_TEST_KEY:
+    # 1. Run tool-eval-bench first before any sandbox harness execution
+    if should_run_tool_eval:
         tool_eval_output = run_tool_eval_benchmark(
             base_url=API_BASE_URL,
             reasoning_effort=reasoning_effort,
             verbose=args.verbose,
         )
+
+    # If only running tool-eval-bench, save results standalone without sandbox harness
+    if args.test == TOOL_EVAL_TEST_KEY:
         for harness_name in target_harnesses:
             harness_version = harnesses_cfg.get(harness_name, {}).get("version", "unknown")
             eval_id = str(uuid.uuid4())
@@ -537,6 +540,7 @@ def main():
             )
         return
 
+    # 2. Run agent harness test suites inside isolated sandbox
     target_tests = get_available_tests() if args.test == "all" else [args.test]
     test_specs = []
     for t_name in target_tests:
@@ -565,17 +569,10 @@ def main():
                 reasoning_effort=reasoning_effort,
             )
 
-            # Run tool-eval-bench once per model and merge into evaluation output
-            if should_run_tool_eval:
-                if tool_eval_output is None:
-                    tool_eval_output = run_tool_eval_benchmark(
-                        base_url=API_BASE_URL,
-                        reasoning_effort=reasoning_effort,
-                        verbose=args.verbose,
-                    )
-                if tool_eval_output:
-                    evaluation_output["test_results_summary"][TOOL_EVAL_TEST_KEY] = tool_eval_output["summary"]
-                    evaluation_output["suite_trace"]["tests"][TOOL_EVAL_TEST_KEY] = tool_eval_output["trace"]
+            # Attach pre-computed tool-eval-bench results
+            if tool_eval_output:
+                evaluation_output["test_results_summary"][TOOL_EVAL_TEST_KEY] = tool_eval_output["summary"]
+                evaluation_output["suite_trace"]["tests"][TOOL_EVAL_TEST_KEY] = tool_eval_output["trace"]
 
             save_evaluation_results(
                 model_name=args.model,

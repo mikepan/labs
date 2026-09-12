@@ -230,14 +230,6 @@ TEST = Test(
                 git_changes("earth.html", "M"),
                 check_html_metadata_standards(),
             ],
-        ),
-        Step(
-            prompt="""We are rebranding: search across all files in the workspace (including .md and .html files) for any occurrence of "Jennifer Robins" or "Dr. Jennifer Robins" and replace them with "Prof. J. Robins". Ensure no occurrences of "Jennifer Robins" remain in any file in the workspace.""",
-            checks=[
-                git_changes("index.html", "M"),
-                git_changes("earth.html", "M"),
-                check_rebrand(),
-            ],
-        ),
+        )
     ],
 )

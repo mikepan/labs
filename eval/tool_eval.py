@@ -72,13 +72,13 @@ def parse_tool_eval_output(
     else:
         earned_points = scores.get("total_points", 0)
 
-    # Normalize to 40 points
+    # Normalize to 40 points and round final score to int
     normalized_earned_score = (
-        round((earned_points / max_benchmark_points) * max_normalized_points, 2)
+        int(round((earned_points / max_benchmark_points) * max_normalized_points))
         if max_benchmark_points > 0
-        else 0.0
+        else 0
     )
-    normalized_max_score = round(max_normalized_points, 2)
+    normalized_max_score = int(round(max_normalized_points))
 
     tokens_in = sum(r.get("prompt_tokens", 0) for r in scenario_results)
     tokens_out = sum(r.get("completion_tokens", 0) for r in scenario_results)

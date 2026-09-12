@@ -241,6 +241,12 @@ function renderExecutiveSummary(data) {
   `;
 }
 
+function formatScoreNumber(val) {
+  if (val === undefined || val === null || isNaN(Number(val))) return '0';
+  const num = Number(val);
+  return Number.isInteger(num) ? num.toString() : parseFloat(num.toFixed(2)).toString();
+}
+
 function renderTestTabsAndTimeline(data, preferredTestKey) {
   const tabsContainer = document.getElementById('test-tabs-container');
   const testsObj = data.tests || {};
@@ -260,7 +266,30 @@ function renderTestTabsAndTimeline(data, preferredTestKey) {
   // Render tab buttons
   tabsContainer.innerHTML = testKeys.map(key => {
     const tData = testsObj[key] || {};
-    const label = tData.name || key;
+    const baseLabel = tData.name || key;
+
+    let earned = tData.earned_score;
+    let max = tData.max_score;
+
+    if (earned === undefined && data.test_results && data.test_results[key]) {
+      earned = data.test_results[key].earned_score;
+    }
+    if (max === undefined && data.test_results && data.test_results[key]) {
+      max = data.test_results[key].max_score;
+    }
+
+    if (earned === undefined && tData.steps) {
+      earned = tData.steps.reduce((acc, s) => acc + (s.earned_score || 0), 0);
+    }
+    if (max === undefined && tData.steps) {
+      max = tData.steps.reduce((acc, s) => acc + (s.max_score ?? s.point ?? 1), 0);
+    }
+
+    let label = baseLabel;
+    if (earned !== undefined && max !== undefined) {
+      label = `${baseLabel} (${formatScoreNumber(earned)}/${formatScoreNumber(max)})`;
+    }
+
     return `
       <button class="test-tab-btn ${key === activeTestKey ? 'active' : ''}" data-key="${key}">
         ${escapeHtml(label)}

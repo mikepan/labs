@@ -516,6 +516,28 @@ class PiSession:
                 except Exception:
                     pass
                 self._start_process()
+
+                # Preserve partial messages and tool executions so traces can be recovered
+                partial_msgs = list(raw_messages)
+                if not partial_msgs and (tool_calls_map or text_chunks or reasoning_chunks):
+                    parts = []
+                    if reasoning_chunks:
+                        parts.append({{"type": "thinking", "thinking": "".join(reasoning_chunks)}})
+                    if text_chunks:
+                        parts.append({{"type": "text", "text": "".join(text_chunks)}})
+                    for tc_id, tc in tool_calls_map.items():
+                        try:
+                            args = json.loads(tc.get("input", "{{}}"))
+                        except Exception:
+                            args = {{}}
+                        parts.append({{"type": "toolCall", "id": tc_id, "name": tc.get("tool", "unknown"), "arguments": args}})
+                    if parts:
+                        partial_msgs.append({{"role": "assistant", "content": parts, "usage": {{"input": tokens_in, "output": tokens_out}}}})
+
+                if partial_msgs:
+                    self.messages.append({{"role": "user", "content": prompt}})
+                    self.messages.extend(partial_msgs)
+
                 raise
 
             # Build chronological events and outputs from raw_messages

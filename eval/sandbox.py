@@ -101,7 +101,7 @@ class SandboxClient:
     """Encapsulates all interactions with a Docker Sandbox container."""
 
     def __init__(self, name: str = DEFAULT_WORKER_SANDBOX_NAME):
-        self.name = name
+        self.name = re.sub(r"[^a-zA-Z0-9.-]+", "-", name).strip("-")
         self._ephemeral_dir: str | None = None
 
     # ----- Core execution primitives -----

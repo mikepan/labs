@@ -11,7 +11,7 @@ import sys
 import urllib.request
 
 class ColorFormatter(logging.Formatter):
-    """Zero-dependency ANSI terminal color formatter for structured logging."""
+    """Zero-dependency ANSI terminal color formatter for structured logging with harness tagging."""
     RESET = "\033[0m"
     DIM = "\033[2m"
     BOLD = "\033[1m"
@@ -24,10 +24,29 @@ class ColorFormatter(logging.Formatter):
         logging.CRITICAL: "\033[35m",  # Magenta
     }
 
+    HARNESS_COLORS = {
+        "OPENCODE": "\033[1;36m",      # Bold Cyan
+        "PI": "\033[1;35m",            # Bold Magenta
+        "TOOL_EVAL": "\033[1;33m",      # Bold Yellow
+        "TOOL-EVAL": "\033[1;33m",      # Bold Yellow
+        "HARNESS": "\033[1;34m",        # Bold Blue
+    }
+
     def format(self, record):
         color = self.LEVEL_COLORS.get(record.levelno, "")
         time_str = f"{self.DIM}{self.formatTime(record, '%H:%M:%S')}{self.RESET}"
         level_str = f"{color}{self.BOLD}[{record.levelname}]{self.RESET}"
+
+        # Extract harness name from record attribute or logger name (e.g. 'harness.opencode')
+        harness_val = getattr(record, "harness", None)
+        if not harness_val and record.name.startswith("harness."):
+            harness_val = record.name.split(".", 1)[1]
+
+        harness_tag = ""
+        if harness_val:
+            h_str = str(harness_val).upper().replace("_", "-")
+            h_color = self.HARNESS_COLORS.get(h_str, "\033[1;34m")
+            harness_tag = f" {h_color}[{h_str}]{self.RESET}"
         
         msg = record.getMessage()
         # Highlight checkmarks and crossmarks
@@ -36,7 +55,7 @@ class ColorFormatter(logging.Formatter):
         if "✗" in msg:
             msg = msg.replace("✗", "\033[31m✗\033[0m")
             
-        return f"{time_str} {level_str} {msg}"
+        return f"{time_str} {level_str}{harness_tag} {msg}"
 
 
 def setup_logger(name: str, level: int = logging.INFO) -> logging.Logger:
@@ -49,6 +68,12 @@ def setup_logger(name: str, level: int = logging.INFO) -> logging.Logger:
         logger.addHandler(handler)
     logger.propagate = False
     return logger
+
+
+def get_harness_logger(harness_name: str, level: int = logging.INFO) -> logging.Logger:
+    """Create or retrieve a logger pre-configured with a colored harness tag."""
+    name = f"harness.{harness_name.lower().strip()}"
+    return setup_logger(name, level=level)
 
 
 def load_json_config(path: str | os.PathLike, label: str = "config") -> dict:

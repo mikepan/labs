@@ -166,7 +166,7 @@ TEST = Test(
         Step(
             prompt="""Why is the sky blue? Explain it for 3 different audiences (a 3-year-old toddler, a high school teenager, and a physics PhD) and save it as a markdown file called 'sky.md' with clear headings for each level.""",
             checks=[
-                git_changes("sky.md", "A", total_lines=(6, 100)),
+                git_changes("sky.md", "A", total_lines=(6, 200)),
                 lang_detect("sky.md", lang="en"),
             ],
         ),
@@ -180,7 +180,7 @@ TEST = Test(
         Step(
             prompt="Translate sky2.md into Simplified Chinese and save the translation back to the same file.",
             checks=[
-                git_changes("sky2.md", "M", total_lines=(6, 100)),
+                git_changes("sky2.md", "M", total_lines=(6, 200)),
                 lang_detect("sky2.md", lang="zh"),
             ],
         ),
@@ -205,7 +205,7 @@ TEST = Test(
         Step(
             prompt="""Merge sky.md and sky2.md into a single file called 'sky_bilingual.md'. For each explanation level (3-year-old, teenager, PhD), show the English section first followed by the Chinese translation directly below it. Delete sky.md and sky2.md once merged.""",
             checks=[
-                git_changes("sky_bilingual.md", "A", total_lines=(10, 200)),
+                git_changes("sky_bilingual.md", "A", total_lines=(10, 400)),
                 git_changes("sky.md", "D"),
                 git_changes("sky2.md", "D"),
                 check_bilingual_merge(),

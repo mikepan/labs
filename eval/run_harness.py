@@ -27,7 +27,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any
 
-from eval.common import setup_logger, load_harnesses_config, load_json_config, get_available_tests
+from eval.common import get_harness_logger, setup_logger, load_harnesses_config, load_json_config, get_available_tests
 from eval.config import (
     API_BASE_URL,
     DEFAULT_HINT_SCORE_FACTOR,
@@ -151,14 +151,15 @@ print("__JSON_START__" + json.dumps(out) + "__JSON_END__")
 # Test Suite Orchestrator
 # =====================================================================
 
-def _log_turn(turn: TurnData) -> None:
+def _log_turn(turn: TurnData, log_target: Any = None) -> None:
     """Log reasoning, tool calls, and response from a turn."""
+    l = log_target or logger
     if turn.reasoning:
-        logger.debug("[Reasoning]: %s...", turn.reasoning[-1].strip()[:140])
+        l.debug("[Reasoning]: %s...", turn.reasoning[-1].strip()[:140])
     for tc in turn.tool_calls:
-        logger.info("  [Tool Call]: %s", tc.tool)
+        l.info("  [Tool Call]: %s", tc.tool)
     if turn.text:
-        logger.debug("[Response]: %s...", turn.text[-1].strip()[:140])
+        l.debug("[Response]: %s...", turn.text[-1].strip()[:140])
 
 
 def run_test_suite_on_agent(
@@ -167,8 +168,10 @@ def run_test_suite_on_agent(
     driver: HarnessDriver,
     sandbox: SandboxClient,
     reasoning_effort: str | None = None,
+    harness_name: str | None = None,
 ) -> dict[str, Any]:
     """Execute all test specs sequentially against an agent harness."""
+    h_logger = get_harness_logger(harness_name) if harness_name else logger
     stage_dir = tempfile.mkdtemp(prefix="eval_artifacts_")
     eval_id = str(uuid.uuid4())
     suite_trace: dict[str, Any] = {
@@ -181,7 +184,7 @@ def run_test_suite_on_agent(
 
     for test_path, test_obj in test_specs:
         test_id = test_obj.name
-        logger.info("RUNNING TEST: %s (%d steps)", test_id, len(test_obj.steps))
+        h_logger.info("RUNNING TEST: %s (%d steps)", test_id, len(test_obj.steps))
 
         # Setup workspace and start agent
         test_ws = "/home/agent/workspace"
@@ -218,9 +221,9 @@ def run_test_suite_on_agent(
             step_timeout_minutes = step.timeout_minutes if step.timeout_minutes is not None else DEFAULT_MAX_STEP_TIMEOUT_MINUTES
             step_timeout_seconds = int(step_timeout_minutes * 60)
             step_idle_seconds = int(DEFAULT_IDLE_TIMEOUT_MINUTES * 60)
-            logger.info("--- [Step %d/%d] %s (point=%d, max_timeout=%s min, idle_timeout=%s min) ---",
-                        idx + 1, len(test_obj.steps), step_name, step_point, step_timeout_minutes, DEFAULT_IDLE_TIMEOUT_MINUTES)
-            logger.debug("Prompt: %s...", step.prompt.strip()[:100])
+            h_logger.info("--- [Step %d/%d] %s (point=%d, max_timeout=%s min, idle_timeout=%s min) ---",
+                          idx + 1, len(test_obj.steps), step_name, step_point, step_timeout_minutes, DEFAULT_IDLE_TIMEOUT_MINUTES)
+            h_logger.debug("Prompt: %s...", step.prompt.strip()[:100])
 
             step_t0 = time.time()
             step_start_iso = datetime.fromtimestamp(step_t0, timezone.utc).isoformat()
@@ -257,8 +260,8 @@ def run_test_suite_on_agent(
                         raw_err = raw_err.strip().splitlines()[-1]
                     friendly_msg = f"Driver error: {raw_err}"
 
-                logger.warning("  ✗ Step %d %s (0/%d pts) (%.2fs): %s",
-                               idx + 1, fail_reason, step_point, step_elapsed, friendly_msg)
+                h_logger.warning("  ✗ Step %d %s (0/%d pts) (%.2fs): %s",
+                                 idx + 1, fail_reason, step_point, step_elapsed, friendly_msg)
 
                 # Recover partial messages from the session to capture what the agent did
                 partial_messages: list[dict] = []
@@ -286,13 +289,13 @@ def run_test_suite_on_agent(
                             total_tokens_in += partial_turn.tokens_in
                             total_tokens_out += partial_turn.tokens_out
                         n_tool_calls = len(partial_tool_calls)
-                        logger.warning("    Recovered %d messages (%d tool calls) from session before %s",
-                                       len(partial_messages), n_tool_calls, fail_reason.lower())
+                        h_logger.warning("    Recovered %d messages (%d tool calls) from session before %s",
+                                         len(partial_messages), n_tool_calls, fail_reason.lower())
                         # Log the tool calls so the user can see the loop
                         for tc in partial_tool_calls:
-                            logger.warning("    - [Tool Call]: %s", tc.get("tool", "unknown"))
+                            h_logger.warning("    - [Tool Call]: %s", tc.get("tool", "unknown"))
                 except Exception as recover_err:
-                    logger.debug("    Could not recover partial messages: %s", recover_err)
+                    h_logger.debug("    Could not recover partial messages: %s", recover_err)
 
                 # Step context usage
                 step_context_used_pct = round((partial_peak_ctx / max_ctx) * 100.0, 2) if max_ctx > 0 else 0.0
@@ -310,20 +313,26 @@ def run_test_suite_on_agent(
                     tokens_out=partial_tokens_out,
                     peak_context_tokens=partial_peak_ctx,
                     context_used_pct=step_context_used_pct,
+                    used_hint=False,
                     events=partial_events,
                     evaluation={
                         "passed": False,
-                        "check_results": [{"passed": False, "message": friendly_msg}],
+                        "score": 0,
+                        "point": step_point,
+                        "check_results": [{
+                            "passed": False,
+                            "message": f"Step aborted due to {fail_reason}: {friendly_msg}",
+                            "details": None,
+                        }],
                     },
                     duration_seconds=step_elapsed,
                 ).to_dict())
                 continue
 
-            step_elapsed = round(time.time() - step_t0, 2)
+            _log_turn(turn, log_target=h_logger)
+
             total_tokens_in += turn.tokens_in
             total_tokens_out += turn.tokens_out
-
-            _log_turn(turn)
 
             # Evaluate step assertions in sandbox
             eval_res = evaluate_step_in_sandbox(sandbox, test_path, idx, test_ws)
@@ -333,8 +342,8 @@ def run_test_suite_on_agent(
 
             # If check fails and step defines a hint, supply hint and grant retry in the same session
             if not passed and step.hint:
-                logger.info("  ℹ Step %d failed initial check. Supplying hint and granting retry...", idx + 1)
-                logger.debug("Hint: %s...", step.hint.strip()[:100])
+                h_logger.info("  ℹ Step %d failed initial check. Supplying hint and granting retry...", idx + 1)
+                h_logger.debug("Hint: %s...", step.hint.strip()[:100])
                 try:
                     hint_turn = driver.send_prompt(
                         sandbox,
@@ -369,13 +378,13 @@ def run_test_suite_on_agent(
                     })
                     turn.raw_messages.extend(hint_turn.raw_messages)
 
-                    _log_turn(hint_turn)
+                    _log_turn(hint_turn, log_target=h_logger)
 
                     # Re-evaluate step assertions after hint
                     eval_res = evaluate_step_in_sandbox(sandbox, test_path, idx, test_ws)
                     passed = eval_res.get("passed", False)
                 except Exception as e_hint:
-                    logger.warning("  ✗ Hint attempt encountered driver error: %s", e_hint)
+                    h_logger.warning("  ✗ Hint attempt encountered driver error: %s", e_hint)
 
             step_elapsed = round(time.time() - step_t0, 2)
             step_end_iso = datetime.now(timezone.utc).isoformat()
@@ -384,16 +393,16 @@ def run_test_suite_on_agent(
                 passed_steps += 1
                 if used_hint:
                     step_score = round(step_point * DEFAULT_HINT_SCORE_FACTOR, 2)
-                    logger.info("  ✓ Step %d PASSED WITH HINT (+%s/%d pts) (%.2fs)", idx + 1, step_score, step_point, step_elapsed)
+                    h_logger.info("  ✓ Step %d PASSED WITH HINT (+%s/%d pts) (%.2fs)", idx + 1, step_score, step_point, step_elapsed)
                 else:
                     step_score = step_point
-                    logger.info("  ✓ Step %d PASSED (+%d/%d pts) (%.2fs)", idx + 1, step_score, step_point, step_elapsed)
+                    h_logger.info("  ✓ Step %d PASSED (+%d/%d pts) (%.2fs)", idx + 1, step_score, step_point, step_elapsed)
             else:
                 step_score = 0
-                logger.warning("  ✗ Step %d FAILED (0/%d pts) (%.2fs)", idx + 1, step_point, step_elapsed)
+                h_logger.warning("  ✗ Step %d FAILED (0/%d pts) (%.2fs)", idx + 1, step_point, step_elapsed)
                 for cr in eval_res.get("check_results", []):
                     if not cr.get("passed"):
-                        logger.warning("    - Failure: %s", cr.get("message"))
+                        h_logger.warning("    - Failure: %s", cr.get("message"))
 
             earned_score += step_score
 
@@ -468,8 +477,8 @@ def run_test_suite_on_agent(
             "steps": step_traces,
         }
 
-        logger.info("✓ Test '%s' complete: score %d/%d (%.1f%%) in %.2fs",
-                     test_id, earned_score, max_score, completion_rate, test_duration)
+        h_logger.info("✓ Test '%s' complete: score %d/%d (%.1f%%) in %.2fs",
+                      test_id, earned_score, max_score, completion_rate, test_duration)
 
     suite_trace["end_time"] = datetime.now(timezone.utc).isoformat()
     return {
@@ -552,13 +561,14 @@ def main():
         test_specs.append((run_file, load_test_spec(run_file)))
 
     def run_single_harness(harness_name: str) -> None:
+        h_logger = get_harness_logger(harness_name)
         harness_version = harnesses_cfg.get(harness_name, {}).get("version", "unknown")
         driver = get_driver(harness_name)
-        logger.info("==================================================")
-        logger.info("STARTING %s HARNESS (%s) FOR MODEL: %s (Reasoning Effort: %s, Tests: %s)",
-                    harness_name.upper(), type(driver).__name__, args.model, reasoning_effort,
-                    [t[1].name for t in test_specs])
-        logger.info("==================================================")
+        h_logger.info("==================================================")
+        h_logger.info("STARTING %s HARNESS (%s) FOR MODEL: %s (Reasoning Effort: %s, Tests: %s)",
+                      harness_name.upper(), type(driver).__name__, args.model, reasoning_effort,
+                      [t[1].name for t in test_specs])
+        h_logger.info("==================================================")
 
         sandbox = SandboxClient(name=f"workspace-runner-{harness_name}")
         sandbox.ensure()
@@ -569,6 +579,7 @@ def main():
                 driver=driver,
                 sandbox=sandbox,
                 reasoning_effort=reasoning_effort,
+                harness_name=harness_name,
             )
 
             # Attach pre-computed tool-eval-bench results (deep copy for thread safety)

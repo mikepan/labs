@@ -17,7 +17,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from eval.common import setup_logger
+from eval.common import get_harness_logger, setup_logger
 from eval.config import (
     API_BASE_URL,
     DEFAULT_TOOL_EVAL_MAX_POINTS,
@@ -26,7 +26,7 @@ from eval.config import (
     TOOL_EVAL_BENCH_BIN,
 )
 
-logger = setup_logger("tool_eval")
+logger = get_harness_logger("tool-eval")
 
 TOOL_EVAL_TEST_KEY = "tool-eval-bench"
 

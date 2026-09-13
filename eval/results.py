@@ -48,7 +48,9 @@ def resolve_model_info(base_url: str, fallback_name: str = "") -> tuple[str, int
 
 
 def calculate_model_memory_gb(host: str = REMOTE_HOST) -> float:
-    """Query used GPU memory for compute processes via nvidia-smi."""
+    """Query total model memory footprint (GPU dedicated memory + Host Unified managed memory)."""
+    gpu_mem = 0.0
+    sys_mem = 0.0
     try:
         cmd = ["ssh", host, "nvidia-smi --query-compute-apps=used_gpu_memory --format=csv,noheader,nounits"] if host else [
             "nvidia-smi", "--query-compute-apps=used_gpu_memory", "--format=csv,noheader,nounits"
@@ -57,13 +59,27 @@ def calculate_model_memory_gb(host: str = REMOTE_HOST) -> float:
         if res.stdout:
             mems = [float(x) for x in res.stdout.split() if x.replace('.', '', 1).isdigit()]
             if mems:
-                mem_gb = round(max(mems) / 1024.0, 1)
-                logger.info("nvidia-smi memory: %.1f GB", mem_gb)
-                return mem_gb
+                gpu_mem = max(mems) / 1024.0
     except Exception as e:
         logger.warning("Could not query GPU memory via nvidia-smi: %s", e)
 
-    return 0.0
+    try:
+        # Check system / unified memory RSS for vLLM EngineCore
+        rss_script = 'pgrep -f "VLLM::EngineCore" | head -n1 | xargs -I{} grep -E "VmHWM|VmRSS" /proc/{}/status 2>/dev/null'
+        cmd = ["ssh", host, rss_script] if host else ["bash", "-c", rss_script]
+        res = run_cmd(*cmd, timeout=5)
+        if res.stdout:
+            for line in res.stdout.splitlines():
+                if "VmHWM:" in line or "VmRSS:" in line:
+                    parts = line.split()
+                    if len(parts) >= 2 and parts[1].isdigit():
+                        sys_mem = max(sys_mem, float(parts[1]) / (1024.0 * 1024.0))
+    except Exception as e:
+        logger.debug("Could not query process system memory: %s", e)
+
+    total_mem = round(gpu_mem + sys_mem, 1) if sys_mem > 5.0 else round(gpu_mem, 1)
+    logger.info("Measured model memory: %.1f GB (GPU: %.1f GB, Host Unified: %.1f GB)", total_mem, gpu_mem, sys_mem)
+    return total_mem
 
 
 def get_model_metadata(model_name: str, base_url: str, memory_gb: float | None = None) -> dict[str, Any]:

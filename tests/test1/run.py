@@ -43,10 +43,12 @@ def compute_expected_top_customers(source_csv_path: str, top_n: int = 10) -> lis
     return [(c["fullname"], c["total_spend"]) for c in sorted_custs]
 
 
-def compute_expected_top_authors(source_csv_path: str, top_n: int = 10) -> list[tuple[str, int, float]]:
-    """Compute top authors by gross sales across both primary and secondary items."""
+def compute_expected_top_authors(source_csv_path: str, top_n: int = 10, paid_only: bool = False) -> list[tuple[str, int, float]]:
+    """Compute top authors by gross sales across both primary and secondary items (supports all-orders and paid-only)."""
     authors = defaultdict(lambda: {"units": 0, "gross_sales": 0.0})
     for row in _read_orders(source_csv_path):
+        if paid_only and (row.get("payment_status") or "").strip().lower() != "paid":
+            continue
         p_auth = row.get("primary_item_author", "").strip()
         if p_auth:
             p_qty = int(row.get("primary_item_quantity") or 0)
@@ -63,13 +65,17 @@ def compute_expected_top_authors(source_csv_path: str, top_n: int = 10) -> list[
     return [(auth, data["units"], data["gross_sales"]) for auth, data in sorted_auths]
 
 
-def compute_expected_genre_returns(source_csv_path: str) -> list[tuple[str, int, int, float, float]]:
-    """Compute order return rate percentage and total refunds per book genre."""
+def compute_expected_genre_returns(source_csv_path: str, merge_classics: bool = False, paid_only: bool = False) -> list[tuple[str, int, int, float, float]]:
+    """Compute order return rate percentage and total refunds per book genre (supports raw genres, merged classics, and paid-only)."""
     genres = defaultdict(lambda: {"total": 0, "returned": 0, "refund": 0.0})
     for row in _read_orders(source_csv_path):
+        if paid_only and (row.get("payment_status") or "").strip().lower() != "paid":
+            continue
         genre = row.get("primary_item_genre", "").strip()
         if not genre:
             continue
+        if merge_classics and genre.lower() in ("classic", "classics"):
+            genre = "Classics"
         genres[genre]["total"] += 1
         if row.get("return_requested", "").strip().lower() == "yes":
             genres[genre]["returned"] += 1
@@ -124,10 +130,12 @@ def compute_expected_carrier_delivery_time(source_csv_path: str) -> list[tuple[s
     return sorted(results, key=lambda x: x[2])
 
 
-def compute_expected_channel_performance(source_csv_path: str) -> list[tuple[str, int, float, float, float, float]]:
-    """Compute order count, gross revenue, refunds, net revenue, and Net AOV per sales channel."""
+def compute_expected_channel_performance(source_csv_path: str, paid_only: bool = False) -> list[tuple[str, int, float, float, float, float]]:
+    """Compute order count, gross revenue, refunds, net revenue, and Net AOV per sales channel (supports all-orders and paid-only)."""
     channels = defaultdict(lambda: {"orders": 0, "gross": 0.0, "refund": 0.0, "net": 0.0})
     for row in _read_orders(source_csv_path):
+        if paid_only and (row.get("payment_status") or "").strip().lower() != "paid":
+            continue
         ch = row.get("order_channel", "").strip()
         gross = float(row.get("order_grand_total") or 0)
         ref = float(row.get("refund_amount") or 0)
@@ -233,9 +241,9 @@ check_csv = check_top_customers_csv
 
 
 def check_top_authors_csv(filepath: str = "top-authors.csv") -> CustomAssert:
-    """Validate top-authors.csv (Author, UnitsSold, GrossSales) against ground truth."""
+    """Validate top-authors.csv (Author, UnitsSold, GrossSales) against ground truth (allows both all orders and paid-only)."""
     def _validate(workspace_dir: str) -> tuple[bool, str]:
-        expected = compute_expected_top_authors(_get_source_csv(workspace_dir), top_n=10)
+        src = _get_source_csv(workspace_dir)
         def _check_row(rank, exp, row, idxs):
             auth_idx, units_idx, sales_idx = idxs
             exp_auth, exp_units, exp_sales = exp
@@ -264,18 +272,28 @@ def check_top_authors_csv(filepath: str = "top-authors.csv") -> CustomAssert:
                 )
             return True, ""
 
-        return _validate_tabular_csv(
-            workspace_dir, filepath, expected,
-            [("Author", ["author", "name"]), ("UnitsSold", ["unit", "qty", "quantity", "count", "sold"]), ("GrossSales", ["gross", "sale", "revenue", "total", "spend"])],
-            _check_row, f"All 10 rows match top authors ground truth (Rank 1: {expected[0][0]} with {expected[0][1]} units, ${expected[0][2]:.2f})."
-        )
+        candidates = [
+            compute_expected_top_authors(src, top_n=10, paid_only=False),
+            compute_expected_top_authors(src, top_n=10, paid_only=True),
+        ]
+        last_err = ""
+        for expected in candidates:
+            ok, msg = _validate_tabular_csv(
+                workspace_dir, filepath, expected,
+                [("Author", ["author", "name"]), ("UnitsSold", ["unit", "qty", "quantity", "count", "sold"]), ("GrossSales", ["gross", "sale", "revenue", "total", "spend"])],
+                _check_row, f"All 10 rows match top authors ground truth (Rank 1: {expected[0][0]} with {expected[0][1]} units, ${expected[0][2]:.2f})."
+            )
+            if ok:
+                return True, msg
+            last_err = msg
+        return False, last_err
     return custom_check(_validate)
 
 
 def check_genre_returns_csv(filepath: str = "genre-returns.csv") -> CustomAssert:
-    """Validate genre-returns.csv (Genre, TotalOrders, ReturnedOrders, ReturnRatePct, TotalRefund)."""
+    """Validate genre-returns.csv (Genre, TotalOrders, ReturnedOrders, ReturnRatePct, TotalRefund) (allows both raw genres and merged classics)."""
     def _validate(workspace_dir: str) -> tuple[bool, str]:
-        expected = compute_expected_genre_returns(_get_source_csv(workspace_dir))
+        src = _get_source_csv(workspace_dir)
         target_path = os.path.join(workspace_dir, filepath)
         if not os.path.exists(target_path):
             available = [f for f in os.listdir(workspace_dir) if not f.startswith(".")]
@@ -291,8 +309,12 @@ def check_genre_returns_csv(filepath: str = "genre-returns.csv") -> CustomAssert
             return False, f"File '{filepath}' is empty."
 
         data_rows = raw_rows[1:]
-        if len(data_rows) != len(expected):
-            return False, f"Row count mismatch: expected exactly {len(expected)} data rows, but found {len(data_rows)} rows. Header found: {raw_rows[0]}"
+        candidates = [
+            compute_expected_genre_returns(src, merge_classics=False, paid_only=False),
+            compute_expected_genre_returns(src, merge_classics=False, paid_only=True),
+            compute_expected_genre_returns(src, merge_classics=True, paid_only=False),
+            compute_expected_genre_returns(src, merge_classics=True, paid_only=True),
+        ]
 
         norm_header = [_norm(h) for h in raw_rows[0]]
         col_matchers = [
@@ -308,53 +330,79 @@ def check_genre_returns_csv(filepath: str = "genre-returns.csv") -> CustomAssert
             indices.append(idx if idx is not None else len(indices))
 
         genre_idx, tot_idx, ret_idx, pct_idx, ref_idx = indices
-        expected_map = {exp[0].lower(): exp for exp in expected}
 
-        prev_pct = float("inf")
-        prev_ref = float("inf")
-        for rank, row in enumerate(data_rows, 1):
-            if len(row) <= max(indices):
-                return False, f"Row {rank} is missing required columns. Found row: {row}"
-            act_genre = row[genre_idx].strip()
-            try:
-                act_tot = int(round(_clean_float(row[tot_idx])))
-                act_ret = int(round(_clean_float(row[ret_idx])))
-                act_pct = _clean_float(row[pct_idx])
-                act_ref = _clean_float(row[ref_idx])
-            except ValueError as e:
-                return False, f"Row {rank} contains invalid numeric data: {row} (error: {e})"
+        last_err = ""
+        for expected in candidates:
+            if len(data_rows) != len(expected):
+                last_err = f"Row count mismatch: expected {len(expected)} data rows (or 17 if merged), but found {len(data_rows)} rows. Header found: {raw_rows[0]}"
+                continue
 
-            if act_genre.lower() not in expected_map:
-                return False, f"Row {rank} contains unknown genre '{act_genre}'."
+            expected_map = {exp[0].lower(): exp for exp in expected}
+            prev_pct = float("inf")
+            prev_ref = float("inf")
+            passed_all = True
 
-            exp_genre, exp_tot, exp_ret, exp_pct, exp_ref = expected_map[act_genre.lower()]
+            for rank, row in enumerate(data_rows, 1):
+                if len(row) <= max(indices):
+                    passed_all = False
+                    last_err = f"Row {rank} is missing required columns. Found row: {row}"
+                    break
+                act_genre = row[genre_idx].strip()
+                try:
+                    act_tot = int(round(_clean_float(row[tot_idx])))
+                    act_ret = int(round(_clean_float(row[ret_idx])))
+                    act_pct = _clean_float(row[pct_idx])
+                    act_ref = _clean_float(row[ref_idx])
+                except ValueError as e:
+                    passed_all = False
+                    last_err = f"Row {rank} contains invalid numeric data: {row} (error: {e})"
+                    break
 
-            if act_tot != exp_tot or act_ret != exp_ret:
-                return False, (
-                    f"Row {rank} ({act_genre}) order count mismatch: expected Total={exp_tot}, Returned={exp_ret}, "
-                    f"got Total={act_tot}, Returned={act_ret}."
-                )
-            if abs(act_pct - exp_pct) > 0.1:
-                return False, (
-                    f"Row {rank} ({act_genre}) return rate mismatch: expected {exp_pct:.2f}%, "
-                    f"got {act_pct:.2f}% (diff: {abs(act_pct - exp_pct):.2f}%)."
-                )
-            if abs(act_ref - exp_ref) > 0.05:
-                return False, (
-                    f"Row {rank} ({act_genre}) refund mismatch: expected ${exp_ref:.2f}, "
-                    f"got ${act_ref:.2f} (diff: ${abs(act_ref - exp_ref):.2f})."
-                )
+                if act_genre.lower() not in expected_map:
+                    passed_all = False
+                    last_err = f"Row {rank} contains unknown genre '{act_genre}'."
+                    break
 
-            # Validate sort order (ReturnRatePct descending, then TotalRefund descending)
-            if act_pct > prev_pct + 0.01:
-                return False, f"Row {rank} ({act_genre}) violates sort order: ReturnRatePct ({act_pct:.2f}%) is higher than previous row ({prev_pct:.2f}%)."
-            elif abs(act_pct - prev_pct) <= 0.01 and act_ref > prev_ref + 0.05:
-                return False, f"Row {rank} ({act_genre}) violates tie-break sort order: TotalRefund (${act_ref:.2f}) is higher than previous row (${prev_ref:.2f}) with identical return rate."
+                exp_genre, exp_tot, exp_ret, exp_pct, exp_ref = expected_map[act_genre.lower()]
 
-            prev_pct = act_pct
-            prev_ref = act_ref
+                if act_tot != exp_tot or act_ret != exp_ret:
+                    passed_all = False
+                    last_err = (
+                        f"Row {rank} ({act_genre}) order count mismatch: expected Total={exp_tot}, Returned={exp_ret}, "
+                        f"got Total={act_tot}, Returned={act_ret}."
+                    )
+                    break
+                if abs(act_pct - exp_pct) > 0.1:
+                    passed_all = False
+                    last_err = (
+                        f"Row {rank} ({act_genre}) return rate mismatch: expected {exp_pct:.2f}%, "
+                        f"got {act_pct:.2f}% (diff: {abs(act_pct - exp_pct):.2f}%)."
+                    )
+                    break
+                if abs(act_ref - exp_ref) > 0.05:
+                    passed_all = False
+                    last_err = (
+                        f"Row {rank} ({act_genre}) refund mismatch: expected ${exp_ref:.2f}, "
+                        f"got ${act_ref:.2f} (diff: ${abs(act_ref - exp_ref):.2f})."
+                    )
+                    break
 
-        return True, f"All {len(expected)} genre rows match ground truth."
+                if act_pct > prev_pct + 0.01:
+                    passed_all = False
+                    last_err = f"Row {rank} ({act_genre}) violates sort order: ReturnRatePct ({act_pct:.2f}%) is higher than previous row ({prev_pct:.2f}%)."
+                    break
+                elif abs(act_pct - prev_pct) <= 0.01 and act_ref > prev_ref + 0.05:
+                    passed_all = False
+                    last_err = f"Row {rank} ({act_genre}) violates tie-break sort order: TotalRefund (${act_ref:.2f}) is higher than previous row (${prev_ref:.2f}) with identical return rate."
+                    break
+
+                prev_pct = act_pct
+                prev_ref = act_ref
+
+            if passed_all:
+                return True, f"All {len(expected)} genre rows match ground truth."
+
+        return False, last_err
     return custom_check(_validate)
 
 
@@ -440,9 +488,9 @@ def check_carrier_delivery_time_csv(filepath: str = "carrier-delivery-time.csv")
 
 
 def check_channel_performance_csv(filepath: str = "channel-performance.csv") -> CustomAssert:
-    """Validate channel-performance.csv (Channel, OrderCount, GrossRevenue, TotalRefunds, NetRevenue, NetAOV)."""
+    """Validate channel-performance.csv (Channel, OrderCount, GrossRevenue, TotalRefunds, NetRevenue, NetAOV) (allows both all-orders and paid-only)."""
     def _validate(workspace_dir: str) -> tuple[bool, str]:
-        expected = compute_expected_channel_performance(_get_source_csv(workspace_dir))
+        src = _get_source_csv(workspace_dir)
         def _check_row(rank, exp, row, idxs):
             ch_idx, count_idx, gross_idx, ref_idx, net_idx, aov_idx = idxs
             exp_ch, exp_count, exp_gross, exp_ref, exp_net, exp_aov = exp
@@ -473,11 +521,21 @@ def check_channel_performance_csv(filepath: str = "channel-performance.csv") -> 
                 return False, f"Row {rank} ({exp_ch}) Net AOV mismatch: expected ${exp_aov:.2f}, got ${act_aov:.2f} (diff: ${abs(act_aov - exp_aov):.2f})."
             return True, ""
 
-        return _validate_tabular_csv(
-            workspace_dir, filepath, expected,
-            [("Channel", ["channel", "name"]), ("OrderCount", ["count", "order", "num"]), ("GrossRevenue", ["gross"]), ("TotalRefunds", ["refund", "return"]), ("NetRevenue", ["net", "profit"]), ("NetAOV", ["aov", "average"])],
-            _check_row, f"All {len(expected)} channels match financial performance ground truth."
-        )
+        candidates = [
+            compute_expected_channel_performance(src, paid_only=False),
+            compute_expected_channel_performance(src, paid_only=True),
+        ]
+        last_err = ""
+        for expected in candidates:
+            ok, msg = _validate_tabular_csv(
+                workspace_dir, filepath, expected,
+                [("Channel", ["channel", "name"]), ("OrderCount", ["count", "order", "num"]), ("GrossRevenue", ["gross"]), ("TotalRefunds", ["refund", "return"]), ("NetRevenue", ["net", "profit"]), ("NetAOV", ["aov", "average"])],
+                _check_row, f"All {len(expected)} channels match financial performance ground truth."
+            )
+            if ok:
+                return True, msg
+            last_err = msg
+        return False, last_err
     return custom_check(_validate)
 
 
@@ -508,7 +566,7 @@ TEST = Test(
         Step(
             prompt="""Use Python to analyze product returns by book genre from the source csv. Group by primary item genre and calculate: TotalOrders, ReturnedOrders, ReturnRatePct (rounded to 2 decimals), and TotalRefund (sum of refund_amount rounded to 2 decimal places). Produce a "genre-returns.csv" with columns: Genre, TotalOrders, ReturnedOrders, ReturnRatePct, TotalRefund. Sort by ReturnRatePct descending, breaking ties with TotalRefund descending.""",
             checks=[
-                git_changes("genre-returns.csv", "A", total_lines=(18, 20)),
+                git_changes("genre-returns.csv", "A", total_lines=(17, 20)),
                 check_genre_returns_csv(),
             ],
             point=2,

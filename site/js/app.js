@@ -37,7 +37,7 @@ function extractEvalMetrics(e) {
 
   const totalTimeSec = tests.reduce((acc, t) => acc + (t.run_time_sec || 0), 0);
   const timeMin = tests.length > 0
-    ? Number((totalTimeSec / 60).toFixed(1))
+    ? Math.round(totalTimeSec / 60)
     : 0;
 
   const runMemGb = Number(e.memory_gb || 0);
@@ -649,9 +649,7 @@ function formatModelCardTooltip(evalRecord) {
       ${row('Intelligence', m.intelligence)}
       ${row('Completion Time', m.timeMin + ' min')}
       ${row('Memory Use', m.memoryGb + ' GB')}
-      ${row('Server', m.llmServer)}
       ${row('Speculative', m.speculativeDecoding)}
-      ${row('Harness', m.harnessName)}
       ${row('Reasoning', m.reasoning)}
       ${row('KV Cache Quant', m.kvQuant)}
     </div>

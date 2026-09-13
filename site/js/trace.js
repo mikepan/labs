@@ -169,7 +169,7 @@ function renderExecutiveSummary(data) {
   });
 
   const completionTimeDisplay = totalTimeSec > 0
-    ? `${(totalTimeSec / 60).toFixed(1)} min`
+    ? `${Math.round(totalTimeSec / 60)} min`
     : 'N/A';
 
   document.title = `${modelName} x ${harness} | Evaluation Trace`;

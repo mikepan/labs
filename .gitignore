@@ -6,9 +6,10 @@ __pycache__/
 unittests/
 
 
-# Ignore evaluation run directories, but keep benchmark-data.json
-site/results/*/
-!site/results/benchmark-data.json
+# Results: track benchmark-data.json and each run's full_trace.json, ignore other result artifacts/logs
+site/results/*/*
+!site/results/*/full_trace.json
+site/results/*.lock
 
 # Private benchmark source assets and media
 private/

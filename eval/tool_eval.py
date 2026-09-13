@@ -180,8 +180,68 @@ def parse_tool_eval_output(
     }
 
 
+def _ensure_tool_eval_bench_imported() -> bool:
+    """Ensure tool_eval_bench package is importable, adding local uv tool paths if needed."""
+    try:
+        import tool_eval_bench  # noqa: F401
+        return True
+    except ImportError:
+        import sys
+        candidate_site_packages = list(Path.home().glob(".local/share/uv/tools/tool-eval-bench/lib/python*/site-packages"))
+        for p in candidate_site_packages:
+            if str(p) not in sys.path and p.is_dir():
+                sys.path.insert(0, str(p))
+        try:
+            import tool_eval_bench  # noqa: F401
+            return True
+        except ImportError:
+            return False
+
+
+def _apply_tool_eval_monkeypatches() -> None:
+    """Monkey-patch tool_eval_bench adapters in-memory to never send temperature parameter."""
+    try:
+        import tool_eval_bench.adapters.openai_compat as oac
+        import tool_eval_bench.adapters.requests as req_adapter
+
+        # 1. Monkeypatch OpenAI Compatible Adapter stream and non-stream methods
+        if not getattr(oac.OpenAICompatibleAdapter, "_temperature_patched", False):
+            orig_non_stream = oac.OpenAICompatibleAdapter._non_stream_request
+            orig_stream = oac.OpenAICompatibleAdapter._stream_request
+
+            async def patched_non_stream(self, client, url, payload, headers, timeout):
+                if isinstance(payload, dict):
+                    payload.pop("temperature", None)
+                return await orig_non_stream(self, client, url, payload, headers, timeout)
+
+            async def patched_stream(self, client, url, payload, headers, timeout):
+                if isinstance(payload, dict):
+                    payload.pop("temperature", None)
+                return await orig_stream(self, client, url, payload, headers, timeout)
+
+            oac.OpenAICompatibleAdapter._non_stream_request = patched_non_stream
+            oac.OpenAICompatibleAdapter._stream_request = patched_stream
+            oac.OpenAICompatibleAdapter._temperature_patched = True
+
+        # 2. Monkeypatch minimal_request used for warmup / preflight
+        if not getattr(req_adapter, "_temperature_patched", False):
+            orig_min_req = req_adapter.minimal_request
+
+            def patched_minimal_request(*args, **kwargs):
+                url, payload, headers = orig_min_req(*args, **kwargs)
+                if isinstance(payload, dict):
+                    payload.pop("temperature", None)
+                return url, payload, headers
+
+            req_adapter.minimal_request = patched_minimal_request
+            req_adapter._temperature_patched = True
+
+    except Exception as e:
+        logger.warning("Could not apply in-memory tool_eval_bench monkeypatches: %s", e)
+
+
 def find_tool_eval_bench_bin() -> str:
-    """Find the executable path for tool-eval-bench."""
+    """Find the executable path for tool-eval-bench fallback."""
     resolved = shutil.which(TOOL_EVAL_BENCH_BIN)
     if resolved:
         return resolved
@@ -205,11 +265,56 @@ def run_tool_eval_benchmark(
     reasoning_effort: str | None = None,
     verbose: bool = False,
 ) -> dict[str, Any] | None:
-    """Execute tool-eval-bench directly against the serving endpoint and return parsed results.
+    """Execute tool-eval-bench using Python bindings with in-memory temperature monkeypatches.
 
-    Command executed:
-        tool-eval-bench bench --base-url <base_url> --timeout <timeout> --hardmode --parallel <parallel> --json [--backend-kwargs '{"reasoning_effort": "<effort>"}']
+    Falls back to CLI execution if library cannot be imported.
     """
+    normalized_effort = str(reasoning_effort).lower().strip() if reasoning_effort else ""
+
+    if _ensure_tool_eval_bench_imported():
+        _apply_tool_eval_monkeypatches()
+        import asyncio
+        import tool_eval_bench.api as tool_eval_api
+        from tool_eval_bench.evals.scenarios import ALL_SCENARIOS, ALL_SCENARIOS_WITH_HARDMODE
+
+        scenarios = list(ALL_SCENARIOS_WITH_HARDMODE) if hardmode else list(ALL_SCENARIOS)
+        extra_params: dict[str, Any] = {}
+        if normalized_effort in ("low", "medium", "xhigh"):
+            extra_params["reasoning_effort"] = normalized_effort
+
+        logger.info("=" * 70)
+        logger.info("RUNNING tool-eval-bench via Python API (scenarios=%d, timeout=%ds, parallel=%d, reasoning_effort=%s) against %s",
+                    len(scenarios), timeout, parallel, normalized_effort or "default", base_url)
+        logger.info("=" * 70)
+
+        t0 = time.perf_counter()
+        try:
+            raw_result = asyncio.run(
+                tool_eval_api.run_benchmark(
+                    model="",
+                    base_url=base_url,
+                    backend="vllm",
+                    scenarios=scenarios,
+                    timeout_seconds=timeout,
+                    concurrency=parallel,
+                    extra_params=extra_params if extra_params else None,
+                    persist=False,
+                )
+            )
+            wall_time_sec = round(time.perf_counter() - t0, 2)
+            parsed = parse_tool_eval_output(raw_result, wall_time_sec=wall_time_sec)
+            logger.info(
+                "✓ tool-eval-bench finished in %.1fs: Points=%d/%d -> Normalized Score=%.2f/40",
+                wall_time_sec,
+                parsed["earned_points"],
+                parsed["max_benchmark_points"],
+                parsed["normalized_earned_score"],
+            )
+            return parsed
+        except Exception as e:
+            logger.error("Failed to execute tool-eval-bench Python binding: %s", e)
+
+    # Fallback to CLI execution if Python API unavailable
     bin_path = find_tool_eval_bench_bin()
     cmd = [
         bin_path,
@@ -224,16 +329,11 @@ def run_tool_eval_benchmark(
     ]
     if hardmode:
         cmd.append("--hardmode")
-
-    # Only pass reasoning_effort if it is in ('low', 'medium', 'xhigh')
-    normalized_effort = str(reasoning_effort).lower().strip() if reasoning_effort else ""
     if normalized_effort in ("low", "medium", "xhigh"):
         cmd.extend(["--backend-kwargs", json.dumps({"reasoning_effort": normalized_effort})])
 
     logger.info("=" * 70)
-    logger.info("RUNNING tool-eval-bench (hardmode, timeout=%ds, parallel=%d, reasoning_effort=%s) against %s",
-                timeout, parallel, normalized_effort or "default", base_url)
-    logger.info("Command: %s", " ".join(cmd))
+    logger.info("RUNNING tool-eval-bench CLI fallback: %s", " ".join(cmd))
     logger.info("=" * 70)
 
     t0 = time.perf_counter()

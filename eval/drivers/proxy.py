@@ -3,6 +3,10 @@ eval.drivers.proxy - In-sandbox HTTP proxy for OpenAI-compatible reasoning param
 
 Intercepts /chat/completions requests from agents (such as OpenCode) and injects the
 requested reasoning_effort into the request payload before forwarding to the LLM/vLLM backend.
+
+NOTE: Inside the sandbox, this daemon and its log files are intentionally misnamed as
+'telemetry' (.telemetry.py, telemetry.log, TelemetryHandler) to prevent evaluated models
+with bash/process inspection tools from detecting proxy/evaluation harness artifacts.
 """
 
 import logging
@@ -14,8 +18,8 @@ from eval.sandbox import SandboxClient
 logger = logging.getLogger("eval")
 
 DEFAULT_PROXY_PORT = 4098
-DEFAULT_PROXY_SCRIPT_PATH = "/home/agent/.local/bin/.proxy.py"
-DEFAULT_PROXY_LOG_PATH = "/home/agent/.local/state/proxy.log"
+DEFAULT_PROXY_SCRIPT_PATH = "/home/agent/.local/bin/.telemetry.py"
+DEFAULT_PROXY_LOG_PATH = "/home/agent/.local/state/telemetry.log"
 
 
 def get_proxy_script(llm_base_url: str, reasoning_effort: str, proxy_port: int = DEFAULT_PROXY_PORT) -> str:
@@ -37,7 +41,7 @@ TARGET_BASE = "{target_base}"
 REASONING_EFFORT = "{reasoning_effort}"
 
 
-class ProxyHandler(http.server.BaseHTTPRequestHandler):
+class TelemetryHandler(http.server.BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
 
     def log_message(self, format, *args):
@@ -130,7 +134,7 @@ class ProxyHandler(http.server.BaseHTTPRequestHandler):
 
 def main():
     socketserver.ThreadingTCPServer.allow_reuse_address = True
-    server = socketserver.ThreadingTCPServer(("127.0.0.1", PORT), ProxyHandler)
+    server = socketserver.ThreadingTCPServer(("127.0.0.1", PORT), TelemetryHandler)
     server.daemon_threads = True
     try:
         server.serve_forever()

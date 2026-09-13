@@ -190,12 +190,12 @@ def run_test_suite_on_agent(
         test_ws = "/home/agent/workspace"
         sandbox.setup_test_workspace(test_ws, test_obj.setup)
 
-        # Upload test data assets in a single atomic tar batch
+        # Upload test data assets in a single atomic tar batch (excluding test definition run.py)
         test_dir = Path(test_path).parent
         sandbox.upload_tree(
             test_dir,
             test_ws,
-            exclude={"*.py", ".*", "__pycache__", "private", "ground_truth"},
+            exclude={"run.py"},
         )
 
         # Commit initial test data assets so git change tracking starts with a clean baseline

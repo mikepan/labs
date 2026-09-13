@@ -164,7 +164,7 @@ TEST = Test(
         Step(
             prompt=(
                 "The previous artist forgot to flip the correct toggle during export, so now "
-                "we have a folder of normal maps in 'mixed/' where some are in OpenGL format and others in D3D format. "
+                "we have a folder of normal maps in 'textures/' where some are in OpenGL format and others in D3D format. "
                 "Figure out an algorithm to sort them out, and copy them into 2 folders: 'ogl' and 'd3d'."
             ),
             checks=[

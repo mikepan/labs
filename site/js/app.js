@@ -100,6 +100,7 @@ function initDashboard(data) {
   renderTopScatterChart(evaluations, currentScatterView, currentScatterColor);
   renderModelSpeedChart(evaluations);
   renderModelDensityChart(evaluations);
+  renderHarnessPieCharts(evaluations);
   renderLeaderboard(models);
 
   // Bind toggle buttons for Top Scatter Chart (Time View vs Size View)
@@ -148,7 +149,7 @@ function handleFetchError(error) {
     </div>
   `;
 
-  ['chart-top-scatter', 'chart-model-speed', 'chart-model-density'].forEach(id => {
+  ['chart-top-scatter', 'chart-model-speed', 'chart-model-density', 'chart-harness-tasks', 'chart-harness-time'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.innerHTML = errorHtml;
   });
@@ -244,7 +245,7 @@ function renderRankingBarChart(containerId, evaluations, { metricKey, yAxisName,
       textStyle: { color: '#0f172a', fontFamily: 'system-ui, -apple-system, sans-serif' },
       formatter: (params) => formatModelCardTooltip(sorted[params[0].dataIndex]?.raw)
     },
-    grid: { left: '3%', right: '4%', bottom: '24%', top: '12%', containLabel: true },
+    grid: { left: '3%', right: '4%', bottom: '12%', top: '12%', containLabel: true },
     xAxis: {
       type: 'category',
       data: modelLabels,
@@ -308,6 +309,206 @@ function renderModelDensityChart(evaluations) {
     gradientColors: ['#059669', '#34d399'],
     hoverColor: '#047857'
   });
+}
+
+/**
+ * Renders 2 pie / donut charts comparing pi vs opencode cli:
+ * 1. Problem Solving: Total Tasks Completed with full score
+ * 2. Execution Speed: Total Execution Time Taken (in minutes/hours)
+ */
+function renderHarnessPieCharts(evaluations) {
+  const harnessStats = {};
+
+  evaluations.forEach(e => {
+    let rawHarness = (e.harness || '').trim();
+    let normHarness = rawHarness;
+    const lower = rawHarness.toLowerCase();
+    if (lower.includes('pi') && !lower.includes('opencode')) {
+      normHarness = 'pi';
+    } else if (lower.includes('opencode')) {
+      normHarness = 'opencode cli';
+    } else if (!normHarness) {
+      normHarness = 'other';
+    }
+
+    if (!harnessStats[normHarness]) {
+      harnessStats[normHarness] = {
+        name: normHarness,
+        tasksCompleted: 0,
+        totalTimeSec: 0,
+        evalCount: 0
+      };
+    }
+
+    harnessStats[normHarness].evalCount += 1;
+
+    const tests = Object.values(e.test_results || {});
+    tests.forEach(t => {
+      const earned = Number(t.earned_score || 0);
+      const max = Number(t.max_score || 0);
+      const sec = Number(t.run_time_sec || 0);
+
+      harnessStats[normHarness].totalTimeSec += sec;
+      if (max > 0 && earned >= max) {
+        harnessStats[normHarness].tasksCompleted += 1;
+      }
+    });
+  });
+
+  const harnessList = Object.values(harnessStats);
+  if (harnessList.length === 0) return;
+
+  // Distinct branded colors for harnesses
+  const harnessColors = {
+    'pi': '#f97316',          // Warm vibrant orange
+    'opencode cli': '#0284c7' // Modern electric cyan / blue
+  };
+
+  function getColor(harnessName) {
+    return harnessColors[harnessName] || stringToColor(harnessName);
+  }
+
+  // 1. Tasks Completed Pie Chart
+  const tasksChartEl = document.getElementById('chart-harness-tasks');
+  const tasksChart = getOrCreateChart(tasksChartEl);
+  if (tasksChart) {
+    const tasksData = harnessList.map(h => ({
+      name: h.name,
+      value: h.tasksCompleted,
+      itemStyle: { color: getColor(h.name) }
+    }));
+
+    const totalTasks = tasksData.reduce((sum, d) => sum + d.value, 0);
+
+    const tasksOption = {
+      backgroundColor: 'transparent',
+      tooltip: {
+        trigger: 'item',
+        backgroundColor: 'rgba(255, 255, 255, 0.96)',
+        borderColor: '#e2e8f0',
+        shadowBlur: 12,
+        shadowColor: 'rgba(0, 0, 0, 0.08)',
+        textStyle: { color: '#0f172a', fontFamily: 'system-ui, -apple-system, sans-serif' },
+        formatter: (params) => {
+          const pct = totalTasks > 0 ? ((params.value / totalTasks) * 100).toFixed(1) : '0.0';
+          return `
+            <div style="font-weight:600; color:#0f172a; margin-bottom:4px;">${escapeHtml(params.name)}</div>
+            <div style="font-size:0.85rem; color:#64748b;">
+              Tasks Completed: <strong style="color:#0f172a;">${params.value}</strong> (${pct}%)
+            </div>
+          `;
+        }
+      },
+      series: [
+        {
+          name: 'Tasks Completed',
+          type: 'pie',
+          radius: ['45%', '72%'],
+          center: ['50%', '50%'],
+          avoidLabelOverlap: true,
+          itemStyle: {
+            borderRadius: 8,
+            borderColor: '#ffffff',
+            borderWidth: 2
+          },
+          label: {
+            show: true,
+            formatter: '{b}\n{c} ({d}%)',
+            fontFamily: 'system-ui, -apple-system, sans-serif',
+            fontSize: 12,
+            fontWeight: 500,
+            color: '#334155'
+          },
+          emphasis: {
+            scale: true,
+            scaleSize: 8,
+            label: {
+              show: true,
+              fontSize: 14,
+              fontWeight: 700
+            }
+          },
+          data: tasksData
+        }
+      ]
+    };
+
+    tasksChart.setOption(tasksOption, true);
+  }
+
+  // 2. Total Time Taken Pie Chart
+  const timeChartEl = document.getElementById('chart-harness-time');
+  const timeChart = getOrCreateChart(timeChartEl);
+  if (timeChart) {
+    const timeData = harnessList.map(h => {
+      const mins = Math.round(h.totalTimeSec / 60);
+      const hours = (h.totalTimeSec / 3600).toFixed(1);
+      return {
+        name: h.name,
+        value: mins,
+        hours: hours,
+        itemStyle: { color: getColor(h.name) }
+      };
+    });
+
+    const totalMins = timeData.reduce((sum, d) => sum + d.value, 0);
+
+    const timeOption = {
+      backgroundColor: 'transparent',
+      tooltip: {
+        trigger: 'item',
+        backgroundColor: 'rgba(255, 255, 255, 0.96)',
+        borderColor: '#e2e8f0',
+        shadowBlur: 12,
+        shadowColor: 'rgba(0, 0, 0, 0.08)',
+        textStyle: { color: '#0f172a', fontFamily: 'system-ui, -apple-system, sans-serif' },
+        formatter: (params) => {
+          const pct = totalMins > 0 ? ((params.value / totalMins) * 100).toFixed(1) : '0.0';
+          const hrs = params.data.hours || (params.value / 60).toFixed(1);
+          return `
+            <div style="font-weight:600; color:#0f172a; margin-bottom:4px;">${escapeHtml(params.name)}</div>
+            <div style="font-size:0.85rem; color:#64748b;">
+              Total Time: <strong style="color:#0f172a;">${params.value.toLocaleString()} min</strong> (~${hrs} hrs) (${pct}%)
+            </div>
+          `;
+        }
+      },
+      series: [
+        {
+          name: 'Total Time Taken',
+          type: 'pie',
+          radius: ['45%', '72%'],
+          center: ['50%', '50%'],
+          avoidLabelOverlap: true,
+          itemStyle: {
+            borderRadius: 8,
+            borderColor: '#ffffff',
+            borderWidth: 2
+          },
+          label: {
+            show: true,
+            formatter: (params) => `${params.name}\n${params.value} min (${params.percent}%)`,
+            fontFamily: 'system-ui, -apple-system, sans-serif',
+            fontSize: 12,
+            fontWeight: 500,
+            color: '#334155'
+          },
+          emphasis: {
+            scale: true,
+            scaleSize: 8,
+            label: {
+              show: true,
+              fontSize: 14,
+              fontWeight: 700
+            }
+          },
+          data: timeData
+        }
+      ]
+    };
+
+    timeChart.setOption(timeOption, true);
+  }
 }
 
 /**
@@ -409,7 +610,7 @@ function renderTopScatterChart(evaluations, viewMode = 'time', colorMode = 'base
     });
   });
 
-  const sortedGroupKeys = Array.from(groupsMap.keys()).sort((a, b) => a.localeCompare(b));
+  const sortedGroupKeys = Array.from(groupsMap.keys());
 
   // 3. Build series configuration for each group
   const series = sortedGroupKeys.map(groupName => {
@@ -465,9 +666,10 @@ function renderTopScatterChart(evaluations, viewMode = 'time', colorMode = 'base
     },
     legend: {
       type: 'scroll',
+      orient: 'vertical',
       data: sortedGroupKeys,
-      top: 0,
-      right: '4%',
+      top: 'middle',
+      right: 12,
       textStyle: { color: '#64748b', fontFamily: 'system-ui, -apple-system, sans-serif', fontSize: 12 },
       itemWidth: 10,
       itemHeight: 10,
@@ -476,7 +678,7 @@ function renderTopScatterChart(evaluations, viewMode = 'time', colorMode = 'base
       pageIconInactiveColor: '#cbd5e1',
       pageTextStyle: { color: '#64748b' }
     },
-    grid: { left: '4%', right: '5%', bottom: '12%', top: '14%', containLabel: true },
+    grid: { left: '4%', right: 260, bottom: '12%', top: '8%', containLabel: true },
     xAxis: {
       type: 'value',
       name: xAxisName,
@@ -505,6 +707,38 @@ function renderTopScatterChart(evaluations, viewMode = 'time', colorMode = 'base
     if (params.data && params.data.rawEval && params.data.rawEval.eval_id) {
       window.location.href = `./trace.html?eval_id=${encodeURIComponent(params.data.rawEval.eval_id)}`;
     }
+  });
+
+  // Track selected legend items set (null means default: all items visible)
+  let activeSelectedSet = null;
+
+  chart.off('legendselectchanged');
+  chart.on('legendselectchanged', function (params) {
+    const clickedName = params.name;
+
+    if (!activeSelectedSet) {
+      // Nothing was soloed yet (all were visible): solo this clicked item
+      activeSelectedSet = new Set([clickedName]);
+    } else if (activeSelectedSet.has(clickedName)) {
+      // If currently active and clicked again: toggle it off
+      activeSelectedSet.delete(clickedName);
+      // If none left selected, restore all to visible
+      if (activeSelectedSet.size === 0) {
+        activeSelectedSet = null;
+      }
+    } else {
+      // Add this new item to the active visible subset (both/all shown)
+      activeSelectedSet.add(clickedName);
+    }
+
+    const selected = {};
+    sortedGroupKeys.forEach(k => {
+      selected[k] = activeSelectedSet ? activeSelectedSet.has(k) : true;
+    });
+
+    chart.setOption({
+      legend: { selected: selected }
+    });
   });
 }
 

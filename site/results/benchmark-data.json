@@ -2,6 +2,858 @@
   "$schema": "../../eval/benchmark-data.schema.json",
   "evaluations": [
     {
+      "eval_id": "4ce34ddf-b0f4-421f-8303-fb0ecbe772fa",
+      "name": "Qwen3.8-Flash-Next-NVFP4",
+      "company": "local-inference-lab",
+      "base_model": "Qwen3.8-Flash-Next-NVFP4",
+      "kv_quant": "FP8",
+      "context_length": 262144,
+      "memory_gb": 99.8,
+      "benchmark_date": "2026-09-14",
+      "llm_server": "vLLM",
+      "speculative_decoding": "mtp",
+      "harness": "pi",
+      "harness_version": "0.84.4",
+      "reasoning": "xhigh",
+      "launch_config": "vllm serve local-inference-lab/Qwen3.8-Flash-Next-NVFP4 --enable-prefix-caching --enable-chunked-prefill --max-num-batched-tokens 4096 --trust-remote-code --reasoning-parser qwen3 --tool-call-parser qwen3_xml --enable-auto-tool-choice --mamba-cache-mode align --dtype bfloat16 --quantization modelopt_mixed --block-size 16 --gdn-decode-kernel b12x --linear-backend b12x --moe-backend b12x --no-enable-flashinfer-autotune --mm-encoder-tp-mode data --compilation-config '{\"pass_config\":{\"fuse_act_quant\":true}}'",
+      "intelligence": 75.0,
+      "task_speed": 1.1,
+      "intelligence_density": 0.752,
+      "test_results": {
+        "multilingual_science_presentation": {
+          "name": "multilingual_science_presentation",
+          "earned_score": 9,
+          "max_score": 10,
+          "run_time_sec": 7956.32,
+          "tokens_in": 15809943,
+          "tokens_out": 212059,
+          "peak_context_tokens": 243666,
+          "context_used_pct": 92.95
+        },
+        "data_analytics": {
+          "name": "data_analytics",
+          "earned_score": 12,
+          "max_score": 12,
+          "run_time_sec": 743.56,
+          "tokens_in": 1343749,
+          "tokens_out": 30081,
+          "peak_context_tokens": 52346,
+          "context_used_pct": 19.97
+        },
+        "kotlin_code": {
+          "name": "kotlin_code",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 2361.04,
+          "tokens_in": 5728613,
+          "tokens_out": 85502,
+          "peak_context_tokens": 130647,
+          "context_used_pct": 49.84
+        },
+        "normal_map_classification": {
+          "name": "normal_map_classification",
+          "earned_score": 0,
+          "max_score": 10,
+          "run_time_sec": 3601.11,
+          "tokens_in": 3289037,
+          "tokens_out": 86253,
+          "peak_context_tokens": 141241,
+          "context_used_pct": 53.88
+        },
+        "tool-eval-bench": {
+          "name": "tool-eval-bench",
+          "earned_score": 34,
+          "max_score": 40,
+          "run_time_sec": 1619.62,
+          "tokens_in": 634363,
+          "tokens_out": 82108,
+          "peak_context_tokens": 0,
+          "context_used_pct": 0.0
+        }
+      }
+    },
+    {
+      "eval_id": "978f6827-7ccf-4f32-9f5f-4a3d53e7affa",
+      "name": "Qwen3.8-Flash-Next-NVFP4",
+      "company": "local-inference-lab",
+      "base_model": "Qwen3.8-Flash-Next-NVFP4",
+      "kv_quant": "FP8",
+      "context_length": 262144,
+      "memory_gb": 99.8,
+      "benchmark_date": "2026-09-14",
+      "llm_server": "vLLM",
+      "speculative_decoding": "mtp",
+      "harness": "opencode cli",
+      "harness_version": "1.18.25",
+      "reasoning": "xhigh",
+      "launch_config": "vllm serve local-inference-lab/Qwen3.8-Flash-Next-NVFP4 --enable-prefix-caching --enable-chunked-prefill --max-num-batched-tokens 4096 --trust-remote-code --reasoning-parser qwen3 --tool-call-parser qwen3_xml --enable-auto-tool-choice --mamba-cache-mode align --dtype bfloat16 --quantization modelopt_mixed --block-size 16 --gdn-decode-kernel b12x --linear-backend b12x --moe-backend b12x --no-enable-flashinfer-autotune --mm-encoder-tp-mode data --compilation-config '{\"pass_config\":{\"fuse_act_quant\":true}}'",
+      "intelligence": 77.0,
+      "task_speed": 2.3,
+      "intelligence_density": 0.772,
+      "test_results": {
+        "multilingual_science_presentation": {
+          "name": "multilingual_science_presentation",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 1498.13,
+          "tokens_in": 1443370,
+          "tokens_out": 30416,
+          "peak_context_tokens": 59658,
+          "context_used_pct": 22.76
+        },
+        "data_analytics": {
+          "name": "data_analytics",
+          "earned_score": 12,
+          "max_score": 12,
+          "run_time_sec": 143.5,
+          "tokens_in": 235453,
+          "tokens_out": 2762,
+          "peak_context_tokens": 15924,
+          "context_used_pct": 6.07
+        },
+        "kotlin_code": {
+          "name": "kotlin_code",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 971.32,
+          "tokens_in": 2331558,
+          "tokens_out": 12136,
+          "peak_context_tokens": 68282,
+          "context_used_pct": 26.05
+        },
+        "normal_map_classification": {
+          "name": "normal_map_classification",
+          "earned_score": 0,
+          "max_score": 10,
+          "run_time_sec": 3601.44,
+          "tokens_in": 7539078,
+          "tokens_out": 12625,
+          "peak_context_tokens": 189318,
+          "context_used_pct": 72.22
+        },
+        "tool-eval-bench": {
+          "name": "tool-eval-bench",
+          "earned_score": 34,
+          "max_score": 40,
+          "run_time_sec": 1619.62,
+          "tokens_in": 634363,
+          "tokens_out": 82108,
+          "peak_context_tokens": 0,
+          "context_used_pct": 0.0
+        }
+      }
+    },
+    {
+      "eval_id": "998062bd-9031-43fb-af56-932dfafeeec1",
+      "name": "Qwen3.8-Flash-Next-NVFP4-medium",
+      "company": "local-inference-lab",
+      "base_model": "Qwen3.8-Flash-Next-NVFP4",
+      "kv_quant": "FP8",
+      "context_length": 262144,
+      "memory_gb": 100.1,
+      "benchmark_date": "2026-09-14",
+      "llm_server": "vLLM",
+      "speculative_decoding": "mtp",
+      "harness": "opencode cli",
+      "harness_version": "1.18.25",
+      "reasoning": "medium",
+      "launch_config": "vllm serve local-inference-lab/Qwen3.8-Flash-Next-NVFP4 --enable-prefix-caching --enable-chunked-prefill --max-num-batched-tokens 4096 --trust-remote-code --reasoning-parser qwen3 --tool-call-parser qwen3_xml --enable-auto-tool-choice --mamba-cache-mode align --dtype bfloat16 --quantization modelopt_mixed --block-size 16 --gdn-decode-kernel b12x --linear-backend b12x --moe-backend b12x --no-enable-flashinfer-autotune --mm-encoder-tp-mode data --compilation-config '{\"pass_config\":{\"fuse_act_quant\":true}}'",
+      "intelligence": 97.5,
+      "task_speed": 4.5,
+      "intelligence_density": 0.974,
+      "test_results": {
+        "multilingual_science_presentation": {
+          "name": "multilingual_science_presentation",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 852.82,
+          "tokens_in": 536092,
+          "tokens_out": 18171,
+          "peak_context_tokens": 36905,
+          "context_used_pct": 14.08
+        },
+        "data_analytics": {
+          "name": "data_analytics",
+          "earned_score": 12,
+          "max_score": 12,
+          "run_time_sec": 105.89,
+          "tokens_in": 172894,
+          "tokens_out": 2058,
+          "peak_context_tokens": 14415,
+          "context_used_pct": 5.5
+        },
+        "kotlin_code": {
+          "name": "kotlin_code",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 953.11,
+          "tokens_in": 890440,
+          "tokens_out": 12046,
+          "peak_context_tokens": 68276,
+          "context_used_pct": 26.05
+        },
+        "normal_map_classification": {
+          "name": "normal_map_classification",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 1132.66,
+          "tokens_in": 524887,
+          "tokens_out": 5478,
+          "peak_context_tokens": 55526,
+          "context_used_pct": 21.18
+        },
+        "tool-eval-bench": {
+          "name": "tool-eval-bench",
+          "earned_score": 35,
+          "max_score": 40,
+          "run_time_sec": 924.69,
+          "tokens_in": 544909,
+          "tokens_out": 52188,
+          "peak_context_tokens": 0,
+          "context_used_pct": 0.0
+        }
+      }
+    },
+    {
+      "eval_id": "9c79857f-8814-4e0e-937d-b397ff2560f6",
+      "name": "Qwen3.8-Flash-Next-NVFP4-medium",
+      "company": "local-inference-lab",
+      "base_model": "Qwen3.8-Flash-Next-NVFP4",
+      "kv_quant": "FP8",
+      "context_length": 262144,
+      "memory_gb": 100.1,
+      "benchmark_date": "2026-09-14",
+      "llm_server": "vLLM",
+      "speculative_decoding": "mtp",
+      "harness": "pi",
+      "harness_version": "0.84.4",
+      "reasoning": "medium",
+      "launch_config": "vllm serve local-inference-lab/Qwen3.8-Flash-Next-NVFP4 --enable-prefix-caching --enable-chunked-prefill --max-num-batched-tokens 4096 --trust-remote-code --reasoning-parser qwen3 --tool-call-parser qwen3_xml --enable-auto-tool-choice --mamba-cache-mode align --dtype bfloat16 --quantization modelopt_mixed --block-size 16 --gdn-decode-kernel b12x --linear-backend b12x --moe-backend b12x --no-enable-flashinfer-autotune --mm-encoder-tp-mode data --compilation-config '{\"pass_config\":{\"fuse_act_quant\":true}}'",
+      "intelligence": 97.5,
+      "task_speed": 5.4,
+      "intelligence_density": 0.974,
+      "test_results": {
+        "multilingual_science_presentation": {
+          "name": "multilingual_science_presentation",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 893.53,
+          "tokens_in": 519138,
+          "tokens_out": 28294,
+          "peak_context_tokens": 31912,
+          "context_used_pct": 12.17
+        },
+        "data_analytics": {
+          "name": "data_analytics",
+          "earned_score": 12,
+          "max_score": 12,
+          "run_time_sec": 568.0,
+          "tokens_in": 574110,
+          "tokens_out": 16639,
+          "peak_context_tokens": 32057,
+          "context_used_pct": 12.23
+        },
+        "kotlin_code": {
+          "name": "kotlin_code",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 784.62,
+          "tokens_in": 892178,
+          "tokens_out": 22065,
+          "peak_context_tokens": 46286,
+          "context_used_pct": 17.66
+        },
+        "normal_map_classification": {
+          "name": "normal_map_classification",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 191.52,
+          "tokens_in": 66199,
+          "tokens_out": 4745,
+          "peak_context_tokens": 13373,
+          "context_used_pct": 5.1
+        },
+        "tool-eval-bench": {
+          "name": "tool-eval-bench",
+          "earned_score": 35,
+          "max_score": 40,
+          "run_time_sec": 924.69,
+          "tokens_in": 544909,
+          "tokens_out": 52188,
+          "peak_context_tokens": 0,
+          "context_used_pct": 0.0
+        }
+      }
+    },
+    {
+      "eval_id": "9ab108ac-4216-45db-b724-b317d9885946",
+      "name": "Qwen3.8-Flash-Next-NVFP4-low",
+      "company": "local-inference-lab",
+      "base_model": "Qwen3.8-Flash-Next-NVFP4",
+      "kv_quant": "FP8",
+      "context_length": 262144,
+      "memory_gb": 99.9,
+      "benchmark_date": "2026-09-14",
+      "llm_server": "vLLM",
+      "speculative_decoding": "mtp",
+      "harness": "pi",
+      "harness_version": "0.84.4",
+      "reasoning": "low",
+      "launch_config": "vllm serve local-inference-lab/Qwen3.8-Flash-Next-NVFP4 --enable-prefix-caching --enable-chunked-prefill --max-num-batched-tokens 4096 --trust-remote-code --reasoning-parser qwen3 --tool-call-parser qwen3_xml --enable-auto-tool-choice --mamba-cache-mode align --dtype bfloat16 --quantization modelopt_mixed --block-size 16 --gdn-decode-kernel b12x --linear-backend b12x --moe-backend b12x --no-enable-flashinfer-autotune --mm-encoder-tp-mode data --compilation-config '{\"pass_config\":{\"fuse_act_quant\":true}}'",
+      "intelligence": 97.0,
+      "task_speed": 3.4,
+      "intelligence_density": 0.971,
+      "test_results": {
+        "multilingual_science_presentation": {
+          "name": "multilingual_science_presentation",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 1484.8,
+          "tokens_in": 1251760,
+          "tokens_out": 43643,
+          "peak_context_tokens": 53528,
+          "context_used_pct": 20.42
+        },
+        "data_analytics": {
+          "name": "data_analytics",
+          "earned_score": 12,
+          "max_score": 12,
+          "run_time_sec": 1144.5,
+          "tokens_in": 1139318,
+          "tokens_out": 32819,
+          "peak_context_tokens": 51177,
+          "context_used_pct": 19.52
+        },
+        "kotlin_code": {
+          "name": "kotlin_code",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 694.75,
+          "tokens_in": 908506,
+          "tokens_out": 22147,
+          "peak_context_tokens": 47602,
+          "context_used_pct": 18.16
+        },
+        "normal_map_classification": {
+          "name": "normal_map_classification",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 1222.4,
+          "tokens_in": 1423117,
+          "tokens_out": 35605,
+          "peak_context_tokens": 79665,
+          "context_used_pct": 30.39
+        },
+        "tool-eval-bench": {
+          "name": "tool-eval-bench",
+          "earned_score": 34,
+          "max_score": 40,
+          "run_time_sec": 805.05,
+          "tokens_in": 510476,
+          "tokens_out": 48186,
+          "peak_context_tokens": 0,
+          "context_used_pct": 0.0
+        }
+      }
+    },
+    {
+      "eval_id": "0fa02375-e9ae-48a1-b306-334e7923351a",
+      "name": "Qwen3.8-Flash-Next-NVFP4-low",
+      "company": "local-inference-lab",
+      "base_model": "Qwen3.8-Flash-Next-NVFP4",
+      "kv_quant": "FP8",
+      "context_length": 262144,
+      "memory_gb": 99.9,
+      "benchmark_date": "2026-09-14",
+      "llm_server": "vLLM",
+      "speculative_decoding": "mtp",
+      "harness": "opencode cli",
+      "harness_version": "1.18.25",
+      "reasoning": "low",
+      "launch_config": "vllm serve local-inference-lab/Qwen3.8-Flash-Next-NVFP4 --enable-prefix-caching --enable-chunked-prefill --max-num-batched-tokens 4096 --trust-remote-code --reasoning-parser qwen3 --tool-call-parser qwen3_xml --enable-auto-tool-choice --mamba-cache-mode align --dtype bfloat16 --quantization modelopt_mixed --block-size 16 --gdn-decode-kernel b12x --linear-backend b12x --moe-backend b12x --no-enable-flashinfer-autotune --mm-encoder-tp-mode data --compilation-config '{\"pass_config\":{\"fuse_act_quant\":true}}'",
+      "intelligence": 77.0,
+      "task_speed": 4.4,
+      "intelligence_density": 0.771,
+      "test_results": {
+        "multilingual_science_presentation": {
+          "name": "multilingual_science_presentation",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 671.72,
+          "tokens_in": 824978,
+          "tokens_out": 22124,
+          "peak_context_tokens": 39908,
+          "context_used_pct": 15.22
+        },
+        "data_analytics": {
+          "name": "data_analytics",
+          "earned_score": 12,
+          "max_score": 12,
+          "run_time_sec": 157.92,
+          "tokens_in": 321947,
+          "tokens_out": 3982,
+          "peak_context_tokens": 17148,
+          "context_used_pct": 6.54
+        },
+        "kotlin_code": {
+          "name": "kotlin_code",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 1450.41,
+          "tokens_in": 1954654,
+          "tokens_out": 12445,
+          "peak_context_tokens": 90611,
+          "context_used_pct": 34.57
+        },
+        "normal_map_classification": {
+          "name": "normal_map_classification",
+          "earned_score": 0,
+          "max_score": 10,
+          "run_time_sec": 1007.76,
+          "tokens_in": 534165,
+          "tokens_out": 5361,
+          "peak_context_tokens": 39941,
+          "context_used_pct": 15.24
+        },
+        "tool-eval-bench": {
+          "name": "tool-eval-bench",
+          "earned_score": 34,
+          "max_score": 40,
+          "run_time_sec": 805.05,
+          "tokens_in": 510476,
+          "tokens_out": 48186,
+          "peak_context_tokens": 0,
+          "context_used_pct": 0.0
+        }
+      }
+    },
+    {
+      "eval_id": "bd0ee6fd-984d-4e92-976d-5fb49365f5b5",
+      "name": "Qwen3.8-27B-AWQ-INT4",
+      "company": "cyankiwi",
+      "base_model": "Qwen3.8-27B-AWQ-INT4",
+      "kv_quant": "FP8",
+      "context_length": 262144,
+      "memory_gb": 62.0,
+      "benchmark_date": "2026-09-14",
+      "llm_server": "vLLM",
+      "speculative_decoding": "dflash",
+      "harness": "pi",
+      "harness_version": "0.84.4",
+      "reasoning": "xhigh",
+      "launch_config": "vllm serve cyankiwi/Qwen3.8-27B-AWQ-INT4 --enable-prefix-caching --max-num-batched-tokens 16384 --trust-remote-code --reasoning-parser qwen3 --tool-call-parser qwen3_xml --enable-auto-tool-choice",
+      "intelligence": 78.5,
+      "task_speed": 1.6,
+      "intelligence_density": 1.266,
+      "test_results": {
+        "multilingual_science_presentation": {
+          "name": "multilingual_science_presentation",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 3944.18,
+          "tokens_in": 1740801,
+          "tokens_out": 99413,
+          "peak_context_tokens": 115320,
+          "context_used_pct": 43.99
+        },
+        "data_analytics": {
+          "name": "data_analytics",
+          "earned_score": 12,
+          "max_score": 12,
+          "run_time_sec": 559.61,
+          "tokens_in": 1019961,
+          "tokens_out": 9852,
+          "peak_context_tokens": 74855,
+          "context_used_pct": 28.55
+        },
+        "kotlin_code": {
+          "name": "kotlin_code",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 3482.97,
+          "tokens_in": 3176004,
+          "tokens_out": 81970,
+          "peak_context_tokens": 119055,
+          "context_used_pct": 45.42
+        },
+        "normal_map_classification": {
+          "name": "normal_map_classification",
+          "earned_score": 0,
+          "max_score": 10,
+          "run_time_sec": 1774.6,
+          "tokens_in": 492360,
+          "tokens_out": 29329,
+          "peak_context_tokens": 43856,
+          "context_used_pct": 16.73
+        },
+        "tool-eval-bench": {
+          "name": "tool-eval-bench",
+          "earned_score": 37,
+          "max_score": 40,
+          "run_time_sec": 1428.98,
+          "tokens_in": 594816,
+          "tokens_out": 64245,
+          "peak_context_tokens": 0,
+          "context_used_pct": 0.0
+        }
+      }
+    },
+    {
+      "eval_id": "4853685b-48a2-47b0-9b78-c783174d9486",
+      "name": "Qwen3.8-27B-AWQ-INT4",
+      "company": "cyankiwi",
+      "base_model": "Qwen3.8-27B-AWQ-INT4",
+      "kv_quant": "FP8",
+      "context_length": 262144,
+      "memory_gb": 62.0,
+      "benchmark_date": "2026-09-14",
+      "llm_server": "vLLM",
+      "speculative_decoding": "dflash",
+      "harness": "opencode cli",
+      "harness_version": "1.18.25",
+      "reasoning": "xhigh",
+      "launch_config": "vllm serve cyankiwi/Qwen3.8-27B-AWQ-INT4 --enable-prefix-caching --max-num-batched-tokens 16384 --trust-remote-code --reasoning-parser qwen3 --tool-call-parser qwen3_xml --enable-auto-tool-choice",
+      "intelligence": 98.5,
+      "task_speed": 2.0,
+      "intelligence_density": 1.589,
+      "test_results": {
+        "multilingual_science_presentation": {
+          "name": "multilingual_science_presentation",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 4412.39,
+          "tokens_in": 2917137,
+          "tokens_out": 40864,
+          "peak_context_tokens": 129050,
+          "context_used_pct": 49.23
+        },
+        "data_analytics": {
+          "name": "data_analytics",
+          "earned_score": 12,
+          "max_score": 12,
+          "run_time_sec": 328.57,
+          "tokens_in": 647084,
+          "tokens_out": 5005,
+          "peak_context_tokens": 28371,
+          "context_used_pct": 10.82
+        },
+        "kotlin_code": {
+          "name": "kotlin_code",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 2531.13,
+          "tokens_in": 1793374,
+          "tokens_out": 16185,
+          "peak_context_tokens": 108652,
+          "context_used_pct": 41.45
+        },
+        "normal_map_classification": {
+          "name": "normal_map_classification",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 436.9,
+          "tokens_in": 82679,
+          "tokens_out": 2249,
+          "peak_context_tokens": 21245,
+          "context_used_pct": 8.1
+        },
+        "tool-eval-bench": {
+          "name": "tool-eval-bench",
+          "earned_score": 37,
+          "max_score": 40,
+          "run_time_sec": 1428.98,
+          "tokens_in": 594816,
+          "tokens_out": 64245,
+          "peak_context_tokens": 0,
+          "context_used_pct": 0.0
+        }
+      }
+    },
+    {
+      "eval_id": "eb3f3ab4-03f1-4ce3-9f9c-620ea51eddc7",
+      "name": "Qwen3.8-27B-FP8",
+      "company": "Qwen",
+      "base_model": "Qwen3.8-27B-FP8",
+      "kv_quant": "FP8",
+      "context_length": 262144,
+      "memory_gb": 66.6,
+      "benchmark_date": "2026-09-13",
+      "llm_server": "vLLM",
+      "speculative_decoding": "dflash",
+      "harness": "opencode cli",
+      "harness_version": "1.18.25",
+      "reasoning": "xhigh",
+      "launch_config": "vllm serve Qwen/Qwen3.8-27B-FP8 --enable-prefix-caching --max-num-batched-tokens 16384 --trust-remote-code --reasoning-parser qwen3 --enable-auto-tool-choice --tool-call-parser qwen3_coder",
+      "intelligence": 98.5,
+      "task_speed": 1.1,
+      "intelligence_density": 1.479,
+      "test_results": {
+        "multilingual_science_presentation": {
+          "name": "multilingual_science_presentation",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 7147.84,
+          "tokens_in": 3801238,
+          "tokens_out": 47601,
+          "peak_context_tokens": 162390,
+          "context_used_pct": 61.95
+        },
+        "data_analytics": {
+          "name": "data_analytics",
+          "earned_score": 12,
+          "max_score": 12,
+          "run_time_sec": 525.75,
+          "tokens_in": 837164,
+          "tokens_out": 7846,
+          "peak_context_tokens": 33366,
+          "context_used_pct": 12.73
+        },
+        "kotlin_code": {
+          "name": "kotlin_code",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 4705.97,
+          "tokens_in": 4399811,
+          "tokens_out": 22679,
+          "peak_context_tokens": 147935,
+          "context_used_pct": 56.43
+        },
+        "normal_map_classification": {
+          "name": "normal_map_classification",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 2686.91,
+          "tokens_in": 1261220,
+          "tokens_out": 8395,
+          "peak_context_tokens": 89966,
+          "context_used_pct": 34.32
+        },
+        "tool-eval-bench": {
+          "name": "tool-eval-bench",
+          "earned_score": 37,
+          "max_score": 40,
+          "run_time_sec": 1809.88,
+          "tokens_in": 612448,
+          "tokens_out": 70486,
+          "peak_context_tokens": 0,
+          "context_used_pct": 0.0
+        }
+      }
+    },
+    {
+      "eval_id": "b8d4f6e6-6542-4951-86c9-26b59fa59192",
+      "name": "Qwen3.8-27B-FP8",
+      "company": "Qwen",
+      "base_model": "Qwen3.8-27B-FP8",
+      "kv_quant": "FP8",
+      "context_length": 262144,
+      "memory_gb": 66.6,
+      "benchmark_date": "2026-09-13",
+      "llm_server": "vLLM",
+      "speculative_decoding": "dflash",
+      "harness": "pi",
+      "harness_version": "0.84.4",
+      "reasoning": "xhigh",
+      "launch_config": "vllm serve Qwen/Qwen3.8-27B-FP8 --enable-prefix-caching --max-num-batched-tokens 16384 --trust-remote-code --reasoning-parser qwen3 --enable-auto-tool-choice --tool-call-parser qwen3_coder",
+      "intelligence": 78.5,
+      "task_speed": 1.2,
+      "intelligence_density": 1.179,
+      "test_results": {
+        "multilingual_science_presentation": {
+          "name": "multilingual_science_presentation",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 7093.84,
+          "tokens_in": 2614393,
+          "tokens_out": 129525,
+          "peak_context_tokens": 138951,
+          "context_used_pct": 53.01
+        },
+        "data_analytics": {
+          "name": "data_analytics",
+          "earned_score": 12,
+          "max_score": 12,
+          "run_time_sec": 780.79,
+          "tokens_in": 773503,
+          "tokens_out": 15980,
+          "peak_context_tokens": 35855,
+          "context_used_pct": 13.68
+        },
+        "kotlin_code": {
+          "name": "kotlin_code",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 4244.35,
+          "tokens_in": 1750910,
+          "tokens_out": 71802,
+          "peak_context_tokens": 112253,
+          "context_used_pct": 42.82
+        },
+        "normal_map_classification": {
+          "name": "normal_map_classification",
+          "earned_score": 0,
+          "max_score": 10,
+          "run_time_sec": 887.46,
+          "tokens_in": 113056,
+          "tokens_out": 7968,
+          "peak_context_tokens": 14486,
+          "context_used_pct": 5.53
+        },
+        "tool-eval-bench": {
+          "name": "tool-eval-bench",
+          "earned_score": 37,
+          "max_score": 40,
+          "run_time_sec": 1809.88,
+          "tokens_in": 612448,
+          "tokens_out": 70486,
+          "peak_context_tokens": 0,
+          "context_used_pct": 0.0
+        }
+      }
+    },
+    {
+      "eval_id": "eddb294f-4068-46dd-b902-75db7866a4c3",
+      "name": "Qwen3.8-27B-NVFP4",
+      "company": "RadixArk",
+      "base_model": "Qwen3.8-27B-NVFP4",
+      "kv_quant": "FP8",
+      "context_length": 262144,
+      "memory_gb": 61.1,
+      "benchmark_date": "2026-09-13",
+      "llm_server": "vLLM",
+      "speculative_decoding": "dflash",
+      "harness": "pi",
+      "harness_version": "0.84.4",
+      "reasoning": "xhigh",
+      "launch_config": "vllm serve RadixArk/Qwen3.8-27B-NVFP4 --enable-prefix-caching --max-num-batched-tokens 16384  --trust-remote-code --reasoning-parser qwen3 --tool-call-parser qwen3_xml --enable-auto-tool-choice",
+      "intelligence": 73.2,
+      "task_speed": 1.2,
+      "intelligence_density": 1.198,
+      "test_results": {
+        "multilingual_science_presentation": {
+          "name": "multilingual_science_presentation",
+          "earned_score": 9,
+          "max_score": 10,
+          "run_time_sec": 7248.31,
+          "tokens_in": 2297158,
+          "tokens_out": 164091,
+          "peak_context_tokens": 142604,
+          "context_used_pct": 54.4
+        },
+        "data_analytics": {
+          "name": "data_analytics",
+          "earned_score": 10,
+          "max_score": 12,
+          "run_time_sec": 598.59,
+          "tokens_in": 491172,
+          "tokens_out": 15605,
+          "peak_context_tokens": 32713,
+          "context_used_pct": 12.48
+        },
+        "kotlin_code": {
+          "name": "kotlin_code",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 2600.91,
+          "tokens_in": 1720559,
+          "tokens_out": 63135,
+          "peak_context_tokens": 101172,
+          "context_used_pct": 38.59
+        },
+        "normal_map_classification": {
+          "name": "normal_map_classification",
+          "earned_score": 0,
+          "max_score": 10,
+          "run_time_sec": 3601.98,
+          "tokens_in": 3389280,
+          "tokens_out": 77657,
+          "peak_context_tokens": 146170,
+          "context_used_pct": 55.76
+        },
+        "tool-eval-bench": {
+          "name": "tool-eval-bench",
+          "earned_score": 37,
+          "max_score": 40,
+          "run_time_sec": 1166.29,
+          "tokens_in": 580074,
+          "tokens_out": 63860,
+          "peak_context_tokens": 0,
+          "context_used_pct": 0.0
+        }
+      }
+    },
+    {
+      "eval_id": "92d5b0a3-7fa9-47ff-ae58-a0c9d15c1416",
+      "name": "Qwen3.8-27B-NVFP4",
+      "company": "RadixArk",
+      "base_model": "Qwen3.8-27B-NVFP4",
+      "kv_quant": "FP8",
+      "context_length": 262144,
+      "memory_gb": 61.1,
+      "benchmark_date": "2026-09-13",
+      "llm_server": "vLLM",
+      "speculative_decoding": "dflash",
+      "harness": "opencode cli",
+      "harness_version": "1.18.25",
+      "reasoning": "xhigh",
+      "launch_config": "vllm serve RadixArk/Qwen3.8-27B-NVFP4 --enable-prefix-caching --max-num-batched-tokens 16384  --trust-remote-code --reasoning-parser qwen3 --tool-call-parser qwen3_xml --enable-auto-tool-choice",
+      "intelligence": 98.5,
+      "task_speed": 1.7,
+      "intelligence_density": 1.612,
+      "test_results": {
+        "multilingual_science_presentation": {
+          "name": "multilingual_science_presentation",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 5567.81,
+          "tokens_in": 3717671,
+          "tokens_out": 52529,
+          "peak_context_tokens": 163803,
+          "context_used_pct": 62.49
+        },
+        "data_analytics": {
+          "name": "data_analytics",
+          "earned_score": 12,
+          "max_score": 12,
+          "run_time_sec": 287.71,
+          "tokens_in": 420115,
+          "tokens_out": 5968,
+          "peak_context_tokens": 21323,
+          "context_used_pct": 8.13
+        },
+        "kotlin_code": {
+          "name": "kotlin_code",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 1795.39,
+          "tokens_in": 3163549,
+          "tokens_out": 12199,
+          "peak_context_tokens": 95921,
+          "context_used_pct": 36.59
+        },
+        "normal_map_classification": {
+          "name": "normal_map_classification",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 1944.32,
+          "tokens_in": 1081056,
+          "tokens_out": 10051,
+          "peak_context_tokens": 67896,
+          "context_used_pct": 25.9
+        },
+        "tool-eval-bench": {
+          "name": "tool-eval-bench",
+          "earned_score": 37,
+          "max_score": 40,
+          "run_time_sec": 1166.29,
+          "tokens_in": 580074,
+          "tokens_out": 63860,
+          "peak_context_tokens": 0,
+          "context_used_pct": 0.0
+        }
+      }
+    },
+    {
       "eval_id": "6068ac81-59a4-4bdb-b413-e944b7de17f8",
       "name": "Qwen3.8-27B-NVFP4-medium",
       "company": "RadixArk",

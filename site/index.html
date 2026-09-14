@@ -112,7 +112,6 @@
         <div class="chart-header">
           <div class="chart-header-left">
             <h3 class="chart-title">Intelligence vs Efficiency</h3>
-            <p class="chart-desc">Task Intelligence vs Total Completion Time (min) or Memory Use (GB).</p>
           </div>
           <div class="chart-header-right">
             <div class="chart-control-group">
@@ -141,7 +140,7 @@
             <h3 class="chart-title">Task Speed Leaderboard</h3>
             <p class="chart-desc">Comparing execution speed (tasks/hr) across evaluated model configurations.</p>
           </div>
-          <div id="chart-model-speed" class="chart-container" style="height: 360px;"></div>
+          <div id="chart-model-speed" class="chart-container" style="height: 270px;"></div>
         </div>
 
         <!-- Top Chart 3: Intelligence Density Leaderboard -->
@@ -150,7 +149,28 @@
             <h3 class="chart-title">Intelligence Density Leaderboard</h3>
             <p class="chart-desc">Comparing hardware efficiency (tasks/GB) across evaluated model configurations.</p>
           </div>
-          <div id="chart-model-density" class="chart-container" style="height: 360px;"></div>
+          <div id="chart-model-density" class="chart-container" style="height: 270px;"></div>
+        </div>
+      </div>
+
+      <!-- Harness Comparison Pie Charts Row (Tasks Completed & Total Time) -->
+      <div class="charts-row" style="margin-top: 1.5rem;">
+        <!-- Pie Chart 1: Tasks Solved / Completed -->
+        <div class="chart-card">
+          <div class="chart-header">
+            <h3 class="chart-title">Problem Solving: Tasks Completed</h3>
+            <p class="chart-desc">Comparing total tasks completed with full score by each harness (pi vs opencode cli).</p>
+          </div>
+          <div id="chart-harness-tasks" class="chart-container" style="height: 340px;"></div>
+        </div>
+
+        <!-- Pie Chart 2: Total Execution Time -->
+        <div class="chart-card">
+          <div class="chart-header">
+            <h3 class="chart-title">Execution Speed: Total Time Taken</h3>
+            <p class="chart-desc">Comparing aggregate time spent completing tasks by each harness (lower is faster).</p>
+          </div>
+          <div id="chart-harness-time" class="chart-container" style="height: 340px;"></div>
         </div>
       </div>
     </section>

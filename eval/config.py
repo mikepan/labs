@@ -21,7 +21,7 @@ DEFAULT_OPENCODE_PORT = 4096
 DEFAULT_PI_PORT = 4097
 
 # Timeout Defaults (in minutes)
-DEFAULT_MAX_STEP_TIMEOUT_MINUTES = 30     # Safety maximum ceiling per step
+DEFAULT_MAX_STEP_TIMEOUT_MINUTES = 60     # Safety maximum ceiling per step
 DEFAULT_IDLE_TIMEOUT_MINUTES = 5       # Max cold prefill + reasoning baseline at high context
 DEFAULT_API_TIMEOUT_SECONDS = 30        # Standard internal API timeout for in-sandbox services
 

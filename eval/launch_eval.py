@@ -46,9 +46,25 @@ def validate_arguments(
     models: dict[str, Any],
 ) -> tuple[list[str], str, str]:
     """Validate model, test, and harness arguments upfront before execution."""
-    # 1. Validate Model (supports exact match, 'all', or partial substring matching)
+    # 1. Validate Model (supports comma-separated list, exact match, 'all', or partial substring matching)
     if model_arg in (None, "all"):
         target_models = list(models.keys())
+    elif "," in model_arg:
+        items = [x.strip() for x in model_arg.split(",") if x.strip()]
+        target_models = []
+        for item in items:
+            if item in models:
+                if item not in target_models:
+                    target_models.append(item)
+            else:
+                matched = [m for m in models.keys() if item.lower() in m.lower()]
+                for m in matched:
+                    if m not in target_models:
+                        target_models.append(m)
+        if not target_models:
+            available_models = ", ".join(models.keys()) or "(none)"
+            logger.error("No models matched in list '%s'. Available models: %s", model_arg, available_models)
+            sys.exit(1)
     elif model_arg in models:
         target_models = [model_arg]
     else:

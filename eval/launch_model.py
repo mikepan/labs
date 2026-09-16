@@ -10,6 +10,7 @@ Usage:
 
 import argparse
 import logging
+import re
 import subprocess
 import sys
 import time
@@ -32,6 +33,7 @@ __all__ = [
     "launch_model",
     "is_server_ready",
     "wait_for_server_ready",
+    "check_kv_cache_concurrency",
     "run_sanity_test",
     "ensure_model_running",
 ]
@@ -174,6 +176,38 @@ def run_sanity_test(model_id: str, base_url: str = API_BASE_URL, reasoning_effor
     return False
 
 
+def check_kv_cache_concurrency(
+    host: str = REMOTE_HOST,
+    container_name: str = "vllm_node",
+    min_concurrency: float = 2.0,
+    max_concurrency: float = 2.1,
+) -> float | None:
+    """Extract and validate the Maximum concurrency reported by vLLM in container logs."""
+    res = run_cmd("ssh", host, f"docker logs {container_name}")
+    full_output = (res.stdout or "") + (res.stderr or "")
+
+    # Look for memory difference guidance log
+    mem_match = re.search(r"If OOM'ed, check the difference of initial free memory[^\n]+", full_output)
+    if mem_match:
+        logger.info("[kv-cache-check] %s", mem_match.group(0).strip())
+
+    # Look for: GPU KV cache size: 527,372 tokens, Maximum concurrency for 131,072 tokens per request: 4.02x
+    matches = re.findall(r"Maximum concurrency for [0-9,]+ tokens per request:\s*([0-9.]+)x", full_output)
+    if not matches:
+        logger.error("[kv-cache-check] ✗ Could not find 'Maximum concurrency' in container logs. Aborting.")
+        return None
+
+    concurrency_val = float(matches[-1])
+    logger.info("[kv-cache-check] Detected Maximum concurrency: %.2fx", concurrency_val)
+
+    if min_concurrency <= concurrency_val <= max_concurrency:
+        logger.info("✓ Maximum concurrency is within expected range [%.2f, %.2f] (got %.2fx)", min_concurrency, max_concurrency, concurrency_val)
+    else:
+        logger.warning("⚠ Maximum concurrency %.2fx is OUTSIDE expected range [%.2f, %.2f]", concurrency_val, min_concurrency, max_concurrency)
+
+    return concurrency_val
+
+
 def ensure_model_running(
     model_name: str,
     model_config: dict[str, Any],
@@ -194,6 +228,12 @@ def ensure_model_running(
         return False, weight_name
     if not wait_for_server_ready(expected_weight=weight_name, base_url=base_url, verbose=verbose, host=host):
         return False, weight_name
+
+    concurrency = check_kv_cache_concurrency(host=host)
+    if concurrency is None:
+        logger.error("Aborting model startup: failed to verify KV cache concurrency.")
+        return False, weight_name
+
     if not run_sanity_test(weight_name, base_url=base_url, reasoning_effort=reasoning_effort):
         return False, weight_name
 

@@ -163,17 +163,18 @@ TEST = Test(
     steps=[
         Step(
             prompt=(
-                "The previous artist forgot to flip the correct toggle during export, so now "
-                "we have a folder of normal maps in 'textures/' where some are in OpenGL format and others in D3D format. "
-                "Figure out an algorithm to sort them out, and copy them into 2 folders: 'ogl' and 'd3d'."
+                "The previous artist forgot to flip the correct toggle during export, so now \
+                we have a folder of normal maps in 'textures/' where some are in OpenGL format and others in D3D format. \
+                Figure out an algorithm to sort them out, and copy them into 2 folders: 'ogl' and 'd3d'. \
+                The normal maps are made in house and baked from height maps."
             ),
             checks=[
                 custom_check(validate_normal_map_classification),
             ],
             point=10,
             hint=(
-                "Normal maps generated from height maps have distinct directional gradient characteristics. "
-                "Sort the files into the 'ogl' and 'd3d' directories."
+                "Normal maps generated from height maps have distinct directional gradient characteristics if you compute the curl for each axis."
+                "Remember to sort the files into the 'ogl' and 'd3d' directories."
             ),
         ),
     ],

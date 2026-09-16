@@ -3,7 +3,7 @@
     "model-arg": "vllm serve nvidia/diffusiongemma-26B-A4B-IT-NVFP4 --enable-prefix-caching --max-num-batched-tokens 16384 --trust-remote-code --attention-backend TRITON_ATTN  --chat-template /root/.cache/vllm/tool_chat_template_gemma4.jinja --enable-auto-tool-choice --tool-call-parser gemma4 --reasoning-parser gemma4 --override-generation-config '{\"max_new_tokens\": null}' --default-chat-template-kwargs '{\"enable_thinking\":true}'",
     "model-arg-speculative": "--diffusion-config '{\"canvas_length\":256}'",
     "model-arg-kv-quant": "",
-    "model-arg-platform": "--load-format fastsafetensors  --gpu-memory-utilization 0.3 --async-scheduling",
+    "model-arg-platform": "--load-format fastsafetensors  --kv-cache-memory-bytes 12599951360 --async-scheduling",
     "model-arg-env": "VLLM_USE_V2_MODEL_RUNNER=1",
     "reasoning_effort": "on"
   },
@@ -11,15 +11,15 @@
     "model-arg": "vllm serve nvidia/Qwen3.6-35B-A3B-NVFP4 --enable-prefix-caching --max-num-batched-tokens 16384 --trust-remote-code --attention-backend flashinfer --moe-backend marlin --reasoning-parser qwen3 --enable-auto-tool-choice --tool-call-parser qwen3_coder --generation-config auto --override-generation-config '{\"temperature\": 0.6, \"top_p\": 0.95, \"top_k\": 20, \"min_p\": 0.0, \"presence_penalty\": 0.0, \"repetition_penalty\": 1.0}'",
     "model-arg-speculative": "--speculative-config '{\"method\": \"mtp\", \"num_speculative_tokens\": 3, \"moe_backend\": \"triton\"}'",
     "model-arg-kv-quant": "--kv-cache-dtype fp8",
-    "model-arg-platform": "--load-format fastsafetensors  --gpu-memory-utilization 0.35 --async-scheduling",
+    "model-arg-platform": "--load-format fastsafetensors  --kv-cache-memory-bytes 6840000000 --async-scheduling",
     "model-arg-env": "VLLM_MARLIN_USE_ATOMIC_ADD=1",
     "reasoning_effort": "on"
   },
   "Qwen3.6-27B-NVFP4": {
     "model-arg": "vllm serve nvidia/Qwen3.6-27B-NVFP4 --enable-prefix-caching --max-num-batched-tokens 16384 --trust-remote-code --reasoning-parser qwen3 --enable-auto-tool-choice --tool-call-parser qwen3_coder",
-    "model-arg-speculative": "--speculative-config '{\"method\": \"dflash\", \"model\": \"z-lab/Qwen3.6-27B-DFlash\", \"num_speculative_tokens\": 10}'",
+    "model-arg-speculative": "--speculative-config '{\"method\": \"mtp\", \"num_speculative_tokens\": 5}'",
     "model-arg-kv-quant": "--kv-cache-dtype fp8",
-    "model-arg-platform": "--load-format fastsafetensors  --gpu-memory-utilization 0.50 --async-scheduling",
+    "model-arg-platform": "--load-format fastsafetensors  --kv-cache-memory-bytes 21250000000 --async-scheduling",
     "model-arg-env": "",
     "reasoning_effort": "on"
   },
@@ -27,7 +27,7 @@
     "model-arg": "vllm serve RadixArk/Qwen3.8-27B-NVFP4 --enable-prefix-caching --max-num-batched-tokens 16384  --trust-remote-code --reasoning-parser qwen3 --tool-call-parser qwen3_xml --enable-auto-tool-choice",
     "model-arg-speculative": "--speculative-config '{\"method\": \"dflash\", \"model\": \"z-lab/Qwen3.8-27B-DFlash2\", \"num_speculative_tokens\": 8}'",
     "model-arg-kv-quant": "--kv-cache-dtype fp8",
-    "model-arg-platform": "--load-format instanttensor  --gpu-memory-utilization 0.50 --async-scheduling",
+    "model-arg-platform": "--load-format instanttensor  --kv-cache-memory-bytes 23714000000 --async-scheduling",
     "model-arg-env": "VLLM_MARLIN_USE_ATOMIC_ADD=1 TORCH_MATMUL_PRECISION=high FLASHINFER_DISABLE_VERSION_CHECK=1 NVIDIA_FORWARD_COMPAT=1",
     "reasoning_effort": "low"
   },
@@ -35,7 +35,7 @@
     "model-arg": "vllm serve RadixArk/Qwen3.8-27B-NVFP4 --enable-prefix-caching --max-num-batched-tokens 16384  --trust-remote-code --reasoning-parser qwen3 --tool-call-parser qwen3_xml --enable-auto-tool-choice",
     "model-arg-speculative": "--speculative-config '{\"method\": \"dflash\", \"model\": \"z-lab/Qwen3.8-27B-DFlash2\", \"num_speculative_tokens\": 8}'",
     "model-arg-kv-quant": "--kv-cache-dtype fp8",
-    "model-arg-platform": "--load-format instanttensor  --gpu-memory-utilization 0.50 --async-scheduling",
+    "model-arg-platform": "--load-format instanttensor  --kv-cache-memory-bytes 23714000000 --async-scheduling",
     "model-arg-env": "VLLM_MARLIN_USE_ATOMIC_ADD=1 TORCH_MATMUL_PRECISION=high FLASHINFER_DISABLE_VERSION_CHECK=1 NVIDIA_FORWARD_COMPAT=1",
     "reasoning_effort": "medium"
   },
@@ -43,7 +43,7 @@
     "model-arg": "vllm serve RadixArk/Qwen3.8-27B-NVFP4 --enable-prefix-caching --max-num-batched-tokens 16384  --trust-remote-code --reasoning-parser qwen3 --tool-call-parser qwen3_xml --enable-auto-tool-choice",
     "model-arg-speculative": "--speculative-config '{\"method\": \"dflash\", \"model\": \"z-lab/Qwen3.8-27B-DFlash2\", \"num_speculative_tokens\": 8}'",
     "model-arg-kv-quant": "--kv-cache-dtype fp8",
-    "model-arg-platform": "--load-format instanttensor  --gpu-memory-utilization 0.50 --async-scheduling",
+    "model-arg-platform": "--load-format instanttensor  --kv-cache-memory-bytes 23714000000 --async-scheduling",
     "model-arg-env": "VLLM_MARLIN_USE_ATOMIC_ADD=1 TORCH_MATMUL_PRECISION=high FLASHINFER_DISABLE_VERSION_CHECK=1 NVIDIA_FORWARD_COMPAT=1",
     "reasoning_effort": "xhigh"
   },
@@ -51,7 +51,7 @@
     "model-arg": "vllm serve Qwen/Qwen3.8-27B-FP8 --enable-prefix-caching --max-num-batched-tokens 16384 --trust-remote-code --reasoning-parser qwen3 --enable-auto-tool-choice --tool-call-parser qwen3_coder",
     "model-arg-speculative": "--speculative-config '{\"method\": \"dflash\", \"model\": \"z-lab/Qwen3.8-27B-DFlash2\", \"num_speculative_tokens\": 8}'",
     "model-arg-kv-quant": "--kv-cache-dtype fp8",
-    "model-arg-platform": "--load-format fastsafetensors  --gpu-memory-utilization 0.55 --async-scheduling",
+    "model-arg-platform": "--load-format fastsafetensors  --kv-cache-memory-bytes 23714000000 --async-scheduling",
     "model-arg-env": "",
     "reasoning_effort": "xhigh"
   },
@@ -59,7 +59,7 @@
     "model-arg": "vllm serve cyankiwi/Qwen3.8-27B-AWQ-INT4 --enable-prefix-caching --max-num-batched-tokens 16384 --trust-remote-code --reasoning-parser qwen3 --tool-call-parser qwen3_xml --enable-auto-tool-choice",
     "model-arg-speculative": "--speculative-config '{\"method\": \"dflash\", \"model\": \"z-lab/Qwen3.8-27B-DFlash2\", \"num_speculative_tokens\": 8}'",
     "model-arg-kv-quant": "--kv-cache-dtype fp8",
-    "model-arg-platform": "--load-format instanttensor  --gpu-memory-utilization 0.50 --async-scheduling",
+    "model-arg-platform": "--load-format instanttensor  --kv-cache-memory-bytes 23714000000 --async-scheduling",
     "model-arg-env": "VLLM_MARLIN_USE_ATOMIC_ADD=1 TORCH_MATMUL_PRECISION=high FLASHINFER_DISABLE_VERSION_CHECK=1 NVIDIA_FORWARD_COMPAT=1",
     "reasoning_effort": "xhigh"
   },
@@ -67,7 +67,7 @@
     "model-arg": "vllm serve local-inference-lab/Qwen3.8-Flash-Next-NVFP4 --enable-prefix-caching --enable-chunked-prefill --max-num-batched-tokens 4096 --trust-remote-code --reasoning-parser qwen3 --tool-call-parser qwen3_xml --enable-auto-tool-choice --mamba-cache-mode align --dtype bfloat16 --quantization modelopt_mixed --block-size 16 --gdn-decode-kernel b12x --linear-backend b12x --moe-backend b12x --no-enable-flashinfer-autotune --mm-encoder-tp-mode data --compilation-config '{\"pass_config\":{\"fuse_act_quant\":true}}'",
     "model-arg-speculative": "--speculative-config '{\"method\":\"mtp\",\"num_speculative_tokens\":4}'",
     "model-arg-kv-quant": "--kv-cache-dtype fp8",
-    "model-arg-platform": "--load-format b12x --gpu-memory-utilization 0.80 --async-scheduling",
+    "model-arg-platform": "--load-format b12x --kv-cache-memory-bytes 9120000000 --async-scheduling",
     "model-arg-env": "VLLM_PLE_TABLE_MEMORY=disk CUTE_DSL_ARCH=sm_121a SAFETENSORS_FAST_GPU=1 VLLM_WORKER_MULTIPROC_METHOD=spawn VLLM_SSM_CONV_STATE_LAYOUT=DS VLLM_USE_AOT_COMPILE=1 VLLM_USE_MEGA_AOT_ARTIFACT=1 VLLM_USE_V2_MODEL_RUNNER=1 B12X_POLICY_MODE=auto",
     "reasoning_effort": "low"
   },
@@ -75,7 +75,7 @@
     "model-arg": "vllm serve local-inference-lab/Qwen3.8-Flash-Next-NVFP4 --enable-prefix-caching --enable-chunked-prefill --max-num-batched-tokens 4096 --trust-remote-code --reasoning-parser qwen3 --tool-call-parser qwen3_xml --enable-auto-tool-choice --mamba-cache-mode align --dtype bfloat16 --quantization modelopt_mixed --block-size 16 --gdn-decode-kernel b12x --linear-backend b12x --moe-backend b12x --no-enable-flashinfer-autotune --mm-encoder-tp-mode data --compilation-config '{\"pass_config\":{\"fuse_act_quant\":true}}'",
     "model-arg-speculative": "--speculative-config '{\"method\":\"mtp\",\"num_speculative_tokens\":4}'",
     "model-arg-kv-quant": "--kv-cache-dtype fp8",
-    "model-arg-platform": "--load-format b12x --gpu-memory-utilization 0.80 --async-scheduling",
+    "model-arg-platform": "--load-format b12x --kv-cache-memory-bytes 9120000000 --async-scheduling",
     "model-arg-env": "VLLM_PLE_TABLE_MEMORY=disk CUTE_DSL_ARCH=sm_121a SAFETENSORS_FAST_GPU=1 VLLM_WORKER_MULTIPROC_METHOD=spawn VLLM_SSM_CONV_STATE_LAYOUT=DS VLLM_USE_AOT_COMPILE=1 VLLM_USE_MEGA_AOT_ARTIFACT=1 VLLM_USE_V2_MODEL_RUNNER=1 B12X_POLICY_MODE=auto",
     "reasoning_effort": "medium"
   },
@@ -83,8 +83,24 @@
     "model-arg": "vllm serve local-inference-lab/Qwen3.8-Flash-Next-NVFP4 --enable-prefix-caching --enable-chunked-prefill --max-num-batched-tokens 4096 --trust-remote-code --reasoning-parser qwen3 --tool-call-parser qwen3_xml --enable-auto-tool-choice --mamba-cache-mode align --dtype bfloat16 --quantization modelopt_mixed --block-size 16 --gdn-decode-kernel b12x --linear-backend b12x --moe-backend b12x --no-enable-flashinfer-autotune --mm-encoder-tp-mode data --compilation-config '{\"pass_config\":{\"fuse_act_quant\":true}}'",
     "model-arg-speculative": "--speculative-config '{\"method\":\"mtp\",\"num_speculative_tokens\":4}'",
     "model-arg-kv-quant": "--kv-cache-dtype fp8",
-    "model-arg-platform": "--load-format b12x --gpu-memory-utilization 0.80 --async-scheduling",
+    "model-arg-platform": "--load-format b12x --kv-cache-memory-bytes 9120000000 --async-scheduling",
     "model-arg-env": "VLLM_PLE_TABLE_MEMORY=disk CUTE_DSL_ARCH=sm_121a SAFETENSORS_FAST_GPU=1 VLLM_WORKER_MULTIPROC_METHOD=spawn VLLM_SSM_CONV_STATE_LAYOUT=DS VLLM_USE_AOT_COMPILE=1 VLLM_USE_MEGA_AOT_ARTIFACT=1 VLLM_USE_V2_MODEL_RUNNER=1 B12X_POLICY_MODE=auto",
     "reasoning_effort": "xhigh"
+  },
+  "Muse-Glimmer-30B-NVFP4-W4A4": {
+    "model-arg": "vllm serve Inferact/Muse-Glimmer-30B-NVFP4-W4A4 --enable-prefix-caching --enable-chunked-prefill --max-num-batched-tokens 4096 --generation-config auto --reasoning-parser muse_glimmer --enable-auto-tool-choice --tool-call-parser muse_glimmer --max-num-seqs 4",
+    "model-arg-speculative": "--speculative-config '{\"method\": \"dflash\", \"model\": \"meta-models/Muse-Glimmer-30B-assistant\", \"num_speculative_tokens\": 15}'",
+    "model-arg-kv-quant": "--kv-cache-dtype fp8",
+    "model-arg-platform": "--kv-cache-memory-bytes 3300000000 --async-scheduling",
+    "model-arg-env": "VLLM_KV_CACHE_LAYOUT=BLHNC",
+    "reasoning_effort": "on"
+  },
+  "NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4": {
+    "model-arg": "vllm serve nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4 --enable-prefix-caching --max-num-batched-tokens 16384 --moe-backend marlin --mamba-backend flashinfer --mamba-ssm-cache-dtype float16 --enable-mamba-cache-stochastic-rounding --mamba-cache-philox-rounds 5 --mamba-cache-mode align --reasoning-parser nemotron_v3 --enable-auto-tool-choice --tool-call-parser qwen3_xml",
+    "model-arg-speculative": "--speculative-config '{\"method\": \"dspark\", \"model\": \"nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4-DSpark\", \"num_speculative_tokens\": 7}'",
+    "model-arg-kv-quant": "--kv-cache-dtype fp8",
+    "model-arg-platform": "--load-format instanttensor --kv-cache-memory-bytes 7377400000 --async-scheduling",
+    "model-arg-env": "",
+    "reasoning_effort": "on"
   }
 }

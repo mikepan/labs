@@ -621,29 +621,29 @@ function renderTopScatterChart(evaluations, viewMode = 'time', colorMode = 'base
     return {
       name: groupName,
       type: 'scatter',
-      symbolSize: 22,
+      symbolSize: 11,
       data: data,
       itemStyle: {
         color: color,
-        borderWidth: 1.5,
+        borderWidth: 1,
         borderColor: 'rgba(255, 255, 255, 0.9)',
         shadowColor: shadow,
-        shadowBlur: 10
+        shadowBlur: 6
       },
       emphasis: {
-        focus: 'series',
-        scale: 1.4,
+        focus: 'none',
+        scale: 1.6,
         itemStyle: {
           borderColor: '#ffffff',
-          borderWidth: 3.5,
-          shadowBlur: 28,
+          borderWidth: 2,
+          shadowBlur: 16,
           shadowColor: color,
           opacity: 1
         }
       },
       blur: {
         itemStyle: {
-          opacity: 0.2,
+          opacity: 0.15,
           shadowBlur: 0
         }
       }
@@ -701,6 +701,48 @@ function renderTopScatterChart(evaluations, viewMode = 'time', colorMode = 'base
   };
 
   chart.setOption(option, true);
+
+  // Helper to compute exact identity key: model / harness / reasoning / kv_quant
+  function getExactConfigKey(rawEval) {
+    if (!rawEval) return '';
+    const name = String(rawEval.name || rawEval.model || '').trim();
+    const harness = String(rawEval.harness || rawEval.harness_name || '').trim();
+    const reasoning = String(rawEval.reasoning || '').trim();
+    const kv = String(rawEval.kv_quant || '').trim();
+    return `${name}:::${harness}:::${reasoning}:::${kv}`;
+  }
+
+  // Hover highlighting: only highlight dots matching exact model/harness/reasoning/kv_quant, dim all others
+  chart.off('mouseover');
+  chart.on('mouseover', function (params) {
+    if (!params.data || !params.data.rawEval) return;
+    const targetKey = getExactConfigKey(params.data.rawEval);
+    if (!targetKey) return;
+
+    // Collect all data points across all series with exact same configuration
+    const matchPoints = [];
+    series.forEach((s, sIdx) => {
+      s.data.forEach((d, dIdx) => {
+        if (getExactConfigKey(d.rawEval) === targetKey) {
+          matchPoints.push({ seriesIndex: sIdx, dataIndex: dIdx });
+        }
+      });
+    });
+
+    if (matchPoints.length > 0) {
+      chart.dispatchAction({
+        type: 'highlight',
+        batch: matchPoints
+      });
+    }
+  });
+
+  chart.off('mouseout');
+  chart.on('mouseout', function () {
+    chart.dispatchAction({
+      type: 'downplay'
+    });
+  });
 
   chart.off('click');
   chart.on('click', function (params) {

@@ -42,7 +42,7 @@ _WORDS_PER_TOKEN = 0.75
 def load_prompt(prompt_file: Path | str = DEFAULT_PROMPT_FILE) -> str:
     """Load benchmark prompt text from file."""
     path = Path(prompt_file)
-    return f"Describe what this file does:\n\n```kotlin\n{path.read_text(encoding='utf-8', errors='ignore')}\n```"
+    return f"Describe what this file does (show code snippet when appropriate):\n\n```kotlin\n{path.read_text(encoding='utf-8', errors='ignore')}\n```"
 
 
 def build_context_pressure_text(target_tokens: int, csv_file: Path = NEWS_CSV_FILE) -> str:

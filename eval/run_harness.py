@@ -169,6 +169,7 @@ def run_test_suite_on_agent(
     sandbox: SandboxClient,
     reasoning_effort: str | None = None,
     harness_name: str | None = None,
+    llm_base_url: str = DEFAULT_LLM_BASE_URL,
 ) -> dict[str, Any]:
     """Execute all test specs sequentially against an agent harness."""
     h_logger = get_harness_logger(harness_name) if harness_name else logger
@@ -201,7 +202,7 @@ def run_test_suite_on_agent(
         # Commit initial test data assets so git change tracking starts with a clean baseline
         sandbox.exec(f"cd {test_ws} && git add -A && git commit --allow-empty -m 'feat: import project assets and resources'")
 
-        active_model = driver.start(sandbox, test_ws, model_name, DEFAULT_LLM_BASE_URL, reasoning_effort=reasoning_effort)
+        active_model = driver.start(sandbox, test_ws, model_name, llm_base_url, reasoning_effort=reasoning_effort)
         session_id = driver.create_session(sandbox)
 
         test_start = time.time()
@@ -212,8 +213,9 @@ def run_test_suite_on_agent(
         total_tokens_in = 0
         total_tokens_out = 0
 
-        vllm_info = get_vllm_model_info(base_url=DEFAULT_LLM_BASE_URL)
-        max_ctx = int(vllm_info.get("max_model_len", 0)) if vllm_info else 0
+        vllm_info = get_vllm_model_info(base_url=llm_base_url)
+        meta_dict = vllm_info.get("meta") or {} if vllm_info else {}
+        max_ctx = int(vllm_info.get("max_model_len") or meta_dict.get("n_ctx") or 0) if vllm_info else 0
 
         for idx, step in enumerate(test_obj.steps):
             step_name = step.name or f"Step {idx + 1}"
@@ -494,6 +496,8 @@ def main():
     parser.add_argument("--model", required=True, help="Model name (e.g. qwen/Qwen3.6-27B-FP8)")
     parser.add_argument("--test", default="all", help="Specific test to run (e.g. 'test0', 'tool-eval-bench', or 'all', default: all)")
     parser.add_argument("--harness", default="all", help="Harness name (e.g. 'pi', 'opencode', or 'all', default: all)")
+    parser.add_argument("--reasoning", default=None, help="Reasoning effort override (e.g. 'low', 'medium', 'xhigh', 'off')")
+    parser.add_argument("--base-url", default=None, help=f"LLM base URL override (default: {DEFAULT_LLM_BASE_URL})")
     parser.add_argument("--memory-gb", type=float, default=None, help="Measured runtime GPU memory in GB")
     parser.add_argument("--v", dest="verbose", action="store_true", help="Verbose debug logging")
     args = parser.parse_args()
@@ -505,7 +509,8 @@ def main():
     target_harnesses = list(harnesses_cfg.keys()) if args.harness == "all" else [args.harness]
 
     models_cfg = load_json_config(MODELS_CONFIG_FILE) if os.path.exists(MODELS_CONFIG_FILE) else {}
-    reasoning_effort = models_cfg.get(args.model, {}).get("reasoning_effort")
+    reasoning_effort = args.reasoning if args.reasoning is not None else models_cfg.get(args.model, {}).get("reasoning_effort")
+    llm_base_url = args.base_url if args.base_url else DEFAULT_LLM_BASE_URL
 
     should_run_tool_eval = args.test in ("all", TOOL_EVAL_TEST_KEY)
     tool_eval_output = None
@@ -513,7 +518,7 @@ def main():
     # 1. Run tool-eval-bench first before any sandbox harness execution
     if should_run_tool_eval:
         tool_eval_output = run_tool_eval_benchmark(
-            base_url=API_BASE_URL,
+            base_url=llm_base_url,
             reasoning_effort=reasoning_effort,
             verbose=args.verbose,
         )
@@ -546,8 +551,9 @@ def main():
                 harness_name=harness_name,
                 harness_version=harness_version,
                 evaluation_output=evaluation_output,
-                base_url=DEFAULT_LLM_BASE_URL,
+                base_url=llm_base_url,
                 memory_gb=args.memory_gb,
+                reasoning_effort=reasoning_effort,
             )
         return
 
@@ -580,6 +586,7 @@ def main():
                 sandbox=sandbox,
                 reasoning_effort=reasoning_effort,
                 harness_name=harness_name,
+                llm_base_url=llm_base_url,
             )
 
             # Attach pre-computed tool-eval-bench results (deep copy for thread safety)
@@ -592,8 +599,9 @@ def main():
                 harness_name=harness_name,
                 harness_version=harness_version,
                 evaluation_output=evaluation_output,
-                base_url=DEFAULT_LLM_BASE_URL,
+                base_url=llm_base_url,
                 memory_gb=args.memory_gb,
+                reasoning_effort=reasoning_effort,
             )
         finally:
             sandbox.remove()

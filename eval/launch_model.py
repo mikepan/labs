@@ -81,7 +81,13 @@ def launch_model(model_name: str, vllm_cmd: str, host: str = REMOTE_HOST) -> boo
     single_line_cmd = " ".join(vllm_cmd.split())
     logger.info("Launching '%s'", model_name)
     logger.debug("Command: %s", single_line_cmd)
-    res = run_remote(f"cd {REMOTE_VLLM_DIR} && ./launch-cluster.sh -d --solo exec {single_line_cmd}", host=host)
+
+    mod_flag = ""
+    if "Nemotron-3-Super" in model_name or "Nemotron-3-Super" in single_line_cmd:
+        mod_flag = "--apply-mod mods/nemotron-super"
+
+    launch_script_cmd = f"./launch-cluster.sh -d --solo {mod_flag} exec {single_line_cmd}".replace("  ", " ")
+    res = run_remote(f"cd {REMOTE_VLLM_DIR} && {launch_script_cmd}", host=host)
     if res.stdout and res.stdout.strip():
         logger.debug("[launch_model] %s", res.stdout.strip())
     if res.stderr and res.returncode != 0:

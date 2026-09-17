@@ -82,12 +82,12 @@ def calculate_model_memory_gb(host: str = REMOTE_HOST) -> float:
     return total_mem
 
 
-def get_model_metadata(model_name: str, base_url: str, memory_gb: float | None = None) -> dict[str, Any]:
+def get_model_metadata(model_name: str, base_url: str, memory_gb: float | None = None, reasoning_effort: str | None = None) -> dict[str, Any]:
     """Build model metadata from models.json and live server endpoints."""
     launch_cfg = "vllm serve"
     spec_type = "off"
     kv_type = "FP16"
-    reasoning_effort = "off"
+    effort = reasoning_effort or "off"
     company = "Community"
     base_model = model_name
 
@@ -98,7 +98,8 @@ def get_model_metadata(model_name: str, base_url: str, memory_gb: float | None =
             spec_arg = cfg.get("model-arg-speculative", "")
             kv_arg = cfg.get("model-arg-kv-quant", "")
             launch_cfg = cfg.get("model-arg", "")
-            reasoning_effort = cfg.get("reasoning_effort", "off")
+            if not reasoning_effort:
+                effort = cfg.get("reasoning_effort", "off")
 
             m_serve = re.search(r"vllm\s+serve\s+([^\s]+)", launch_cfg)
             if m_serve:
@@ -115,7 +116,16 @@ def get_model_metadata(model_name: str, base_url: str, memory_gb: float | None =
 
     # Single API call for both model ID and context length
     vllm_info = get_vllm_model_info(base_url=base_url)
-    context_length = int(vllm_info.get("max_model_len", 0)) if vllm_info else 0
+    context_length = 0
+    llm_server = "vLLM"
+    if vllm_info:
+        meta_dict = vllm_info.get("meta") or {}
+        context_length = int(vllm_info.get("max_model_len") or meta_dict.get("n_ctx") or 0)
+        if vllm_info.get("owned_by") == "llamacpp" or "ftype" in meta_dict:
+            llm_server = "llama.cpp"
+            kv_type = meta_dict.get("ftype", kv_type)
+            launch_cfg = f"llama-server --model {model_name}"
+
     if memory_gb is None or memory_gb <= 0:
         memory_gb = calculate_model_memory_gb()
 
@@ -127,8 +137,9 @@ def get_model_metadata(model_name: str, base_url: str, memory_gb: float | None =
         "context_length": context_length,
         "memory_gb": memory_gb,
         "speculative_decoding": spec_type,
-        "reasoning": reasoning_effort,
+        "reasoning": effort,
         "launch_config": launch_cfg,
+        "llm_server": llm_server,
     }
 
 
@@ -153,7 +164,7 @@ def _build_benchmark_fields(
         "context_length": meta["context_length"],
         "memory_gb": meta["memory_gb"],
         "benchmark_date": benchmark_date,
-        "llm_server": "vLLM",
+        "llm_server": meta.get("llm_server", "vLLM"),
         "speculative_decoding": meta["speculative_decoding"],
         "harness": harness_name,
         "harness_version": harness_version,
@@ -174,6 +185,7 @@ def save_evaluation_results(
     memory_gb: float | None = None,
     results_dir: str = RESULTS_DIR,
     benchmark_data_file: str | None = BENCHMARK_DATA_FILE,
+    reasoning_effort: str | None = None,
 ) -> str:
     """Save full results, trace, artifacts and optionally update benchmark-data.json."""
     eval_id = evaluation_output["eval_id"]
@@ -198,7 +210,7 @@ def save_evaluation_results(
         shutil.rmtree(stage_root, ignore_errors=True)
 
     # 2. Calculate aggregate scores & metadata
-    meta = get_model_metadata(model_name, base_url=base_url, memory_gb=memory_gb)
+    meta = get_model_metadata(model_name, base_url=base_url, memory_gb=memory_gb, reasoning_effort=reasoning_effort)
     total_completion = 0.0
     total_time = 0.0
     num_tests = len(test_results_summary)

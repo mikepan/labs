@@ -243,6 +243,24 @@ def benchmark_model(
             print(bench_prompt)
             print("=" * 70 + "\n")
 
+        # Warmup pass to ensure JIT is fully compiled
+        wait_until_idle(base_url=base_url)
+        logger.info("--- Running Warmup Pass for '%s' to ensure JIT is fully compiled ---", model_name)
+        warmup_prompt = f"[Warmup: {session_id}]\n" + prompt
+        warmup_res = run_stream_benchmark(weight, warmup_prompt, base_url=base_url, verbose=False)
+        if warmup_res:
+            logger.info(
+                "✓ Warmup complete: Prefill=%.2f tok/s (TTFT=%.3fs), Decode=%.2f tok/s, Gen=%d tok",
+                warmup_res["prefill_tps"], warmup_res["ttft"], warmup_res["decode_tps"], warmup_res["completion_tokens"]
+            )
+        else:
+            logger.warning("Warmup pass failed or produced no output; proceeding to benchmark.")
+
+        wait_until_idle(base_url=base_url)
+        logger.info("Cooling down / waiting 60s for thermal headroom before benchmark...")
+        time.sleep(60)
+        wait_until_idle(base_url=base_url)
+
         for idx in range(1, runs + 1):
             wait_until_idle(base_url=base_url)
             logger.info("--- Starting Run %d/%d for '%s' ---", idx, runs, model_name)

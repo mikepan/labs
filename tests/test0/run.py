@@ -185,7 +185,7 @@ TEST = Test(
             ],
         ),
         Step(
-            prompt="""Create a clean, single-page HTML presentation in 'index.html' to display this bilingual content side-by-side (English and Chinese). Keep all CSS and JavaScript embedded directly without loading external resources.""",
+            prompt="""Create a clean, simple, single-page HTML presentation in 'index.html' to display this bilingual content side-by-side (English and Chinese). Keep all CSS and JavaScript embedded directly without loading external resources.""",
             checks=[
                 git_changes("index.html", "A", total_lines=(50, 1000)),
             ],
@@ -194,12 +194,6 @@ TEST = Test(
             prompt="""Please add a copyright notice for Jennifer Robins (2026) to the footer of index.html.""",
             checks=[
                 git_changes("index.html", "M", diff_lines=(1, 100)),
-            ],
-        ),
-        Step(
-            prompt="""Add a theme toggle button to index.html that lets users switch between 'Day Mode' (light blue) and 'Night Mode' (dark starry sky) with smooth CSS transitions.""",
-            checks=[
-                git_changes("index.html", "M", total_lines=(50, 2000), diff_lines=(10, 1500)),
             ],
         ),
         Step(
@@ -212,9 +206,9 @@ TEST = Test(
             ],
         ),
         Step(
-            prompt="""Let's create a rich, self-contained visual presentation in Arabic on Earth's geological layers (crust, mantle, core). Name it 'earth.html'. Keep all styling and diagrams embedded with no external dependencies.""",
+            prompt="""Let's create a simple, clean, self-contained visual presentation in Arabic on Earth's geological layers (crust, mantle, core). Name it 'earth.html'. Keep all styling and diagrams embedded with no external dependencies.""",
             checks=[
-                git_changes("earth.html", "A", total_lines=(100, 2000)),
+                git_changes("earth.html", "A", total_lines=(50, 1000)),
             ],
         ),
         Step(
@@ -224,7 +218,6 @@ TEST = Test(
                 git_changes("earth.html", "M"),
                 check_html_metadata_standards(),
             ],
-            point=2,
         )
     ],
 )

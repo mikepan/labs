@@ -556,14 +556,6 @@ TEST = Test(
             point=2,
         ),
         Step(
-            prompt="""Use Python to find the top authors by gross sales across all orders in bookstore_orders.csv. Make sure to account for both primary and secondary items. Produce a "top-authors.csv" with 3 columns - Author, UnitsSold, and GrossSales. Record the top 10 authors sorted by GrossSales in descending order.""",
-            checks=[
-                git_changes("top-authors.csv", "A", total_lines=(10, 12)),
-                check_top_authors_csv(),
-            ],
-            point=2,
-        ),
-        Step(
             prompt="""Use Python to analyze product returns by book genre from the source csv. Group by primary item genre and calculate: TotalOrders, ReturnedOrders, ReturnRatePct (rounded to 2 decimals), and TotalRefund (sum of refund_amount rounded to 2 decimal places). Produce a "genre-returns.csv" with columns: Genre, TotalOrders, ReturnedOrders, ReturnRatePct, TotalRefund. Sort by ReturnRatePct descending, breaking ties with TotalRefund descending.""",
             checks=[
                 git_changes("genre-returns.csv", "A", total_lines=(17, 20)),

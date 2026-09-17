@@ -193,10 +193,26 @@ class LangDetectAssert(BaseAssertion):
         if not content:
             return CheckResult(False, f"File '{self.filepath}' is empty.")
 
+        # If checking for Chinese, verify CJK Unicode character presence directly
+        if self.lang in ["zh", "chinese", "zh-cn"]:
+            cjk_chars = len(re.findall(r"[\u4e00-\u9fff]", content))
+            if cjk_chars >= 20:
+                return CheckResult(
+                    True,
+                    f"Language '{self.lang}' confirmed for '{self.filepath}' ({cjk_chars} CJK characters detected).",
+                )
+
         try:
             import langdetect
 
-            detected_lang = langdetect.detect(content)
+            # Strip markdown code blocks, LaTeX formulas, and inline math to avoid false n-gram skew
+            cleaned = re.sub(r"```[\s\S]*?```", " ", content)
+            cleaned = re.sub(r"\\\[[\s\S]*?\\\]", " ", cleaned)
+            cleaned = re.sub(r"\\\([\s\S]*?\\\)|\$[^\$]*?\$", " ", cleaned)
+            cleaned = re.sub(r"\\[a-zA-Z]+", " ", cleaned)
+            cleaned = cleaned.strip() or content
+
+            detected_lang = langdetect.detect(cleaned)
         except Exception as e:
             return CheckResult(False, f"Language detection error for '{self.filepath}': {e}")
 

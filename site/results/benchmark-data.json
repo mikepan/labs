@@ -2,6 +2,432 @@
   "$schema": "../../eval/benchmark-data.schema.json",
   "evaluations": [
     {
+      "eval_id": "c22d8353-7635-4e6c-91aa-c745d2081a25",
+      "name": "qwen3.8-27b_IQ3_S",
+      "company": "Community",
+      "base_model": "qwen3.8-27b_IQ3_S",
+      "kv_quant": "IQ3_S - 3.4375 bpw",
+      "context_length": 90112,
+      "memory_gb": 17.0,
+      "benchmark_date": "2026-09-17",
+      "llm_server": "llama.cpp",
+      "speculative_decoding": "off",
+      "harness": "pi",
+      "harness_version": "0.84.4",
+      "reasoning": "off",
+      "launch_config": "llama-server --model qwen3.8-27b_IQ3_S",
+      "intelligence": 87.0,
+      "task_speed": 1.6,
+      "intelligence_density": 5.118,
+      "test_results": {
+        "multilingual_science_presentation": {
+          "name": "multilingual_science_presentation",
+          "earned_score": 7,
+          "max_score": 10,
+          "run_time_sec": 2059.87,
+          "tokens_in": 451345,
+          "tokens_out": 86559,
+          "peak_context_tokens": 90112,
+          "context_used_pct": 100.0
+        },
+        "data_analytics": {
+          "name": "data_analytics",
+          "earned_score": 12,
+          "max_score": 12,
+          "run_time_sec": 1222.82,
+          "tokens_in": 160366,
+          "tokens_out": 9571,
+          "peak_context_tokens": 25952,
+          "context_used_pct": 28.8
+        },
+        "kotlin_code": {
+          "name": "kotlin_code",
+          "earned_score": 8,
+          "max_score": 10,
+          "run_time_sec": 6503.71,
+          "tokens_in": 441204,
+          "tokens_out": 40100,
+          "peak_context_tokens": 60843,
+          "context_used_pct": 67.52
+        },
+        "normal_map_classification": {
+          "name": "normal_map_classification",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 250.68,
+          "tokens_in": 13592,
+          "tokens_out": 18040,
+          "peak_context_tokens": 14973,
+          "context_used_pct": 16.62
+        },
+        "tool-eval-bench": {
+          "name": "tool-eval-bench",
+          "earned_score": 34,
+          "max_score": 40,
+          "run_time_sec": 1024.17,
+          "tokens_in": 570139,
+          "tokens_out": 66440,
+          "peak_context_tokens": 0,
+          "context_used_pct": 0.0
+        }
+      }
+    },
+    {
+      "eval_id": "63aa7ed7-e8a1-444a-ba66-5c88643688f5",
+      "name": "qwen3.8-27b_IQ3_S",
+      "company": "Community",
+      "base_model": "qwen3.8-27b_IQ3_S",
+      "kv_quant": "IQ3_S - 3.4375 bpw",
+      "context_length": 90112,
+      "memory_gb": 17.0,
+      "benchmark_date": "2026-09-17",
+      "llm_server": "llama.cpp",
+      "speculative_decoding": "off",
+      "harness": "opencode cli",
+      "harness_version": "1.18.25",
+      "reasoning": "off",
+      "launch_config": "llama-server --model qwen3.8-27b_IQ3_S",
+      "intelligence": 93.0,
+      "task_speed": 2.8,
+      "intelligence_density": 5.471,
+      "test_results": {
+        "multilingual_science_presentation": {
+          "name": "multilingual_science_presentation",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 3090.42,
+          "tokens_in": 656075,
+          "tokens_out": 89971,
+          "peak_context_tokens": 82827,
+          "context_used_pct": 91.92
+        },
+        "data_analytics": {
+          "name": "data_analytics",
+          "earned_score": 12,
+          "max_score": 12,
+          "run_time_sec": 277.82,
+          "tokens_in": 27689,
+          "tokens_out": 6972,
+          "peak_context_tokens": 15644,
+          "context_used_pct": 17.36
+        },
+        "kotlin_code": {
+          "name": "kotlin_code",
+          "earned_score": 8,
+          "max_score": 10,
+          "run_time_sec": 963.77,
+          "tokens_in": 188280,
+          "tokens_out": 45676,
+          "peak_context_tokens": 58914,
+          "context_used_pct": 65.38
+        },
+        "normal_map_classification": {
+          "name": "normal_map_classification",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 1110.31,
+          "tokens_in": 296523,
+          "tokens_out": 40141,
+          "peak_context_tokens": 66064,
+          "context_used_pct": 73.31
+        },
+        "tool-eval-bench": {
+          "name": "tool-eval-bench",
+          "earned_score": 34,
+          "max_score": 40,
+          "run_time_sec": 1024.17,
+          "tokens_in": 570139,
+          "tokens_out": 66440,
+          "peak_context_tokens": 0,
+          "context_used_pct": 0.0
+        }
+      }
+    },
+    {
+      "eval_id": "8b5b7416-353d-4d6e-b2a1-7f6049d8332a",
+      "name": "NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4",
+      "company": "nvidia",
+      "base_model": "NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4",
+      "kv_quant": "FP8",
+      "context_length": 1048576,
+      "memory_gb": 39.1,
+      "benchmark_date": "2026-09-15",
+      "llm_server": "vLLM",
+      "speculative_decoding": "dspark",
+      "harness": "opencode cli",
+      "harness_version": "1.18.25",
+      "reasoning": "on",
+      "launch_config": "vllm serve nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4 --enable-prefix-caching --max-num-batched-tokens 16384 --moe-backend marlin --mamba-backend flashinfer --mamba-ssm-cache-dtype float16 --enable-mamba-cache-stochastic-rounding --mamba-cache-philox-rounds 5 --mamba-cache-mode align --reasoning-parser nemotron_v3 --enable-auto-tool-choice --tool-call-parser qwen3_xml",
+      "intelligence": 74.0,
+      "task_speed": 6.8,
+      "intelligence_density": 1.893,
+      "test_results": {
+        "multilingual_science_presentation": {
+          "name": "multilingual_science_presentation",
+          "earned_score": 9,
+          "max_score": 10,
+          "run_time_sec": 230.98,
+          "tokens_in": 645196,
+          "tokens_out": 7948,
+          "peak_context_tokens": 30096,
+          "context_used_pct": 2.87
+        },
+        "data_analytics": {
+          "name": "data_analytics",
+          "earned_score": 12,
+          "max_score": 12,
+          "run_time_sec": 128.28,
+          "tokens_in": 756058,
+          "tokens_out": 5206,
+          "peak_context_tokens": 45512,
+          "context_used_pct": 4.34
+        },
+        "kotlin_code": {
+          "name": "kotlin_code",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 783.82,
+          "tokens_in": 7833808,
+          "tokens_out": 26727,
+          "peak_context_tokens": 108179,
+          "context_used_pct": 10.32
+        },
+        "normal_map_classification": {
+          "name": "normal_map_classification",
+          "earned_score": 0,
+          "max_score": 10,
+          "run_time_sec": 1036.93,
+          "tokens_in": 2851939,
+          "tokens_out": 12084,
+          "peak_context_tokens": 102022,
+          "context_used_pct": 9.73
+        },
+        "tool-eval-bench": {
+          "name": "tool-eval-bench",
+          "earned_score": 32,
+          "max_score": 40,
+          "run_time_sec": 485.71,
+          "tokens_in": 708760,
+          "tokens_out": 60212,
+          "peak_context_tokens": 0,
+          "context_used_pct": 0.0
+        }
+      }
+    },
+    {
+      "eval_id": "5aef1f87-0c17-460a-83dd-27b77bafd891",
+      "name": "NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4",
+      "company": "nvidia",
+      "base_model": "NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4",
+      "kv_quant": "FP8",
+      "context_length": 1048576,
+      "memory_gb": 39.1,
+      "benchmark_date": "2026-09-15",
+      "llm_server": "vLLM",
+      "speculative_decoding": "dspark",
+      "harness": "pi",
+      "harness_version": "0.84.4",
+      "reasoning": "on",
+      "launch_config": "vllm serve nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4 --enable-prefix-caching --max-num-batched-tokens 16384 --moe-backend marlin --mamba-backend flashinfer --mamba-ssm-cache-dtype float16 --enable-mamba-cache-stochastic-rounding --mamba-cache-philox-rounds 5 --mamba-cache-mode align --reasoning-parser nemotron_v3 --enable-auto-tool-choice --tool-call-parser qwen3_xml",
+      "intelligence": 50.7,
+      "task_speed": 8.0,
+      "intelligence_density": 1.297,
+      "test_results": {
+        "multilingual_science_presentation": {
+          "name": "multilingual_science_presentation",
+          "earned_score": 5,
+          "max_score": 10,
+          "run_time_sec": 326.26,
+          "tokens_in": 523660,
+          "tokens_out": 23113,
+          "peak_context_tokens": 23895,
+          "context_used_pct": 2.28
+        },
+        "data_analytics": {
+          "name": "data_analytics",
+          "earned_score": 10,
+          "max_score": 12,
+          "run_time_sec": 165.91,
+          "tokens_in": 1077303,
+          "tokens_out": 11312,
+          "peak_context_tokens": 43741,
+          "context_used_pct": 4.17
+        },
+        "kotlin_code": {
+          "name": "kotlin_code",
+          "earned_score": 4,
+          "max_score": 10,
+          "run_time_sec": 671.15,
+          "tokens_in": 4328498,
+          "tokens_out": 49018,
+          "peak_context_tokens": 76197,
+          "context_used_pct": 7.27
+        },
+        "normal_map_classification": {
+          "name": "normal_map_classification",
+          "earned_score": 0,
+          "max_score": 10,
+          "run_time_sec": 610.56,
+          "tokens_in": 2502450,
+          "tokens_out": 44077,
+          "peak_context_tokens": 81063,
+          "context_used_pct": 7.73
+        },
+        "tool-eval-bench": {
+          "name": "tool-eval-bench",
+          "earned_score": 32,
+          "max_score": 40,
+          "run_time_sec": 485.71,
+          "tokens_in": 708760,
+          "tokens_out": 60212,
+          "peak_context_tokens": 0,
+          "context_used_pct": 0.0
+        }
+      }
+    },
+    {
+      "eval_id": "a522e355-0cea-4858-9f7b-499e31c54395",
+      "name": "Muse-Glimmer-30B-NVFP4-W4A4",
+      "company": "Inferact",
+      "base_model": "Muse-Glimmer-30B-NVFP4-W4A4",
+      "kv_quant": "FP16",
+      "context_length": 131072,
+      "memory_gb": 119.7,
+      "benchmark_date": "2026-09-14",
+      "llm_server": "vLLM",
+      "speculative_decoding": "dflash",
+      "harness": "pi",
+      "harness_version": "0.84.4",
+      "reasoning": "on",
+      "launch_config": "vllm serve Inferact/Muse-Glimmer-30B-NVFP4-W4A4 --generation-config auto  --reasoning-parser muse_glimmer --enable-auto-tool-choice --tool-call-parser muse_glimmer --max-num-seqs 32",
+      "intelligence": 76.0,
+      "task_speed": 3.7,
+      "intelligence_density": 0.635,
+      "test_results": {
+        "multilingual_science_presentation": {
+          "name": "multilingual_science_presentation",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 756.51,
+          "tokens_in": 1105953,
+          "tokens_out": 18447,
+          "peak_context_tokens": 33040,
+          "context_used_pct": 25.21
+        },
+        "data_analytics": {
+          "name": "data_analytics",
+          "earned_score": 12,
+          "max_score": 12,
+          "run_time_sec": 433.82,
+          "tokens_in": 1224660,
+          "tokens_out": 14449,
+          "peak_context_tokens": 43304,
+          "context_used_pct": 33.04
+        },
+        "kotlin_code": {
+          "name": "kotlin_code",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 644.41,
+          "tokens_in": 1505045,
+          "tokens_out": 15045,
+          "peak_context_tokens": 32151,
+          "context_used_pct": 24.53
+        },
+        "normal_map_classification": {
+          "name": "normal_map_classification",
+          "earned_score": 0,
+          "max_score": 10,
+          "run_time_sec": 1022.48,
+          "tokens_in": 869931,
+          "tokens_out": 22247,
+          "peak_context_tokens": 36174,
+          "context_used_pct": 27.6
+        },
+        "tool-eval-bench": {
+          "name": "tool-eval-bench",
+          "earned_score": 32,
+          "max_score": 40,
+          "run_time_sec": 1973.94,
+          "tokens_in": 905697,
+          "tokens_out": 98093,
+          "peak_context_tokens": 0,
+          "context_used_pct": 0.0
+        }
+      }
+    },
+    {
+      "eval_id": "842bc276-8764-419b-b676-35dc1b496cd6",
+      "name": "Muse-Glimmer-30B-NVFP4-W4A4",
+      "company": "Inferact",
+      "base_model": "Muse-Glimmer-30B-NVFP4-W4A4",
+      "kv_quant": "FP16",
+      "context_length": 131072,
+      "memory_gb": 119.7,
+      "benchmark_date": "2026-09-14",
+      "llm_server": "vLLM",
+      "speculative_decoding": "dflash",
+      "harness": "opencode cli",
+      "harness_version": "1.18.25",
+      "reasoning": "on",
+      "launch_config": "vllm serve Inferact/Muse-Glimmer-30B-NVFP4-W4A4 --generation-config auto  --reasoning-parser muse_glimmer --enable-auto-tool-choice --tool-call-parser muse_glimmer --max-num-seqs 32",
+      "intelligence": 94.0,
+      "task_speed": 4.8,
+      "intelligence_density": 0.785,
+      "test_results": {
+        "multilingual_science_presentation": {
+          "name": "multilingual_science_presentation",
+          "earned_score": 9,
+          "max_score": 10,
+          "run_time_sec": 388.24,
+          "tokens_in": 585427,
+          "tokens_out": 11059,
+          "peak_context_tokens": 26117,
+          "context_used_pct": 19.93
+        },
+        "data_analytics": {
+          "name": "data_analytics",
+          "earned_score": 12,
+          "max_score": 12,
+          "run_time_sec": 364.46,
+          "tokens_in": 1447599,
+          "tokens_out": 10842,
+          "peak_context_tokens": 49324,
+          "context_used_pct": 37.63
+        },
+        "kotlin_code": {
+          "name": "kotlin_code",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 705.32,
+          "tokens_in": 829898,
+          "tokens_out": 7734,
+          "peak_context_tokens": 32651,
+          "context_used_pct": 24.91
+        },
+        "normal_map_classification": {
+          "name": "normal_map_classification",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 313.55,
+          "tokens_in": 547661,
+          "tokens_out": 6552,
+          "peak_context_tokens": 24391,
+          "context_used_pct": 18.61
+        },
+        "tool-eval-bench": {
+          "name": "tool-eval-bench",
+          "earned_score": 32,
+          "max_score": 40,
+          "run_time_sec": 1973.94,
+          "tokens_in": 905697,
+          "tokens_out": 98093,
+          "peak_context_tokens": 0,
+          "context_used_pct": 0.0
+        }
+      }
+    },
+    {
       "eval_id": "4ce34ddf-b0f4-421f-8303-fb0ecbe772fa",
       "name": "Qwen3.8-Flash-Next-NVFP4",
       "company": "local-inference-lab",

@@ -10,9 +10,7 @@ import argparse
 import csv
 import json
 import random
-import subprocess
 import sys
-import tempfile
 import time
 import urllib.error
 import urllib.request
@@ -33,7 +31,7 @@ from eval.results import calculate_model_memory_gb, resolve_model_info
 
 logger = setup_logger("launch_benchmark")
 DEFAULT_PROMPT_FILE = TESTS_DIR / "benchmark" / "long-prompt.kt"
-NEWS_CSV_FILE = TESTS_DIR / "news.csv"
+NEWS_CSV_FILE = TESTS_DIR / "benchmark" / "news.csv"
 
 # Approximate words-per-token ratio for token estimation
 _WORDS_PER_TOKEN = 0.75
@@ -311,11 +309,9 @@ def benchmark_model(
             stop_model(host=REMOTE_HOST)
 
 
-def format_leaderboard(summaries: list[dict[str, Any]], tool_eval_score: int | str | None = None, title: str = "OVERALL SERVING BENCHMARK LEADERBOARD") -> str:
+def format_leaderboard(summaries: list[dict[str, Any]], title: str = "OVERALL SERVING BENCHMARK LEADERBOARD") -> str:
     """Render overall serving benchmark leaderboard table."""
     headers = ["Model Name", "Runtime Size", "Fresh Prefill", "Cached Prefill", "Decode tps", "Eff Gen tps", "Avg TTFT (s)", "Gen Tok"]
-    if tool_eval_score is not None:
-        headers.append("Tool-Eval")
     rows = [
         [
             s["model"],
@@ -329,70 +325,17 @@ def format_leaderboard(summaries: list[dict[str, Any]], tool_eval_score: int | s
         ]
         for s in summaries
     ]
-    if tool_eval_score is not None:
-        if isinstance(tool_eval_score, (int, float)):
-            score_str = f"{int(tool_eval_score)}/176"
-        elif "/" in str(tool_eval_score) or tool_eval_score == "N/A":
-            score_str = str(tool_eval_score)
-        else:
-            score_str = f"{tool_eval_score}/176"
-        for i, row in enumerate(rows):
-            row.append(score_str if i == 0 else "")
     return format_table(headers, rows, title=title)
 
 
-def write_results_file(summaries: list[dict[str, Any]], filepath: Path = BENCHMARK_RESULT_FILE, tool_eval_score: int | str | None = None, title: str = "OVERALL SERVING BENCHMARK LEADERBOARD") -> None:
+def write_results_file(summaries: list[dict[str, Any]], filepath: Path = BENCHMARK_RESULT_FILE, title: str = "OVERALL SERVING BENCHMARK LEADERBOARD") -> None:
     """Append benchmark leaderboard table to results file."""
     if not summaries:
         return
-    table = format_leaderboard(summaries, tool_eval_score=tool_eval_score, title=title)
+    table = format_leaderboard(summaries, title=title)
     with open(filepath, "a", encoding="utf-8") as f:
         f.write("\n" + table + "\n")
     logger.info("Appended benchmark results: %s", filepath)
-
-
-TOOL_EVAL_BENCH_BIN = "tool-eval-bench"
-
-
-def run_tool_eval_bench(base_url: str) -> tuple[int | str, str]:
-    """Run tool-eval-bench in hardmode (88 scenarios, 176 max points) against base URL and return (total_points, rating)."""
-    logger.info("=" * 70)
-    logger.info("RUNNING tool-eval-bench (hardmode: 88 scenarios, 176 max points) against %s", base_url)
-    logger.info("=" * 70)
-
-    with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as tmp:
-        tmp_path = tmp.name
-
-    cmd = [
-        TOOL_EVAL_BENCH_BIN,
-        "bench",
-        "--seed",
-        "42",
-        "--base-url",
-        base_url,
-        "--parallel",
-        "4",
-        "--timeout",
-        "240",
-        "--hardmode",
-        "--json-file",
-        tmp_path,
-    ]
-    proc = subprocess.run(cmd, capture_output=False, text=True)
-
-    try:
-        result = json.loads(Path(tmp_path).read_text(encoding="utf-8"))
-    except Exception as e:
-        logger.error("Failed to parse tool-eval-bench output: %s", e)
-        return "N/A", ""
-    finally:
-        Path(tmp_path).unlink(missing_ok=True)
-
-    if proc.returncode != 0:
-        logger.error("tool-eval-bench exited with code %d", proc.returncode)
-
-    scores = result.get("scores", {})
-    return scores.get("total_points", "N/A"), scores.get("rating", "")
 
 
 def main():
@@ -401,11 +344,9 @@ def main():
     parser.add_argument("--runs", type=int, default=1, help="Number of benchmark runs per model (default: 1)")
     parser.add_argument("--base-url", default=API_BASE_URL, help=f"Base URL of the serving server (default: {API_BASE_URL})")
     parser.add_argument("--no-manage", action="store_true", help="Do not stop or start model, benchmark active server directly")
-    parser.add_argument("--run-tool-eval-bench", action="store_true", help="Run tool-eval-bench quality benchmark against the server")
-    parser.add_argument("--skip-effort-variants", action="store_true", help="Skip models where the only difference is reasoning effort")
     parser.add_argument("--title", default="OVERALL SERVING BENCHMARK LEADERBOARD", help="Title for the benchmark leaderboard table")
-    parser.add_argument("--context-pressure", type=int, default=None, metavar="TOKENS",
-                        help="Stuff the prompt with news articles to fill approximately TOKENS of context before benchmarking")
+    parser.add_argument("--context-pressure", type=int, default=25000, metavar="TOKENS",
+                        help="Stuff the prompt with news articles to fill approximately TOKENS of context before benchmarking (default: 25000)")
     parser.add_argument("--verbose", action="store_true", help="Print full prompt sent and stream response tokens to stdout")
     args = parser.parse_args()
 
@@ -428,24 +369,23 @@ def main():
         else:
             targets = [m.strip() for m in args.model.split(",") if m.strip()]
 
-        if args.skip_effort_variants:
-            filtered = []
-            for m in targets:
-                cfg = models.get(m, {})
-                is_variant = False
-                for other_m in targets:
-                    if other_m == m:
-                        continue
-                    other_cfg = models.get(other_m, {})
-                    m_args = {k: v for k, v in cfg.items() if k != "reasoning_effort"}
-                    other_args = {k: v for k, v in other_cfg.items() if k != "reasoning_effort"}
-                    if m_args == other_args:
-                        if ("-low" in m or "-medium" in m) and not ("-low" in other_m or "-medium" in other_m):
-                            is_variant = True
-                            break
-                if not is_variant:
-                    filtered.append(m)
-            targets = filtered
+        filtered = []
+        for m in targets:
+            cfg = models.get(m, {})
+            is_variant = False
+            for other_m in targets:
+                if other_m == m:
+                    continue
+                other_cfg = models.get(other_m, {})
+                m_args = {k: v for k, v in cfg.items() if k != "reasoning_effort"}
+                other_args = {k: v for k, v in other_cfg.items() if k != "reasoning_effort"}
+                if m_args == other_args:
+                    if ("-low" in m or "-medium" in m) and not ("-low" in other_m or "-medium" in other_m):
+                        is_variant = True
+                        break
+            if not is_variant:
+                filtered.append(m)
+        targets = filtered
 
         logger.info("Starting benchmark across %d model(s): %s", len(targets), targets)
         summaries = []
@@ -454,13 +394,9 @@ def main():
             if res:
                 summaries.append(res)
 
-    tool_eval_score = None
-    if args.run_tool_eval_bench:
-        tool_eval_score, _ = run_tool_eval_bench(args.base_url)
-
     if summaries:
-        write_results_file(summaries, tool_eval_score=tool_eval_score, title=args.title)
-        print("\n" + format_leaderboard(summaries, tool_eval_score=tool_eval_score, title=args.title) + "\n")
+        write_results_file(summaries, title=args.title)
+        print("\n" + format_leaderboard(summaries, title=args.title) + "\n")
 
 
 if __name__ == "__main__":

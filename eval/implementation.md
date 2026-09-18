@@ -162,8 +162,6 @@ PYTHONPATH=. python3 -m eval.launch_benchmark --model Qwen3.8-27B-NVFP4-xhigh --
 # Benchmark currently active server directly without stopping or starting containers
 PYTHONPATH=. python3 -m eval.launch_benchmark --no-manage
 
-# Run tool-eval-bench benchmark alongside throughput metrics
-PYTHONPATH=. python3 -m eval.launch_benchmark --model Qwen3.8-27B-NVFP4-xhigh --run-tool-eval-bench
 ```
 
 ### 5. Serve Dashboard Web App

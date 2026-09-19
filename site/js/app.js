@@ -566,6 +566,43 @@ function stringToColor(str) {
   return hslToHex(hue, sat, light);
 }
 
+const DISTINCT_PALETTE = [
+  '#2563eb', // Royal Blue
+  '#ea580c', // Bright Orange
+  '#10b981', // Emerald Green
+  '#8b5cf6', // Violet
+  '#ec4899', // Pink
+  '#06b6d4', // Cyan
+  '#f59e0b', // Amber / Gold
+  '#e11d48', // Crimson Red
+  '#14b8a6', // Teal
+  '#6366f1', // Indigo
+  '#84cc16', // Lime
+  '#d946ef', // Fuchsia
+  '#3b82f6', // Sky Blue
+  '#f97316', // Tangerine
+  '#059669', // Deep Emerald
+  '#a855f7'  // Lavender
+];
+
+function getDistinctGroupColor(groupName, index, colorMode) {
+  if (colorMode === 'harness') {
+    const harnessColors = {
+      'pi': '#f97316',
+      'opencode cli': '#0284c7'
+    };
+    const key = (groupName || '').toLowerCase().trim();
+    if (harnessColors[key]) return harnessColors[key];
+  }
+
+  if (index < DISTINCT_PALETTE.length) {
+    return DISTINCT_PALETTE[index];
+  }
+  // Golden ratio hue distribution fallback for any additional categories
+  const hue = Math.round((index * 137.508) % 360);
+  return hslToHex(hue, 75, 48);
+}
+
 function renderTopScatterChart(evaluations, viewMode = 'time', colorMode = 'base_model') {
   const chartEl = document.getElementById('chart-top-scatter');
   const chart = getOrCreateChart(chartEl);
@@ -610,11 +647,13 @@ function renderTopScatterChart(evaluations, viewMode = 'time', colorMode = 'base
     });
   });
 
-  const sortedGroupKeys = Array.from(groupsMap.keys());
+  const sortedGroupKeys = Array.from(groupsMap.keys()).sort((a, b) =>
+    a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })
+  );
 
-  // 3. Build series configuration for each group
-  const series = sortedGroupKeys.map(groupName => {
-    const color = stringToColor(groupName);
+  // 3. Build series configuration for each group with distinct colors
+  const series = sortedGroupKeys.map((groupName, idx) => {
+    const color = getDistinctGroupColor(groupName, idx, colorMode);
     const shadow = hexToRgba(color, 0.35);
     const data = groupsMap.get(groupName);
 

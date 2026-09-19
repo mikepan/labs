@@ -13,6 +13,8 @@ Usage:
     python3 eval/run_harness.py <model_name> [--test test0] [--harness opencode]
 """
 
+from __future__ import annotations
+
 import argparse
 import concurrent.futures
 import copy
@@ -20,12 +22,17 @@ import importlib.util
 import json
 import logging
 import os
-from pathlib import Path
+import sys
 import tempfile
 import time
 import uuid
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
 from eval.common import (
     get_harness_logger,
@@ -41,7 +48,6 @@ from eval.config import (
     API_BASE_URL,
     DEFAULT_HINT_SCORE_FACTOR,
     DEFAULT_IDLE_TIMEOUT_MINUTES,
-    DEFAULT_LLM_BASE_URL,
     DEFAULT_MAX_STEP_TIMEOUT_MINUTES,
     MODELS_CONFIG_FILE,
     RESULTS_DIR,
@@ -51,6 +57,7 @@ from eval.drivers import HarnessDriver, get_driver
 from eval.results import get_vllm_model_info, save_evaluation_results
 from eval.sandbox import SandboxClient, ensure_sandbox_policy_isolated
 from eval.tool_eval import run_tool_eval_benchmark, TOOL_EVAL_TEST_KEY
+from eval.trivia_eval import run_trivia_benchmark, TRIVIA_TEST_KEY
 from eval.trace import StepTrace, TurnData
 
 
@@ -206,7 +213,7 @@ def run_test_suite_on_agent(
     sandbox: SandboxClient,
     reasoning_effort: str | None = None,
     harness_name: str | None = None,
-    llm_base_url: str = DEFAULT_LLM_BASE_URL,
+    llm_base_url: str = API_BASE_URL,
 ) -> dict[str, Any]:
     """Execute all test specs sequentially against an agent harness."""
     h_logger = get_harness_logger(harness_name) if harness_name else logger
@@ -336,7 +343,7 @@ def run_test_suite_on_agent(
                     if "stalled" in err_str.lower() or "idle" in err_str.lower() or "activity" in err_str.lower():
                         friendly_msg = err_str
                     else:
-                        friendly_msg = f"Step execution exceeded max ceiling of {step_timeout_minutes} min ({step_elapsed}s elapsed)"
+                        friendly_msg = f"Step execution exceeded max ceiling of {step_timeout_seconds}s ({step_elapsed}s elapsed)"
                 else:
                     raw_err = str(e)
                     if "Traceback (most recent call last):" in raw_err:
@@ -589,7 +596,7 @@ def main():
     parser.add_argument("--test", default="all", help="Specific test to run (e.g. 'test0', 'tool-eval-bench', or 'all', default: all)")
     parser.add_argument("--harness", default="all", help="Harness name (e.g. 'pi', 'opencode', or 'all', default: all)")
     parser.add_argument("--reasoning", default=None, help="Reasoning effort override (e.g. 'low', 'medium', 'xhigh', 'off')")
-    parser.add_argument("--base-url", default=None, help=f"LLM base URL override (default: {DEFAULT_LLM_BASE_URL})")
+    parser.add_argument("--base-url", default=None, help=f"LLM base URL override (default: {API_BASE_URL})")
     parser.add_argument("--memory-gb", type=float, default=None, help="Measured runtime GPU memory in GB")
     parser.add_argument("--v", dest="verbose", action="store_true", help="Verbose debug logging")
     args = parser.parse_args()
@@ -602,7 +609,7 @@ def main():
 
     models_cfg = load_json_config(MODELS_CONFIG_FILE) if os.path.exists(MODELS_CONFIG_FILE) else {}
     reasoning_effort = args.reasoning if args.reasoning is not None else models_cfg.get(args.model, {}).get("reasoning_effort")
-    llm_base_url = args.base_url if args.base_url else DEFAULT_LLM_BASE_URL
+    llm_base_url = args.base_url if args.base_url else API_BASE_URL
 
     should_run_tool_eval = args.test in ("all", TOOL_EVAL_TEST_KEY)
     tool_eval_output = None
@@ -615,8 +622,28 @@ def main():
             verbose=args.verbose,
         )
 
-    # If only running tool-eval-bench, save results standalone without sandbox harness
-    if args.test == TOOL_EVAL_TEST_KEY:
+    # 1b. Run trivia benchmark directly against OpenAPI endpoint
+    should_run_trivia = args.test in ("all", TRIVIA_TEST_KEY)
+    trivia_output = None
+    if should_run_trivia:
+        trivia_output = run_trivia_benchmark(
+            base_url=llm_base_url,
+            model=args.model,
+            reasoning_effort=reasoning_effort,
+            verbose=args.verbose,
+        )
+
+    # If only running tool-eval-bench or trivia, save results standalone without sandbox harness
+    if args.test in (TOOL_EVAL_TEST_KEY, TRIVIA_TEST_KEY):
+        standalone_tests = {}
+        standalone_summaries = {}
+        if tool_eval_output and args.test == TOOL_EVAL_TEST_KEY:
+            standalone_tests[TOOL_EVAL_TEST_KEY] = tool_eval_output["trace"]
+            standalone_summaries[TOOL_EVAL_TEST_KEY] = tool_eval_output["summary"]
+        if trivia_output and args.test == TRIVIA_TEST_KEY:
+            standalone_tests[TRIVIA_TEST_KEY] = trivia_output["trace"]
+            standalone_summaries[TRIVIA_TEST_KEY] = trivia_output["summary"]
+
         for harness_name in target_harnesses:
             harness_version = harnesses_cfg.get(harness_name, {}).get("version", "unknown")
             eval_id = str(uuid.uuid4())
@@ -624,14 +651,10 @@ def main():
                 "eval_id": eval_id,
                 "model": args.model,
                 "start_time": datetime.now(timezone.utc).isoformat(),
-                "tests": {
-                    TOOL_EVAL_TEST_KEY: tool_eval_output["trace"]
-                } if tool_eval_output else {},
+                "tests": standalone_tests,
                 "end_time": datetime.now(timezone.utc).isoformat(),
             }
-            test_results_summary = {
-                TOOL_EVAL_TEST_KEY: tool_eval_output["summary"]
-            } if tool_eval_output else {}
+            test_results_summary = standalone_summaries
             evaluation_output = {
                 "eval_id": eval_id,
                 "suite_trace": suite_trace,
@@ -653,7 +676,7 @@ def main():
     target_tests = get_available_tests() if args.test == "all" else [args.test]
     test_specs = []
     for t_name in target_tests:
-        if t_name == TOOL_EVAL_TEST_KEY:
+        if t_name in (TOOL_EVAL_TEST_KEY, TRIVIA_TEST_KEY):
             continue
         run_file = str(TESTS_DIR / t_name / "run.py") if not os.path.isfile(t_name) else t_name
         test_specs.append((run_file, load_test_spec(run_file)))
@@ -688,6 +711,11 @@ def main():
             if tool_eval_output:
                 evaluation_output["test_results_summary"][TOOL_EVAL_TEST_KEY] = copy.deepcopy(tool_eval_output["summary"])
                 evaluation_output["suite_trace"]["tests"][TOOL_EVAL_TEST_KEY] = copy.deepcopy(tool_eval_output["trace"])
+
+            # Attach pre-computed trivia results
+            if trivia_output:
+                evaluation_output["test_results_summary"][TRIVIA_TEST_KEY] = copy.deepcopy(trivia_output["summary"])
+                evaluation_output["suite_trace"]["tests"][TRIVIA_TEST_KEY] = copy.deepcopy(trivia_output["trace"])
 
             save_evaluation_results(
                 model_name=args.model,

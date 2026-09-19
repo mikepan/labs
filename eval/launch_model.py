@@ -8,6 +8,8 @@ Usage:
     python3 eval/launch_model.py [--model model_name] [--stop] [--v]
 """
 
+from __future__ import annotations
+
 import argparse
 import logging
 import re

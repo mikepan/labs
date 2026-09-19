@@ -10,11 +10,18 @@ Usage:
 
 """
 
+from __future__ import annotations
+
 import argparse
 import logging
 import subprocess
 import sys
+from pathlib import Path
 from typing import Any
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
 from eval.config import (
     API_BASE_URL,
@@ -82,7 +89,7 @@ def validate_arguments(
             sys.exit(1)
 
     # 2. Validate Test
-    available_tests = get_available_tests() + ["tool-eval-bench"]
+    available_tests = get_available_tests() + ["tool-eval-bench", "trivia"]
     if test_arg != "all" and test_arg not in available_tests:
         matched_tests = [t for t in available_tests if test_arg.lower() in t.lower()]
         if len(matched_tests) >= 1:

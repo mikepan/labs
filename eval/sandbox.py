@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import atexit
 import fnmatch
 import io
@@ -242,11 +244,7 @@ except Exception as e:
             (False, error_details) if connection failed or proxy reported network failure.
         """
         base = target_url.rstrip("/")
-        candidates = []
-        if base.endswith("/v1"):
-            candidates.extend([f"{base}/models", f"{base[:-3]}/health", base])
-        else:
-            candidates.extend([f"{base}/v1/models", f"{base}/health", base])
+        candidates = [f"{base}/v1/models", f"{base}/health", base]
 
         script = f"""import urllib.request, urllib.error, sys, json
 candidates = {candidates!r}

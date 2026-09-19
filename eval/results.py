@@ -2,6 +2,8 @@
 eval.results - Evaluation results saving, model metadata, and benchmark dataset management.
 """
 
+from __future__ import annotations
+
 import fcntl
 import json
 import os
@@ -31,9 +33,8 @@ logger = setup_logger("results")
 
 
 def get_vllm_model_info(base_url: str) -> dict[str, Any] | None:
-    """Fetch model info from /v1/models in a single call."""
-    url = f"{base_url}/models" if not base_url.endswith("/models") else base_url
-    data = http_json(url, timeout=3)
+    url = f"{base_url.rstrip('/')}/v1/models"
+    data = http_json(url, timeout=5)
     if data and "data" in data and len(data["data"]) > 0:
         return data["data"][0]
     return None

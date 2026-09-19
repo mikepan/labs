@@ -11,7 +11,6 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 REMOTE_HOST = "mike@spark"
 REMOTE_VLLM_DIR = "~/apps/spark-vllm-docker"
 API_BASE_URL = "http://spark:8000"
-DEFAULT_LLM_BASE_URL = f"{API_BASE_URL}/v1"
 
 # Docker Sandbox & Harness Defaults
 DEFAULT_BUILDER_SANDBOX_NAME = "workspace-builder"

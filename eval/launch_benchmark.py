@@ -6,6 +6,8 @@ Usage:
     python3 eval/launch_benchmark.py [--model model_name] [--runs 2] [--v]
 """
 
+from __future__ import annotations
+
 import argparse
 import csv
 import json
@@ -17,6 +19,10 @@ import urllib.request
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
 from eval.common import setup_logger, load_json_config
 from eval.config import (
@@ -227,7 +233,7 @@ def benchmark_model(
             if not ok:
                 return None
         else:
-            weight, _ = resolve_model_info(f"{base_url}/v1", fallback_name=model_name)
+            weight, _ = resolve_model_info(base_url, fallback_name=model_name)
 
         memory_gb = calculate_model_memory_gb(host=REMOTE_HOST)
         session_id = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -357,7 +363,7 @@ def main():
         prompt = f"<context>\n{filler}\n</context>\n\n{prompt}"
 
     if args.no_manage:
-        active_model, _ = resolve_model_info(f"{args.base_url}/v1", fallback_name=args.model or "active-model")
+        active_model, _ = resolve_model_info(args.base_url, fallback_name=args.model or "active-model")
         model_name = args.model if args.model else active_model
         logger.info("Starting direct benchmark on active server at %s for model '%s'", args.base_url, model_name)
         res = benchmark_model(model_name, None, prompt, runs=args.runs, base_url=args.base_url, manage=False, verbose=args.verbose)

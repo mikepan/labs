@@ -5,6 +5,9 @@ All harness drivers produce these types, ensuring consistent full_trace.json
 output regardless of which agent (OpenCode, pi.dev, etc.) ran the evaluation.
 """
 
+from __future__ import annotations
+
+import sys
 from dataclasses import dataclass, field, asdict
 from typing import Any
 
@@ -14,8 +17,10 @@ __all__ = [
     "StepTrace",
 ]
 
+_dc_kwargs = {"slots": True} if sys.version_info >= (3, 10) else {}
 
-@dataclass(slots=True)
+
+@dataclass(**_dc_kwargs)
 class ToolCallEvent:
     """A single tool invocation within a turn."""
     tool: str
@@ -31,7 +36,7 @@ class ToolCallEvent:
         return {k: v for k, v in asdict(self).items() if v is not None}
 
 
-@dataclass(slots=True)
+@dataclass(**_dc_kwargs)
 class TurnData:
     """Normalized turn data — consistent across all harness drivers."""
     tool_calls: list[ToolCallEvent] = field(default_factory=list)
@@ -44,7 +49,7 @@ class TurnData:
     raw_messages: list[dict[str, Any]] = field(default_factory=list)
 
 
-@dataclass(slots=True)
+@dataclass(**_dc_kwargs)
 class StepTrace:
     """A single step's trace record for full_trace.json."""
     step_index: int

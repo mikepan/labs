@@ -6,6 +6,8 @@ handling configuration, session management, prompt execution via RPC,
 and normalized trace conversion.
 """
 
+from __future__ import annotations
+
 import json
 import os
 import time
@@ -59,7 +61,14 @@ class PiDriver(HarnessDriver):
         )
 
         # Write ~/.pi/agent configs (models.json, settings.json, trust.json)
-        self._write_config(sandbox, active_model, model_name, llm_base_url, max_context=max_context, reasoning_effort=reasoning_effort)
+        self._write_config(
+            sandbox,
+            active_model,
+            model_name,
+            f"{llm_base_url.rstrip('/')}/v1",
+            max_context=max_context,
+            reasoning_effort=reasoning_effort,
+        )
 
         # Start bridge server
         self._start_server(sandbox, workspace, active_model, reasoning_effort=reasoning_effort)

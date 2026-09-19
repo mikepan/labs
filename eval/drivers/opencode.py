@@ -5,6 +5,8 @@ Implements HarnessDriver for the OpenCode agent, handling configuration,
 session management, prompt execution, and response parsing.
 """
 
+from __future__ import annotations
+
 import json
 import time
 from datetime import datetime, timezone
@@ -84,7 +86,6 @@ class OpenCodeDriver(HarnessDriver):
             active_model, model_name, max_context, reasoning_effort,
         )
 
-        target_llm_url = llm_base_url
         if reasoning_effort and reasoning_effort not in ("off", "none"):
             target_llm_url = start_reasoning_proxy(
                 sandbox,
@@ -93,6 +94,8 @@ class OpenCodeDriver(HarnessDriver):
                 proxy_port=self.proxy_port,
                 log_path=self._proxy_log_path,
             )
+        else:
+            target_llm_url = f"{llm_base_url.rstrip('/')}/v1"
 
         # Build opencode.json config
         self._write_config(sandbox, active_model, model_name, target_llm_url, max_context=max_context, reasoning_effort=reasoning_effort)

@@ -6,6 +6,8 @@ converting its native response format into the common TurnData type
 so the orchestrator and full_trace.json stay harness-agnostic.
 """
 
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
 from typing import Any
 

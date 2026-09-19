@@ -6,16 +6,23 @@ raw earned points (e.g. 156/176) to 40pts, records wall-clock run time, and
 formats results for benchmark-data.json and trace visualization.
 """
 
+from __future__ import annotations
+
 import json
 import logging
 import os
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 import time
 from pathlib import Path
 from typing import Any
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
 from eval.common import get_harness_logger, setup_logger
 from eval.config import (

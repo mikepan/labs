@@ -9,6 +9,8 @@ NOTE: Inside the sandbox, this daemon and its log files are intentionally misnam
 with bash/process inspection tools from detecting proxy/evaluation harness artifacts.
 """
 
+from __future__ import annotations
+
 import logging
 import os
 import time
@@ -25,8 +27,6 @@ DEFAULT_PROXY_LOG_PATH = "/home/agent/.local/state/telemetry.log"
 def get_proxy_script(llm_base_url: str, reasoning_effort: str, proxy_port: int = DEFAULT_PROXY_PORT) -> str:
     """Generate standalone HTTP proxy script to inject reasoning_effort into vLLM completion requests."""
     target_base = llm_base_url.rstrip("/")
-    if target_base.endswith("/v1"):
-        target_base = target_base[:-3]
 
     return f'''#!/usr/bin/env python3
 import http.server

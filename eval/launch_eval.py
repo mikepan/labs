@@ -48,7 +48,10 @@ def validate_arguments(
     """Validate model, test, and harness arguments upfront before execution."""
     # 1. Validate Model (supports comma-separated list, exact match, 'all', or partial substring matching)
     if model_arg in (None, "all"):
-        target_models = list(models.keys())
+        target_models = [m for m, cfg in models.items() if not cfg.get("disabled", False) and cfg.get("enabled", True) is not False]
+        disabled_models = [m for m, cfg in models.items() if cfg.get("disabled", False) or cfg.get("enabled", True) is False]
+        if disabled_models:
+            logger.info("Skipping %d disabled model(s) for 'all': %s", len(disabled_models), disabled_models)
     elif "," in model_arg:
         items = [x.strip() for x in model_arg.split(",") if x.strip()]
         target_models = []

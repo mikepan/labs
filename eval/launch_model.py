@@ -261,7 +261,13 @@ def main():
         ok = stop_model()
         sys.exit(0 if ok else 1)
 
-    target_models = list(models.keys()) if args.model in (None, "all") else [args.model]
+    if args.model in (None, "all"):
+        target_models = [m for m, cfg in models.items() if not cfg.get("disabled", False) and cfg.get("enabled", True) is not False]
+        disabled_models = [m for m, cfg in models.items() if cfg.get("disabled", False) or cfg.get("enabled", True) is False]
+        if disabled_models:
+            logger.info("Skipping %d disabled model(s) for 'all': %s", len(disabled_models), disabled_models)
+    else:
+        target_models = [args.model]
 
     for m_name in target_models:
         ok, _ = ensure_model_running(m_name, models[m_name], verbose=args.verbose)

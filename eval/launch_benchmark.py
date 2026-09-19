@@ -365,7 +365,10 @@ def main():
     else:
         models = load_json_config(MODELS_CONFIG_FILE)
         if args.model in ("all", None):
-            targets = list(models.keys())
+            targets = [m for m, cfg in models.items() if not cfg.get("disabled", False) and cfg.get("enabled", True) is not False]
+            disabled_models = [m for m, cfg in models.items() if cfg.get("disabled", False) or cfg.get("enabled", True) is False]
+            if disabled_models:
+                logger.info("Skipping %d disabled model(s) for 'all': %s", len(disabled_models), disabled_models)
         else:
             targets = [m.strip() for m in args.model.split(",") if m.strip()]
 

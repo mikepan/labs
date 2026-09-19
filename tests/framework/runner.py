@@ -3,6 +3,7 @@ runner.py - Execution engine for running test steps and assertions in a workspac
 """
 
 from dataclasses import dataclass, field
+import os
 import subprocess
 import time
 from typing import Any
@@ -39,7 +40,7 @@ def commit_step_workspace(step_name: str, workspace_dir: str) -> bool:
 
 
 
-def evaluate_step(step: Step, workspace_dir: str, auto_commit: bool = True) -> StepEvaluationResult:
+def evaluate_step(step: Step, workspace_dir: str, auto_commit: bool = True, response: str | None = None) -> StepEvaluationResult:
     """Evaluate all assertions for a single step against the workspace state, then commit changes."""
     start_time = time.time()
     results: list[CheckResult] = []
@@ -52,10 +53,16 @@ def evaluate_step(step: Step, workspace_dir: str, auto_commit: bool = True) -> S
 
     for check in step.checks:
         if isinstance(check, BaseAssertion):
-            res = check.evaluate(workspace_dir, allowed_files=expected_step_files)
+            try:
+                res = check.evaluate(workspace_dir, allowed_files=expected_step_files, response=response)
+            except TypeError:
+                res = check.evaluate(workspace_dir, allowed_files=expected_step_files)
         elif callable(check):
             try:
-                r = check(workspace_dir)
+                try:
+                    r = check(workspace_dir, response)
+                except TypeError:
+                    r = check(workspace_dir)
                 res = CheckResult(True, "OK") if (r is None or r is True) else CheckResult(False, "Check failed")
             except Exception as e:
                 res = CheckResult(False, str(e))

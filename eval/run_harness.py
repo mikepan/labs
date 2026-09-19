@@ -120,6 +120,7 @@ def evaluate_step_in_sandbox(
     test_run_file: str,
     step_idx: int,
     workspace_dir: str,
+    response: str | None = None,
 ) -> dict[str, Any]:
     """Execute step assertions in sandbox RAM via stdin with zero disk footprint."""
     runner_bundle = _get_runner_bundle()
@@ -129,7 +130,7 @@ def evaluate_step_in_sandbox(
 test_mod = types.ModuleType('test_module')
 exec({test_code!r}, test_mod.__dict__)
 step = test_mod.TEST.steps[{step_idx}]
-res = sys.modules['tests.framework'].evaluate_step(step, {workspace_dir!r})
+res = sys.modules['tests.framework'].evaluate_step(step, {workspace_dir!r}, response={response!r})
 out = {{
     "step_name": res.step_name,
     "passed": res.passed,
@@ -386,8 +387,8 @@ def run_test_suite_on_agent(
             total_tokens_in += turn.tokens_in
             total_tokens_out += turn.tokens_out
 
-            # Evaluate step assertions in sandbox
-            eval_res = evaluate_step_in_sandbox(sandbox, test_path, idx, test_ws)
+            turn_response = "\n".join(turn.text).strip() if turn.text else ""
+            eval_res = evaluate_step_in_sandbox(sandbox, test_path, idx, test_ws, response=turn_response)
 
             passed = eval_res.get("passed", False)
             used_hint = False
@@ -433,7 +434,8 @@ def run_test_suite_on_agent(
                     _log_turn(hint_turn, log_target=h_logger)
 
                     # Re-evaluate step assertions after hint
-                    eval_res = evaluate_step_in_sandbox(sandbox, test_path, idx, test_ws)
+                    hint_response = "\n".join(hint_turn.text).strip() if hint_turn.text else ""
+                    eval_res = evaluate_step_in_sandbox(sandbox, test_path, idx, test_ws, response=hint_response)
                     passed = eval_res.get("passed", False)
                 except Exception as e_hint:
                     h_logger.warning("  ✗ Hint attempt encountered driver error: %s", e_hint)

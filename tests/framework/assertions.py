@@ -319,9 +319,12 @@ class CustomAssert(BaseAssertion):
     def __init__(self, func: Callable[[str], bool | tuple[bool, str] | None]):
         self.func = func
 
-    def evaluate(self, workspace_dir: str, allowed_files: set[str] | None = None) -> CheckResult:
+    def evaluate(self, workspace_dir: str, allowed_files: set[str] | None = None, response: str | None = None) -> CheckResult:
         try:
-            res = self.func(workspace_dir)
+            try:
+                res = self.func(workspace_dir, response)
+            except TypeError:
+                res = self.func(workspace_dir)
             if res is None or res is True:
                 return CheckResult(True, f"Custom check '{self.func.__name__}' passed.")
             if res is False:

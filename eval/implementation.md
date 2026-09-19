@@ -123,17 +123,14 @@ PYTHONPATH=. python3 -m eval.launch_eval --model Qwen3.8-27B-FP8-low --v
 
 ### 2. Standalone Model Lifecycle Manager (`eval.launch_model`)
 ```bash
-# Launch a model, wait for readiness probe, and execute sanity query (stops container when complete)
+# Launch a model, wait for readiness probe, and execute sanity query (keeps container running)
 PYTHONPATH=. python3 -m eval.launch_model --model Qwen3.8-27B-FP8-low
 
-# Launch a model and keep the container running for external benchmarking (e.g. tool-eval-bench)
-PYTHONPATH=. python3 -m eval.launch_model --model Qwen3.8-27B-FP8-low --keep-alive
+# Stream container startup logs
+PYTHONPATH=. python3 -m eval.launch_model --model Qwen3.8-27B-FP8-low --v
 
 # Stop the running model container on the remote cluster
 PYTHONPATH=. python3 -m eval.launch_model --stop
-
-# Stream container startup logs
-PYTHONPATH=. python3 -m eval.launch_model --model Qwen3.8-27B-FP8-low --keep-alive --v
 ```
 
 ### 3. Direct Sandbox Harness Runner (`eval.run_harness`)

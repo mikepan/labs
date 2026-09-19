@@ -5,7 +5,7 @@ launch_model.py - Dedicated vLLM model lifecycle manager and cluster orchestrato
 Handles remote container startup, readiness probing, sanity queries, and teardown.
 
 Usage:
-    python3 eval/launch_model.py [--model model_name] [--stop] [--keep-alive] [--v]
+    python3 eval/launch_model.py [--model model_name] [--stop] [--v]
 """
 
 import argparse
@@ -219,13 +219,12 @@ def ensure_model_running(
     model_config: dict[str, Any],
     host: str = REMOTE_HOST,
     base_url: str = API_BASE_URL,
-    keep_alive: bool = True,
     verbose: bool = False,
 ) -> tuple[bool, str]:
     """Ensure target model is running on the cluster, ready, and sanity-tested.
 
     Always restarts the container first to guarantee the correct runtime configuration.
-    Returns (success, weight_name).
+    Leaves the model running and returns (success, weight_name).
     """
     weight_name, vllm_cmd = parse_model_config(model_config)
     reasoning_effort = model_config.get("reasoning_effort")
@@ -243,12 +242,7 @@ def ensure_model_running(
     if not run_sanity_test(weight_name, base_url=base_url, reasoning_effort=reasoning_effort):
         return False, weight_name
 
-    if not keep_alive:
-        logger.info("Keep-alive not requested: stopping model container '%s'...", weight_name)
-        stop_model(host=host)
-    else:
-        logger.info("Keep-alive enabled: leaving '%s' running.", weight_name)
-
+    logger.info("Keep-alive enabled: leaving '%s' running.", weight_name)
     return True, weight_name
 
 
@@ -257,11 +251,6 @@ def main():
     parser = argparse.ArgumentParser(description="Launch, manage, or test vLLM models on remote cluster.")
     parser.add_argument("--model", default="all", help="Model to launch or 'all'")
     parser.add_argument("--stop", action="store_true", help="Stop running model container")
-    parser.add_argument(
-        "--keep-alive",
-        action="store_true",
-        help="Keep model server running after readiness check and sanity test (skips teardown)",
-    )
     parser.add_argument("--v", dest="verbose", action="store_true", help="Verbose log streaming")
 
     args = parser.parse_args()
@@ -275,7 +264,7 @@ def main():
     target_models = list(models.keys()) if args.model in (None, "all") else [args.model]
 
     for m_name in target_models:
-        ok, _ = ensure_model_running(m_name, models[m_name], keep_alive=args.keep_alive, verbose=args.verbose)
+        ok, _ = ensure_model_running(m_name, models[m_name], verbose=args.verbose)
         if not ok:
             logger.error("Failed to start model: %s", m_name)
             sys.exit(1)

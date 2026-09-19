@@ -281,14 +281,26 @@ def run_test_suite_on_agent(
         meta_dict = vllm_info.get("meta") or {} if vllm_info else {}
         max_ctx = int(vllm_info.get("max_model_len") or meta_dict.get("n_ctx") or 0) if vllm_info else 0
 
+        test_timeout_sec = getattr(test_obj, "timeout_seconds", None) or (
+            getattr(test_obj, "timeout_minutes", 0) * 60 if getattr(test_obj, "timeout_minutes", None) is not None else None
+        )
+
         for idx, step in enumerate(test_obj.steps):
             step_name = step.name or f"Step {idx + 1}"
             step_point = step.point
-            step_timeout_minutes = step.timeout_minutes if step.timeout_minutes is not None else DEFAULT_MAX_STEP_TIMEOUT_MINUTES
-            step_timeout_seconds = int(step_timeout_minutes * 60)
-            step_idle_seconds = int(DEFAULT_IDLE_TIMEOUT_MINUTES * 60)
-            h_logger.info("--- [Step %d/%d] %s (point=%d, max_timeout=%s min, idle_timeout=%s min) ---",
-                          idx + 1, len(test_obj.steps), step_name, step_point, step_timeout_minutes, DEFAULT_IDLE_TIMEOUT_MINUTES)
+            step_timeout_sec = (
+                getattr(step, "timeout_seconds", None)
+                or (step.timeout_minutes * 60 if step.timeout_minutes is not None else test_timeout_sec)
+            )
+            if step_timeout_sec is not None:
+                step_timeout_seconds = max(1, int(step_timeout_sec))
+                step_idle_seconds = min(int(DEFAULT_IDLE_TIMEOUT_MINUTES * 60), step_timeout_seconds)
+            else:
+                step_timeout_seconds = int(DEFAULT_MAX_STEP_TIMEOUT_MINUTES * 60)
+                step_idle_seconds = int(DEFAULT_IDLE_TIMEOUT_MINUTES * 60)
+
+            h_logger.info("--- [Step %d/%d] %s (point=%s, timeout=%ss, idle_timeout=%ss) ---",
+                          idx + 1, len(test_obj.steps), step_name, step_point, step_timeout_seconds, step_idle_seconds)
             h_logger.debug("Prompt: %s...", step.prompt.strip()[:100])
 
             step_t0 = time.time()

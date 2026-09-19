@@ -18,6 +18,7 @@ class Step:
     name: str = ""
     point: int | float = DEFAULT_STEP_POINT
     timeout_minutes: int | float | None = None
+    timeout_seconds: int | float | None = None
     hint: str | None = None
 
 
@@ -29,5 +30,6 @@ class Test:
     steps: list[Step] = field(default_factory=list)
     setup: list[str] = field(default_factory=list)
     host_eval: bool = False
+    timeout_seconds: int | float | None = None
 
 

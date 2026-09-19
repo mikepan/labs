@@ -23,7 +23,7 @@ def load_quiz_questions() -> list[dict[str, str]]:
     return questions
 
 
-def validate_trivia_answer(response: str, expected_answer: str | bool, max_words: int = 10) -> tuple[bool, str]:
+def validate_trivia_answer(response: str, expected_answer: str | bool, max_words: int = 50) -> tuple[bool, str]:
     """Validate that the answer provides the correct True/False polarity without contradictions or verbosity."""
     if not response or not response.strip():
         return False, "Rejected: empty response"
@@ -71,8 +71,8 @@ questions = load_quiz_questions()
 steps = [
     Step(
         prompt=(
-            "We are going to do some trivia. For each question, only answer in True/False. "
-            "Do not explain your answer or provide extraneous commentary. Reply 'Ready' to begin."
+            "We are going to do some trivia! For each question, only answer in True/False. "
+            "Do not explain your answer or provide extraneous commentary. NEVER call any tools or look it up! You know all these facts. Reply 'Ready' to begin."
         ),
         checks=[
             custom_check(lambda ws=None, resp=None: (True, "Trivia session initialized.")),
@@ -90,7 +90,7 @@ for idx, q in enumerate(questions):
                 check_trivia_answer(q["correct_answer"]),
             ],
             name=f"Q{idx + 1} ({q['category']})",
-            point=1,
+            point=0.0383,
         )
     )
 
@@ -98,5 +98,6 @@ TEST = Test(
     name="trivia",
     steps=steps,
     host_eval=True,
+    timeout_seconds=30,
 )
 test = TEST

@@ -341,7 +341,7 @@ def write_results_file(summaries: list[dict[str, Any]], filepath: Path = BENCHMA
 def main():
     parser = argparse.ArgumentParser(description="Run serving benchmark across configured LLM models.")
     parser.add_argument("--model", default=None, help="Model name, comma-separated list of models, or 'all' (default: all)")
-    parser.add_argument("--runs", type=int, default=1, help="Number of benchmark runs per model (default: 1)")
+    parser.add_argument("--runs", type=int, default=3, help="Number of benchmark runs per model (default: 1)")
     parser.add_argument("--base-url", default=API_BASE_URL, help=f"Base URL of the serving server (default: {API_BASE_URL})")
     parser.add_argument("--no-manage", action="store_true", help="Do not stop or start model, benchmark active server directly")
     parser.add_argument("--title", default="OVERALL SERVING BENCHMARK LEADERBOARD", help="Title for the benchmark leaderboard table")

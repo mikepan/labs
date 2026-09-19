@@ -104,11 +104,11 @@
     "reasoning_effort": "on"
   },
   "Nemotron-3-Super-120B-A12B-NVFP4": {
-    "model-arg": "vllm serve nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-NVFP4 --moe-backend cutlass --trust-remote-code --enable-prefix-caching --enable-auto-tool-choice --tool-call-parser qwen3_coder --reasoning-parser nemotron_v3 --mamba_ssm_cache_dtype float32 --attention-backend TRITON_ATTN --max-num-seqs 10",
-    "model-arg-speculative": "--speculative-config '{\"method\":\"mtp\",\"num_speculative_tokens\":1}'",
+    "model-arg": "vllm serve nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-NVFP4 --moe-backend cutlass --trust-remote-code --enable-prefix-caching --enable-auto-tool-choice --tool-call-parser qwen3_coder --reasoning-parser nemotron_v3 --mamba-ssm-cache-dtype float16 --attention-backend TRITON_ATTN --max-num-seqs 2",
+    "model-arg-speculative": "--speculative-config '{\"method\":\"mtp\",\"num_speculative_tokens\":4}'",
     "model-arg-kv-quant": "--kv-cache-dtype fp8",
-    "model-arg-platform": "--load-format instanttensor --kv-cache-memory-bytes 3722000000 --async-scheduling",
-    "model-arg-env": "VLLM_FLASHINFER_ALLREDUCE_BACKEND=trtllm VLLM_ALLOW_LONG_MAX_MODEL_LEN=1 TORCH_MATMUL_PRECISION=high FLASHINFER_DISABLE_VERSION_CHECK=1 NVIDIA_FORWARD_COMPAT=1",
+    "model-arg-platform": "--load-format instanttensor --kv-cache-memory-bytes 3700000000 --async-scheduling",
+    "model-arg-env": "VLLM_FLASHINFER_ALLREDUCE_BACKEND=trtllm VLLM_ALLOW_LONG_MAX_MODEL_LEN=1 TORCH_MATMUL_PRECISION=high FLASHINFER_DISABLE_VERSION_CHECK=1 NVIDIA_FORWARD_COMPAT=1 VLLM_USE_V2_MODEL_RUNNER=1",
     "reasoning_effort": "on"
   }
 }

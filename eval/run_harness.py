@@ -128,6 +128,7 @@ def evaluate_step_in_sandbox(
 
     eval_script = f"""{runner_bundle}
 test_mod = types.ModuleType('test_module')
+test_mod.__file__ = {str(Path(workspace_dir) / 'run.py')!r}
 exec({test_code!r}, test_mod.__dict__)
 step = test_mod.TEST.steps[{step_idx}]
 res = sys.modules['tests.framework'].evaluate_step(step, {workspace_dir!r}, response={response!r})
@@ -155,6 +156,32 @@ print("__JSON_START__" + json.dumps(out) + "__JSON_END__")
             "duration_seconds": 0.0,
             "check_results": [{"passed": False, "message": str(e)}],
         }
+
+
+def _evaluate_step_result(
+    step: Any,
+    sandbox: SandboxClient,
+    test_path: str,
+    idx: int,
+    test_ws: str,
+    response: str,
+    host_eval: bool = False,
+) -> dict[str, Any]:
+    if host_eval:
+        from tests.framework.runner import evaluate_step
+        res = evaluate_step(step, workspace_dir="", auto_commit=False, response=response)
+        return {
+            "step_name": res.step_name,
+            "passed": res.passed,
+            "point": res.point,
+            "score": res.score,
+            "duration_seconds": res.duration_seconds,
+            "check_results": [
+                {"passed": c.passed, "message": c.message, "details": c.details}
+                for c in res.check_results
+            ],
+        }
+    return evaluate_step_in_sandbox(sandbox, test_path, idx, test_ws, response=response)
 
 
 # =====================================================================
@@ -221,6 +248,7 @@ def run_test_suite_on_agent(
 
     for test_path, test_obj in test_specs:
         test_id = test_obj.name
+        is_host_eval = getattr(test_obj, "host_eval", False)
         h_logger.info("RUNNING TEST: %s (%d steps)", test_id, len(test_obj.steps))
 
         # Setup workspace and start agent
@@ -388,7 +416,7 @@ def run_test_suite_on_agent(
             total_tokens_out += turn.tokens_out
 
             turn_response = "\n".join(turn.text).strip() if turn.text else ""
-            eval_res = evaluate_step_in_sandbox(sandbox, test_path, idx, test_ws, response=turn_response)
+            eval_res = _evaluate_step_result(step, sandbox, test_path, idx, test_ws, response=turn_response, host_eval=is_host_eval)
 
             passed = eval_res.get("passed", False)
             used_hint = False
@@ -435,7 +463,7 @@ def run_test_suite_on_agent(
 
                     # Re-evaluate step assertions after hint
                     hint_response = "\n".join(hint_turn.text).strip() if hint_turn.text else ""
-                    eval_res = evaluate_step_in_sandbox(sandbox, test_path, idx, test_ws, response=hint_response)
+                    eval_res = _evaluate_step_result(step, sandbox, test_path, idx, test_ws, response=hint_response, host_eval=is_host_eval)
                     passed = eval_res.get("passed", False)
                 except Exception as e_hint:
                     h_logger.warning("  ✗ Hint attempt encountered driver error: %s", e_hint)

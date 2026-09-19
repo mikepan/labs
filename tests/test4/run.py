@@ -4,7 +4,7 @@ import re
 
 from tests.framework import Step, Test, custom_check
 
-CSV_PATH = Path(__file__).resolve().parent / "quiz_questions.csv"
+CSV_PATH = Path(__file__).resolve().parent / "private_quiz1.csv"
 
 
 def load_quiz_questions() -> list[dict[str, str]]:
@@ -94,5 +94,9 @@ for idx, q in enumerate(questions):
         )
     )
 
-TEST = Test(name="trivia", steps=steps)
+TEST = Test(
+    name="trivia",
+    steps=steps,
+    host_eval=True,
+)
 test = TEST

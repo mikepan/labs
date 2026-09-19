@@ -28,5 +28,6 @@ class Test:
     name: str
     steps: list[Step] = field(default_factory=list)
     setup: list[str] = field(default_factory=list)
+    host_eval: bool = False
 
 

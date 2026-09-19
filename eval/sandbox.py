@@ -452,7 +452,7 @@ print("__JSON_START__" + json.dumps({"ok": ok, "details": result}) + "__JSON_END
             for p in parts:
                 if p.startswith(".") and p not in (".", ".."):
                     return None
-                if p == "__pycache__" or p.lower() in ("private", "ground_truth"):
+                if p == "__pycache__" or "private" in p.lower():
                     return None
                 for pat in exclude_set:
                     if fnmatch.fnmatch(p, pat):

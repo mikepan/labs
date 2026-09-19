@@ -136,3 +136,34 @@ def prevent_system_sleep() -> subprocess.Popen | None:
             )
     return None
 
+
+class NetworkConnectivityError(RuntimeError):
+    """Raised when in-sandbox network connectivity to the LLM backend fails."""
+    pass
+
+
+NETWORK_ERROR_PATTERNS = (
+    "no route to host",
+    "connection refused",
+    "network is unreachable",
+    "dial tcp",
+    "ehostunreach",
+    "econnrefused",
+    "enetunreach",
+    "name or service not known",
+    "nodename nor servname provided",
+    "temporary failure in name resolution",
+    "couldn't connect to server",
+    "failed to connect to",
+    "network_error:",
+)
+
+
+def is_network_error(err: object) -> bool:
+    """Check if an exception or error string indicates a network/backend connectivity failure."""
+    if isinstance(err, NetworkConnectivityError):
+        return True
+    msg = str(err).lower()
+    return any(pat in msg for pat in NETWORK_ERROR_PATTERNS)
+
+

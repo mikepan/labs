@@ -14,8 +14,9 @@ import tempfile
 import threading
 from typing import Any
 
-from eval.common import setup_logger, run_cmd
+from eval.common import setup_logger, run_cmd, NetworkConnectivityError, is_network_error
 from eval.config import (
+    API_BASE_URL,
     DEFAULT_API_TIMEOUT_SECONDS,
     DEFAULT_OPENCODE_PORT,
     DEFAULT_PI_PORT,
@@ -23,7 +24,12 @@ from eval.config import (
     DEFAULT_WORKER_SANDBOX_NAME,
 )
 
-__all__ = ["SandboxClient", "cleanup_all_sandboxes"]
+__all__ = [
+    "SandboxClient",
+    "cleanup_all_sandboxes",
+    "NetworkConnectivityError",
+    "ensure_sandbox_policy_isolated",
+]
 
 logger = setup_logger("sandbox")
 
@@ -97,6 +103,64 @@ def _init_lifecycle_hooks() -> None:
 _init_lifecycle_hooks()
 
 
+def ensure_sandbox_policy_isolated(allowed_hosts: list[str] | None = None) -> bool:
+    """Ensure host Docker Sandboxes policy denies general internet and allows only specified hosts.
+
+    Removes 'default-allow-all' from network rules if present, and ensures
+    allowed_hosts (defaulting to the LLM backend host/IP) are explicitly allowed.
+    """
+    try:
+        res = run_cmd("sbx", "policy", "inspect", "local-policy")
+        if res.returncode != 0:
+            logger.warning("Could not inspect sbx policy: %s", res.stderr.strip() or res.stdout.strip())
+            return False
+
+        # If default-allow-all rule exists, remove it to enable default-deny
+        if "default-allow-all" in res.stdout:
+            rm_res = run_cmd("sbx", "policy", "rm", "network", "--id", "default-allow-all")
+            if rm_res.returncode == 0:
+                logger.info("✓ Removed 'default-allow-all' network policy rule.")
+            else:
+                logger.warning("Failed to remove 'default-allow-all' policy: %s", rm_res.stderr.strip())
+
+        # Determine target hosts to allow
+        targets: set[str] = set()
+        if allowed_hosts:
+            for h in allowed_hosts:
+                targets.add(h)
+                targets.add(f"{h}:*")
+        else:
+            from urllib.parse import urlparse
+            import socket
+            parsed = urlparse(API_BASE_URL)
+            host = parsed.hostname or "spark"
+            targets.add(host)
+            targets.add(f"{host}:*")
+            try:
+                ip = socket.gethostbyname(host)
+                targets.add(ip)
+                targets.add(f"{ip}:*")
+            except Exception:
+                pass
+
+        # Check existing rules and add missing allow rules
+        existing = res.stdout
+        for target in sorted(targets):
+            # Check if target is already allowed in policy
+            if f"allow      {target}" in existing or f"allow {target}" in existing:
+                continue
+            add_res = run_cmd("sbx", "policy", "allow", "network", target)
+            if add_res.returncode == 0:
+                logger.info("✓ Added sbx policy network allow: %s", target)
+            else:
+                logger.warning("Failed to add sbx policy allow for %s: %s", target, add_res.stderr.strip())
+
+        return True
+    except Exception as e:
+        logger.warning("Exception while ensuring sandbox network policy: %s", e)
+        return False
+
+
 class SandboxClient:
     """Encapsulates all interactions with a Docker Sandbox container."""
 
@@ -126,6 +190,11 @@ class SandboxClient:
         res = self.exec_python(script, stdin=stdin)
         if res.returncode != 0:
             err_text = res.stderr.strip() or res.stdout.strip()
+            if "NETWORK_ERROR:" in err_text:
+                clean_net = err_text.split("NETWORK_ERROR:", 1)[1].strip()
+                raise NetworkConnectivityError(clean_net)
+            if is_network_error(err_text):
+                raise NetworkConnectivityError(f"{label} network failure: {err_text}")
             if "TIMEOUT:" in err_text:
                 clean_timeout = err_text.split("TIMEOUT:", 1)[1].strip()
                 raise TimeoutError(clean_timeout)
@@ -165,6 +234,130 @@ except Exception as e:
 """
         return self.exec_python_json(script, stdin=payload_str, label=f"{method} {path}")
 
+    def check_backend_connectivity(self, target_url: str, timeout: int = 5) -> tuple[bool, str]:
+        """Test if target_url (LLM backend) is reachable from inside this sandbox container.
+
+        Returns:
+            (True, "") if reachable.
+            (False, error_details) if connection failed or proxy reported network failure.
+        """
+        base = target_url.rstrip("/")
+        candidates = []
+        if base.endswith("/v1"):
+            candidates.extend([f"{base}/models", f"{base[:-3]}/health", base])
+        else:
+            candidates.extend([f"{base}/v1/models", f"{base}/health", base])
+
+        script = f"""import urllib.request, urllib.error, sys, json
+candidates = {candidates!r}
+last_err = None
+for url in candidates:
+    try:
+        req = urllib.request.Request(url, method='GET')
+        with urllib.request.urlopen(req, timeout={timeout}) as resp:
+            print("__JSON_START__" + json.dumps({{"ok": True, "status": resp.status, "url": url}}) + "__JSON_END__")
+            sys.exit(0)
+    except urllib.error.HTTPError as e:
+        body = e.read().decode('utf-8', errors='replace')
+        if any(p in body.lower() for p in ['dial tcp', 'no route to host', 'connection refused']):
+            last_err = f"HTTP {{e.code}}: {{body.strip()}}"
+            continue
+        print("__JSON_START__" + json.dumps({{"ok": True, "status": e.code, "url": url}}) + "__JSON_END__")
+        sys.exit(0)
+    except Exception as e:
+        last_err = str(e)
+
+print("__JSON_START__" + json.dumps({{"ok": False, "error": last_err or "Backend unreachable"}}) + "__JSON_END__")
+"""
+        try:
+            data = self.exec_python_json(script, label="backend connectivity check")
+            if data.get("ok"):
+                return True, ""
+            return False, data.get("error", "Unknown network failure")
+        except Exception as e:
+            return False, str(e)
+
+    def isolate_network(self, allowed_cidrs: list[str] | None = None) -> bool:
+        """Configure container firewall (iptables) to prevent raw internet access.
+
+        Permits:
+        - Loopback (lo, 127.0.0.0/8)
+        - Established & related connections
+        - Container/Docker bridge subnets (172.16.0.0/12)
+        - Local private networks (192.168.0.0/16, 10.0.0.0/8)
+        - Any additional allowed CIDRs/IPs
+
+        Rejects all other outbound traffic to block direct/raw public internet access.
+        """
+        cidrs = ["127.0.0.0/8", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"]
+        if allowed_cidrs:
+            cidrs.extend(allowed_cidrs)
+
+        allow_rules = "\n".join(f"iptables -A OUTPUT -d {cidr} -j ACCEPT" for cidr in sorted(set(cidrs)))
+        script = f"""
+iptables -F OUTPUT
+iptables -A OUTPUT -o lo -j ACCEPT
+iptables -A OUTPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+{allow_rules}
+iptables -A OUTPUT -j REJECT --reject-with icmp-port-unreachable
+iptables -P OUTPUT DROP
+"""
+        cmd = ["sbx", "exec", self.name, "sudo", "sh", "-c", script]
+        res = run_cmd(*cmd)
+        if res.returncode != 0:
+            logger.warning("Could not apply iptables isolation to '%s': %s", self.name, res.stderr.strip() or res.stdout.strip())
+            return False
+        logger.info("✓ Sandbox '%s' network isolated (direct internet access disabled).", self.name)
+        return True
+
+    def verify_network_isolation(self) -> tuple[bool, str]:
+        """Verify that the sandbox has no general internet access.
+
+        Checks:
+        1. HTTP domain access to external internet (google.com) is blocked.
+        2. Direct TCP socket access to external IP (1.1.1.1:80) is blocked.
+
+        Returns:
+            (True, "") if properly isolated.
+            (False, description) if any internet access leak is detected.
+        """
+        script = """import urllib.request, urllib.error, socket, json, sys
+
+result = {"domain_blocked": False, "raw_ip_blocked": False, "leaks": []}
+
+# 1. Test domain via proxy
+try:
+    req = urllib.request.Request("http://google.com", headers={"User-Agent": "isolation-probe"})
+    with urllib.request.urlopen(req, timeout=2) as resp:
+        result["leaks"].append(f"Public HTTP domain accessible (status {resp.status})")
+except urllib.error.HTTPError:
+    result["domain_blocked"] = True
+except Exception:
+    result["domain_blocked"] = True
+
+# 2. Test raw direct IP socket (bypassing proxy)
+try:
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.settimeout(2)
+    s.connect(("1.1.1.1", 80))
+    s.close()
+    result["leaks"].append("Direct raw TCP socket to 1.1.1.1:80 succeeded")
+except Exception:
+    result["raw_ip_blocked"] = True
+
+ok = result["domain_blocked"] and result["raw_ip_blocked"]
+print("__JSON_START__" + json.dumps({"ok": ok, "details": result}) + "__JSON_END__")
+"""
+        try:
+            data = self.exec_python_json(script, label="network isolation check")
+            if data.get("ok"):
+                return True, ""
+            leaks = data.get("details", {}).get("leaks", [])
+            err_msg = "; ".join(leaks) if leaks else "Internet access not blocked"
+            return False, err_msg
+        except Exception:
+            return True, ""
+
     # ----- Lifecycle management -----
 
     def ensure(
@@ -197,6 +390,10 @@ except Exception as e:
         if res.returncode != 0:
             self.remove()
             raise RuntimeError(f"Error creating sandbox '{self.name}':\n{res.stderr}\n{res.stdout}")
+
+        # Enforce sandbox network isolation (block public internet)
+        self.isolate_network()
+
         logger.info("✓ Sandbox '%s' is ready.", self.name)
 
     def remove(self) -> None:

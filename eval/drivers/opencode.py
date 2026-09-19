@@ -10,7 +10,7 @@ import time
 from datetime import datetime, timezone
 from typing import Any
 
-from eval.common import setup_logger
+from eval.common import setup_logger, NetworkConnectivityError, is_network_error
 from eval.results import resolve_model_info
 from eval.config import (
     DEFAULT_CONTEXT_WINDOW,
@@ -250,7 +250,10 @@ if 'data' in result:
     print("__JSON_START__" + result['data'] + "__JSON_END__")
     sys.exit(0)
 elif 'type' in err_result:
-    if err_result['type'] == 'http':
+    err_body = str(err_result.get('msg', ''))
+    if any(p in err_body.lower() for p in ['connect: no route to host', 'connection refused', 'dial tcp', 'ehostunreach', 'econnrefused', 'network is unreachable']):
+        print(f"NETWORK_ERROR:OpenCode backend connection failed: {{err_body.strip()}}", file=sys.stderr)
+    elif err_result['type'] == 'http':
         print(f"HTTP_ERROR:{{err_result['code']}}:{{err_result['msg']}}", file=sys.stderr)
     else:
         print(f"ERROR:{{err_result['msg']}}", file=sys.stderr)

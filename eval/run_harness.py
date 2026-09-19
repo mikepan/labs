@@ -27,7 +27,16 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any
 
-from eval.common import get_harness_logger, setup_logger, load_harnesses_config, load_json_config, get_available_tests
+from eval.common import (
+    get_harness_logger,
+    setup_logger,
+    load_harnesses_config,
+    load_json_config,
+    get_available_tests,
+    NetworkConnectivityError,
+    is_network_error,
+    run_cmd,
+)
 from eval.config import (
     API_BASE_URL,
     DEFAULT_HINT_SCORE_FACTOR,
@@ -40,7 +49,7 @@ from eval.config import (
 )
 from eval.drivers import HarnessDriver, get_driver
 from eval.results import get_vllm_model_info, save_evaluation_results
-from eval.sandbox import SandboxClient
+from eval.sandbox import SandboxClient, ensure_sandbox_policy_isolated
 from eval.tool_eval import run_tool_eval_benchmark, TOOL_EVAL_TEST_KEY
 from eval.trace import StepTrace, TurnData
 
@@ -181,6 +190,32 @@ def run_test_suite_on_agent(
         "start_time": datetime.now(timezone.utc).isoformat(),
         "tests": {},
     }
+    # Preflight in-sandbox network connectivity check to LLM backend before running test suite
+    if not getattr(driver, "is_mock", False) and type(driver).__name__ != "MockDriver":
+        # 1. Verify that sandbox has NO general internet access
+        is_isolated, leak_err = sandbox.verify_network_isolation()
+        if not is_isolated:
+            h_logger.warning("Sandbox network isolation check failed: %s. Re-applying isolation...", leak_err)
+            sandbox.isolate_network()
+            is_isolated, leak_err = sandbox.verify_network_isolation()
+            if not is_isolated:
+                h_logger.error("FATAL: Sandbox '%s' is not properly isolated from general internet: %s", sandbox.name, leak_err)
+                raise RuntimeError(f"Sandbox '{sandbox.name}' network isolation failed: {leak_err}")
+
+        # 2. Check reachability of LLM backend
+        is_ok, net_err = sandbox.check_backend_connectivity(llm_base_url)
+        if not is_ok:
+            if is_network_error(net_err):
+                h_logger.warning("Sandbox preflight network check failed (%s). Attempting sbx daemon restart...", net_err)
+                run_cmd("sbx", "daemon", "restart")
+                time.sleep(2)
+                is_ok, net_err = sandbox.check_backend_connectivity(llm_base_url)
+            if not is_ok:
+                h_logger.error("FATAL: Sandbox '%s' cannot reach LLM backend at '%s': %s", sandbox.name, llm_base_url, net_err)
+                raise NetworkConnectivityError(
+                    f"Sandbox '{sandbox.name}' failed preflight connectivity to LLM backend at '{llm_base_url}': {net_err}"
+                )
+
     test_results_summary: dict[str, Any] = {}
 
     for test_path, test_obj in test_specs:
@@ -246,6 +281,11 @@ def run_test_suite_on_agent(
                     reasoning_effort=reasoning_effort,
                 )
             except Exception as e:
+                if is_network_error(e):
+                    h_logger.error("  ✗ FATAL: Network connectivity failure during step %d: %s", idx + 1, e)
+                    raise NetworkConnectivityError(
+                        f"Aborting test '{test_id}' at step {idx + 1} due to network connectivity failure: {e}"
+                    ) from e
                 step_elapsed = round(time.time() - step_t0, 2)
                 step_end_iso = datetime.now(timezone.utc).isoformat()
                 is_timeout = isinstance(e, TimeoutError) or "timeout" in str(e).lower() or "timed out" in str(e).lower()
@@ -332,6 +372,16 @@ def run_test_suite_on_agent(
                 continue
 
             _log_turn(turn, log_target=h_logger)
+
+            # If turn completed with zero tokens and zero tool calls, verify network didn't fail silently
+            if not getattr(driver, "is_mock", False) and type(driver).__name__ != "MockDriver":
+                if turn.tokens_in == 0 and turn.tokens_out == 0 and not turn.tool_calls and not turn.text:
+                    is_ok, net_err = sandbox.check_backend_connectivity(llm_base_url)
+                    if not is_ok:
+                        h_logger.error("  ✗ FATAL: Agent returned zero activity and LLM backend is unreachable: %s", net_err)
+                        raise NetworkConnectivityError(
+                            f"Aborting test '{test_id}' at step {idx + 1}: LLM backend became unreachable ({net_err})"
+                        )
 
             total_tokens_in += turn.tokens_in
             total_tokens_out += turn.tokens_out
@@ -566,6 +616,9 @@ def main():
         run_file = str(TESTS_DIR / t_name / "run.py") if not os.path.isfile(t_name) else t_name
         test_specs.append((run_file, load_test_spec(run_file)))
 
+    # Ensure host Docker Sandbox policy denies general internet
+    ensure_sandbox_policy_isolated()
+
     def run_single_harness(harness_name: str) -> None:
         h_logger = get_harness_logger(harness_name)
         harness_version = harnesses_cfg.get(harness_name, {}).get("version", "unknown")
@@ -606,14 +659,20 @@ def main():
         finally:
             sandbox.remove()
 
-    if len(target_harnesses) == 1:
-        run_single_harness(target_harnesses[0])
-    else:
-        logger.info("Executing %d harnesses concurrently in parallel: %s", len(target_harnesses), target_harnesses)
-        with concurrent.futures.ThreadPoolExecutor(max_workers=len(target_harnesses)) as executor:
-            futures = [executor.submit(run_single_harness, h) for h in target_harnesses]
-            for f in concurrent.futures.as_completed(futures):
-                f.result()
+    try:
+        if len(target_harnesses) == 1:
+            run_single_harness(target_harnesses[0])
+        else:
+            logger.info("Executing %d harnesses concurrently in parallel: %s", len(target_harnesses), target_harnesses)
+            with concurrent.futures.ThreadPoolExecutor(max_workers=len(target_harnesses)) as executor:
+                futures = [executor.submit(run_single_harness, h) for h in target_harnesses]
+                for f in concurrent.futures.as_completed(futures):
+                    f.result()
+    except NetworkConnectivityError as e:
+        logger.error("==================================================")
+        logger.error("TEST EXECUTION ABORTED DUE TO NETWORK FAILURE: %s", e)
+        logger.error("==================================================")
+        sys.exit(2)
 
 
 if __name__ == "__main__":

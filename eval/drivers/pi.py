@@ -12,7 +12,7 @@ import time
 from datetime import datetime, timezone
 from typing import Any
 
-from eval.common import setup_logger
+from eval.common import setup_logger, NetworkConnectivityError, is_network_error
 from eval.results import resolve_model_info
 from eval.config import (
     DEFAULT_CONTEXT_WINDOW,
@@ -364,6 +364,7 @@ class PiSession:
             step_start_iso = datetime.now(timezone.utc).isoformat()
 
             agent_started = False
+            last_retry_error = ""
             try:
                 while True:
                     elapsed = time.time() - start_time
@@ -491,10 +492,27 @@ class PiSession:
                                 tokens_out += u_out
                                 peak_context_tokens = max(peak_context_tokens, u_in + u_out)
 
+                    elif e_type == "auto_retry_start":
+                        last_retry_error = event.get("errorMessage", "")
+                        sys.stderr.write(f"[pi_server] Auto retry attempt {{event.get('attempt')}}: {{last_retry_error[:150]}}\\n")
+
+                    elif e_type == "auto_retry_end":
+                        if not event.get("success"):
+                            final_err = event.get("finalError", "") or last_retry_error
+                            sys.stderr.write(f"[pi_server] Auto retry exhausted: {{final_err[:150]}}\\n")
+                            if any(p in final_err.lower() for p in ["connect: no route to host", "connection refused", "dial tcp", "ehostunreach", "econnrefused", "network is unreachable"]):
+                                sys.stderr.write(f"NETWORK_ERROR: Pi agent backend connection failed: {{final_err.strip()}}\\n")
+                                self._start_process()
+                                raise RuntimeError(f"NETWORK_ERROR: Pi agent backend connection failed: {{final_err.strip()}}")
+
                     elif e_type == "agent_end":
                         gen_msgs = event.get("messages", [])
                         if gen_msgs:
                             raw_messages = gen_msgs
+                        if last_retry_error and any(p in last_retry_error.lower() for p in ["connect: no route to host", "connection refused", "dial tcp", "ehostunreach", "econnrefused", "network is unreachable"]):
+                            sys.stderr.write(f"NETWORK_ERROR: Pi agent backend connection failed: {{last_retry_error.strip()}}\\n")
+                            self._start_process()
+                            raise RuntimeError(f"NETWORK_ERROR: Pi agent backend connection failed: {{last_retry_error.strip()}}")
                         if agent_started and not event.get("willRetry"):
                             sys.stderr.write(f"[pi_server] Received agent_end (willRetry=False). Turn complete.\\n")
                             break

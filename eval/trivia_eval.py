@@ -437,13 +437,10 @@ def run_trivia_benchmark(
             logger.info("  Options:    %s", opts_str)
 
         reasoning_tokens = usage.get("reasoning_tokens", 0)
-        reasoning_words = len(resp_reasoning.split()) if resp_reasoning else 0
-        if reasoning_tokens > 0 and reasoning_words > 0:
-            reasoning_summary = f"{reasoning_tokens} tokens ({reasoning_words} words)"
+        if reasoning_tokens > 0:
+            reasoning_summary = f"{reasoning_tokens} tokens"
         elif reasoning_tokens > 0:
             reasoning_summary = f"{reasoning_tokens} tokens"
-        elif reasoning_words > 0:
-            reasoning_summary = f"{reasoning_words} words"
         else:
             reasoning_summary = "0 tokens"
         logger.info("  Reasoning:  %s", reasoning_summary)

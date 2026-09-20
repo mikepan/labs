@@ -118,28 +118,30 @@ def save_as_template(sandbox: SandboxClient, template_tag: str) -> bool:
 
 
 def install_evaluation_dependencies(sandbox: SandboxClient) -> None:
-    """Install core evaluation dependencies (git, python3, pip, nodejs, npm, openjdk, ktlint, langdetect, html5lib, etc.)."""
+    """Install core evaluation dependencies (git, python3, nodejs, openjdk, ktlint, langdetect, html5lib, etc.)."""
     logger.info("Installing base evaluation dependencies (git, python, nodejs, openjdk, ktlint, langdetect, etc.)...")
 
     setup_script = """
     set -e
-    if command -v apt-get >/dev/null 2>&1; then
+    if command -v apt-get > /dev/null 2>&1; then
         export DEBIAN_FRONTEND=noninteractive
-        sudo apt-get update -qq && sudo apt-get install -y -qq git python3 python3-pip python3-venv curl jq nodejs npm openjdk-21-jre-headless || sudo apt-get install -y -qq default-jre-headless || true
-    elif command -v apk >/dev/null 2>&1; then
-        apk update && apk add --no-cache git python3 py3-pip curl jq nodejs npm openjdk17-jre
+        sudo apt-get update -qq && sudo apt-get install -y -qq git python3 python3-venv curl jq nodejs npm openjdk-21-jre-headless || sudo apt-get install -y -qq default-jre-headless || true
+    elif command -v apk > /dev/null 2>&1; then
+        apk update && apk add --no-cache git python3 curl jq nodejs npm openjdk17-jre
     fi
 
     # Install ktlint
-    if ! command -v ktlint >/dev/null 2>&1; then
+    if ! command -v ktlint > /dev/null 2>&1; then
         sudo curl -sSL https://github.com/pinterest/ktlint/releases/download/1.5.0/ktlint -o /usr/local/bin/ktlint
         sudo chmod a+x /usr/local/bin/ktlint
     fi
 
-    # Install Python evaluation packages
-    python3 -m pip install --upgrade --quiet --break-system-packages pip 2>/dev/null || true
-    python3 -m pip install --quiet --break-system-packages langdetect html5lib beautifulsoup4 pillow numpy 2>/dev/null || \
-    python3 -m pip install --quiet langdetect html5lib beautifulsoup4 pillow numpy || true
+    # Install uv and use it to install Python evaluation packages
+    if ! command -v uv > /dev/null 2>&1; then
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+        export PATH="$HOME/.local/bin:$PATH"
+    fi
+    uv pip install --system --quiet langdetect html5lib beautifulsoup4 pillow numpy
     """
 
     code, stdout, stderr = sandbox.exec(setup_script)

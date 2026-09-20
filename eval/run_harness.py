@@ -82,13 +82,19 @@ eval_mod.config = eval_cfg
 sys.modules['eval'] = eval_mod
 sys.modules['eval.config'] = eval_cfg
 
-tf = types.ModuleType('tests.framework')
+tf = types.ModuleType('eval.tests.framework')
 sys.modules['tests'] = types.ModuleType('tests')
 sys.modules['tests'].framework = tf
 sys.modules['tests.framework'] = tf
 sys.modules['tests.framework.spec'] = tf
 sys.modules['tests.framework.assertions'] = tf
 sys.modules['tests.framework.runner'] = tf
+sys.modules['eval.tests'] = types.ModuleType('eval.tests')
+sys.modules['eval.tests'].framework = tf
+sys.modules['eval.tests.framework'] = tf
+sys.modules['eval.tests.framework.spec'] = tf
+sys.modules['eval.tests.framework.assertions'] = tf
+sys.modules['eval.tests.framework.runner'] = tf
 exec({spec_code!r}, tf.__dict__)
 exec({assertions_code!r}, tf.__dict__)
 exec({runner_code!r}, tf.__dict__)
@@ -138,7 +144,7 @@ test_mod = types.ModuleType('test_module')
 test_mod.__file__ = {str(Path(workspace_dir) / 'run.py')!r}
 exec({test_code!r}, test_mod.__dict__)
 step = test_mod.TEST.steps[{step_idx}]
-res = sys.modules['tests.framework'].evaluate_step(step, {workspace_dir!r}, response={response!r})
+res = sys.modules['eval.tests.framework'].evaluate_step(step, {workspace_dir!r}, response={response!r})
 out = {{
     "step_name": res.step_name,
     "passed": res.passed,
@@ -175,7 +181,7 @@ def _evaluate_step_result(
     host_eval: bool = False,
 ) -> dict[str, Any]:
     if host_eval:
-        from tests.framework.runner import evaluate_step
+        from eval.tests.framework.runner import evaluate_step
         res = evaluate_step(step, workspace_dir="", auto_commit=False, response=response)
         return {
             "step_name": res.step_name,
@@ -611,24 +617,24 @@ def main():
     reasoning_effort = args.reasoning if args.reasoning is not None else models_cfg.get(args.model, {}).get("reasoning_effort")
     llm_base_url = args.base_url if args.base_url else API_BASE_URL
 
-    should_run_tool_eval = args.test in ("all", TOOL_EVAL_TEST_KEY)
-    tool_eval_output = None
-
-    # 1. Run tool-eval-bench first before any sandbox harness execution
-    if should_run_tool_eval:
-        tool_eval_output = run_tool_eval_benchmark(
-            base_url=llm_base_url,
-            reasoning_effort=reasoning_effort,
-            verbose=args.verbose,
-        )
-
-    # 1b. Run trivia benchmark directly against OpenAPI endpoint
     should_run_trivia = args.test in ("all", TRIVIA_TEST_KEY)
     trivia_output = None
+
+    # 1. Run trivia benchmark first before any sandbox harness execution
     if should_run_trivia:
         trivia_output = run_trivia_benchmark(
             base_url=llm_base_url,
             model=args.model,
+            reasoning_effort=reasoning_effort,
+            verbose=args.verbose,
+        )
+
+    # 1b. Run tool-eval-bench directly against OpenAPI endpoint
+    should_run_tool_eval = args.test in ("all", TOOL_EVAL_TEST_KEY)
+    tool_eval_output = None
+    if should_run_tool_eval:
+        tool_eval_output = run_tool_eval_benchmark(
+            base_url=llm_base_url,
             reasoning_effort=reasoning_effort,
             verbose=args.verbose,
         )

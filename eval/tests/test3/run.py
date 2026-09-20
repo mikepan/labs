@@ -1,5 +1,5 @@
 """
-tests.test3.run - Normal Map Format Classification Evaluation (OpenGL vs Direct3D).
+eval.tests.test3.run - Normal Map Format Classification Evaluation (OpenGL vs Direct3D).
 
 Evaluates the agent's ability to analyze normal map texture conventions (OpenGL +Y vs DirectX/D3D -Y)
 and sort mixed normal map images into 'ogl' and 'd3d' folders.
@@ -7,7 +7,7 @@ and sort mixed normal map images into 'ogl' and 'd3d' folders.
 
 from pathlib import Path
 
-from tests.framework import Step, Test, custom_check
+from eval.tests.framework import Step, Test, custom_check
 
 
 # ==============================================================================

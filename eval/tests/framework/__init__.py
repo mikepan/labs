@@ -1,5 +1,5 @@
 """
-tests/framework - Lightweight, extensible testing and evaluation framework for coding agents.
+eval.tests.framework - Lightweight, extensible testing and evaluation framework for coding agents.
 """
 
 from .assertions import (

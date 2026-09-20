@@ -2,7 +2,7 @@ import os
 import re
 import subprocess
 
-from tests.framework import Step, Test, git_changes, lang_detect, files_identical, custom_check
+from eval.tests.framework import Step, Test, git_changes, lang_detect, files_identical, custom_check
 
 
 # ==============================================================================

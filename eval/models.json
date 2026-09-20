@@ -40,6 +40,7 @@
     "reasoning_effort": "medium"
   },
   "Qwen3.8-27B-NVFP4": {
+    "disabled": true,
     "model-arg": "vllm serve nvidia/Qwen3.8-27B-NVFP4 --enable-prefix-caching --max-num-batched-tokens 16384 --trust-remote-code --reasoning-parser qwen3 --tool-call-parser qwen3_xml --enable-auto-tool-choice",
     "model-arg-speculative": "--speculative-config '{\"method\": \"dflash\", \"model\": \"z-lab/Qwen3.8-27B-DFlash2\", \"num_speculative_tokens\": 8}'",
     "model-arg-kv-quant": "--kv-cache-dtype fp8",
@@ -57,6 +58,7 @@
     "reasoning_effort": "xhigh"
   },
   "Qwen3.8-27B-AWQ-INT4": {
+    "disabled": true,
     "model-arg": "vllm serve cyankiwi/Qwen3.8-27B-AWQ-INT4 --enable-prefix-caching --max-num-batched-tokens 16384 --trust-remote-code --reasoning-parser qwen3 --tool-call-parser qwen3_xml --enable-auto-tool-choice",
     "model-arg-speculative": "--speculative-config '{\"method\": \"dflash\", \"model\": \"z-lab/Qwen3.8-27B-DFlash2\", \"num_speculative_tokens\": 8}'",
     "model-arg-kv-quant": "--kv-cache-dtype fp8",

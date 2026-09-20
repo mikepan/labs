@@ -1,7 +1,7 @@
 import os
 import re
 
-from tests.framework import (
+from eval.tests.framework import (
     Step,
     Test,
     check_kotlin_syntax,

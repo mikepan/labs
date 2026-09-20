@@ -8,8 +8,8 @@ import subprocess
 import time
 from typing import Any
 
-from tests.framework.assertions import BaseAssertion, CheckResult
-from tests.framework.spec import Step, Test
+from .assertions import BaseAssertion, CheckResult
+from .spec import Step, Test
 from eval.config import DEFAULT_STEP_POINT
 
 __all__ = [

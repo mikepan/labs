@@ -7,7 +7,7 @@ import sys
 from collections import defaultdict
 from typing import Iterator
 
-from tests.framework import Step, Test, git_changes, custom_check, CustomAssert
+from eval.tests.framework import Step, Test, git_changes, custom_check, CustomAssert
 
 def _norm(s: str) -> str:
     return re.sub(r"[_\s\-]+", "", str(s).strip().lower())

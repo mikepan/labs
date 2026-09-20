@@ -6,7 +6,7 @@ Orchestrates full evaluation pipeline across models, tests, and harnesses
 with upfront validation of all parameters before starting any containers.
 
 Usage:
-    python3 eval/launch_eval.py [--model model_name] [--harness harness_name] [--test test_name] [--keep-alive] [--v]
+    uv run run-eval [--model model_name] [--harness harness_name] [--test test_name] [--keep-alive] [--v]
 
 """
 
@@ -144,10 +144,10 @@ def run_model_pipeline(
 
         logger.info("Executing Evaluation Harness for %s (test: %s, harness: %s, memory: %.1f GB)...",
                     model_name, test_name, harness, memory_gb)
-        harness_script = REPO_ROOT / "eval" / "run_harness.py"
+        venv_python = REPO_ROOT / ".venv" / "bin" / "python3"
         cmd = [
-            sys.executable,
-            str(harness_script),
+            str(venv_python),
+            "-m", "eval.run_harness",
             "--model", model_name,
             "--test", test_name,
             "--harness", harness,

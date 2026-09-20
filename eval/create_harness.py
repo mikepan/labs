@@ -59,10 +59,8 @@ def install_harness(
     if not install_cmd:
         if "pi" in norm_name:
             install_cmd = (
-                "(curl -fsSL https://pi.dev/install.sh | bash || "
-                "curl -fsSL https://pi.dev/install.sh | sh || "
-                "npm install -g @earendil-works/pi-coding-agent) && "
-                "mkdir -p ~/.local/bin && (ln -sf ~/.pi/bin/pi ~/.local/bin/pi 2>/dev/null || true)"
+                "curl -fsSL https://pi.dev/install.sh | bash && "
+                "mkdir -p ~/.local/bin && ln -sf ~/.pi/bin/pi ~/.local/bin/pi"
             )
             version_cmd = "export PATH=$HOME/.pi/bin:$HOME/.local/bin:/usr/local/bin:$PATH; pi --version"
         elif "opencode" in norm_name:
@@ -123,12 +121,8 @@ def install_evaluation_dependencies(sandbox: SandboxClient) -> None:
 
     setup_script = """
     set -e
-    if command -v apt-get > /dev/null 2>&1; then
-        export DEBIAN_FRONTEND=noninteractive
-        sudo apt-get update -qq && sudo apt-get install -y -qq git python3 python3-venv curl jq nodejs npm openjdk-21-jre-headless || sudo apt-get install -y -qq default-jre-headless || true
-    elif command -v apk > /dev/null 2>&1; then
-        apk update && apk add --no-cache git python3 curl jq nodejs npm openjdk17-jre
-    fi
+    export DEBIAN_FRONTEND=noninteractive
+    sudo apt-get update -qq && sudo apt-get install -y -qq git python3 python3-venv curl jq nodejs npm openjdk-21-jre-headless
 
     # Install ktlint
     if ! command -v ktlint > /dev/null 2>&1; then

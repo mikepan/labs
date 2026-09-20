@@ -24,7 +24,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from eval.common import setup_logger, load_json_config
+from eval.common import setup_logger, load_json_config, resolve_target_models
 from eval.config import (
     API_BASE_URL,
     BENCHMARK_RESULT_FILE,
@@ -370,32 +370,7 @@ def main():
         summaries = [res] if res else []
     else:
         models = load_json_config(MODELS_CONFIG_FILE)
-        if args.model in ("all", None):
-            targets = [m for m, cfg in models.items() if not cfg.get("disabled", False) and cfg.get("enabled", True) is not False]
-            disabled_models = [m for m, cfg in models.items() if cfg.get("disabled", False) or cfg.get("enabled", True) is False]
-            if disabled_models:
-                logger.info("Skipping %d disabled model(s) for 'all': %s", len(disabled_models), disabled_models)
-        else:
-            targets = [m.strip() for m in args.model.split(",") if m.strip()]
-
-        filtered = []
-        for m in targets:
-            cfg = models.get(m, {})
-            is_variant = False
-            for other_m in targets:
-                if other_m == m:
-                    continue
-                other_cfg = models.get(other_m, {})
-                m_args = {k: v for k, v in cfg.items() if k != "reasoning_effort"}
-                other_args = {k: v for k, v in other_cfg.items() if k != "reasoning_effort"}
-                if m_args == other_args:
-                    if ("-low" in m or "-medium" in m) and not ("-low" in other_m or "-medium" in other_m):
-                        is_variant = True
-                        break
-            if not is_variant:
-                filtered.append(m)
-        targets = filtered
-
+        targets = resolve_target_models(models, args.model)
         logger.info("Starting benchmark across %d model(s): %s", len(targets), targets)
         summaries = []
         for m in targets:

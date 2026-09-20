@@ -4,11 +4,12 @@ runner.py - Execution engine for running test steps and assertions in a workspac
 
 from dataclasses import dataclass, field
 import os
+import shlex
 import subprocess
 import time
 from typing import Any
 
-from .assertions import BaseAssertion, CheckResult
+from .assertions import BaseAssertion, CheckResult, CustomAssert
 from .spec import Step, Test
 from eval.config import DEFAULT_STEP_POINT
 
@@ -28,16 +29,25 @@ class StepEvaluationResult:
     check_results: list[CheckResult] = field(default_factory=list)
     duration_seconds: float = 0.0
 
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "step_name": self.step_name,
+            "passed": self.passed,
+            "point": self.point,
+            "score": self.score,
+            "duration_seconds": self.duration_seconds,
+            "check_results": [
+                {"passed": c.passed, "message": c.message, "details": c.details}
+                for c in self.check_results
+            ],
+        }
 
-
-import shlex
 
 def commit_step_workspace(step_name: str, workspace_dir: str) -> bool:
     """Commit workspace changes after evaluating a step to ensure clean diff status for subsequent steps."""
     cmd = f"git add -A && git commit -m {shlex.quote(f'step: {step_name}')} --allow-empty"
     res = subprocess.run(["bash", "-c", cmd], cwd=workspace_dir, check=False, capture_output=True)
     return res.returncode == 0
-
 
 
 def evaluate_step(step: Step, workspace_dir: str, auto_commit: bool = True, response: str | None = None) -> StepEvaluationResult:
@@ -53,21 +63,20 @@ def evaluate_step(step: Step, workspace_dir: str, auto_commit: bool = True, resp
 
     for check in step.checks:
         if isinstance(check, BaseAssertion):
-            try:
-                res = check.evaluate(workspace_dir, allowed_files=expected_step_files, response=response)
-            except TypeError:
-                res = check.evaluate(workspace_dir, allowed_files=expected_step_files)
+            assertion = check
         elif callable(check):
-            try:
-                try:
-                    r = check(workspace_dir, response)
-                except TypeError:
-                    r = check(workspace_dir)
-                res = CheckResult(True, "OK") if (r is None or r is True) else CheckResult(False, "Check failed")
-            except Exception as e:
-                res = CheckResult(False, str(e))
+            assertion = CustomAssert(check)
         else:
-            res = CheckResult(False, f"Unknown check type: {type(check)}")
+            results.append(CheckResult(False, f"Unknown check type: {type(check)}"))
+            all_passed = False
+            continue
+
+        try:
+            res = assertion.evaluate(workspace_dir, allowed_files=expected_step_files, response=response)
+        except TypeError:
+            res = assertion.evaluate(workspace_dir, allowed_files=expected_step_files)
+        except Exception as e:
+            res = CheckResult(False, str(e))
 
         results.append(res)
         if not res.passed:

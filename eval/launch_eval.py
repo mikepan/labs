@@ -27,7 +27,6 @@ from eval.config import (
     API_BASE_URL,
     MODELS_CONFIG_FILE,
     REMOTE_HOST,
-    REPO_ROOT,
 )
 from eval.common import (
     setup_logger,
@@ -35,6 +34,7 @@ from eval.common import (
     load_harnesses_config,
     load_json_config,
     prevent_system_sleep,
+    resolve_target_models,
 )
 from eval.launch_model import (
     ensure_model_running,
@@ -53,40 +53,12 @@ def validate_arguments(
     models: dict[str, Any],
 ) -> tuple[list[str], str, str]:
     """Validate model, test, and harness arguments upfront before execution."""
-    # 1. Validate Model (supports comma-separated list, exact match, 'all', or partial substring matching)
-    if model_arg in (None, "all"):
-        target_models = [m for m, cfg in models.items() if not cfg.get("disabled", False) and cfg.get("enabled", True) is not False]
-        disabled_models = [m for m, cfg in models.items() if cfg.get("disabled", False) or cfg.get("enabled", True) is False]
-        if disabled_models:
-            logger.info("Skipping %d disabled model(s) for 'all': %s", len(disabled_models), disabled_models)
-    elif "," in model_arg:
-        items = [x.strip() for x in model_arg.split(",") if x.strip()]
-        target_models = []
-        for item in items:
-            if item in models:
-                if item not in target_models:
-                    target_models.append(item)
-            else:
-                matched = [m for m in models.keys() if item.lower() in m.lower()]
-                for m in matched:
-                    if m not in target_models:
-                        target_models.append(m)
-        if not target_models:
-            available_models = ", ".join(models.keys()) or "(none)"
-            logger.error("No models matched in list '%s'. Available models: %s", model_arg, available_models)
-            sys.exit(1)
-    elif model_arg in models:
-        target_models = [model_arg]
-    else:
-        # Match all models containing the search substring (case-insensitive)
-        matched = [m for m in models.keys() if model_arg.lower() in m.lower()]
-        if matched:
-            target_models = matched
-            logger.info("Matched %d model(s) for filter '%s': %s", len(target_models), model_arg, target_models)
-        else:
-            available_models = ", ".join(models.keys()) or "(none)"
-            logger.error("Unknown model or filter '%s'. Available models: %s (or 'all')", model_arg, available_models)
-            sys.exit(1)
+    target_models = resolve_target_models(models, model_arg)
+    if not target_models:
+        available_models = ", ".join(models.keys()) or "(none)"
+        logger.error("No models matched filter '%s'. Available models: %s", model_arg, available_models)
+        sys.exit(1)
+
 
     # 2. Validate Test
     available_tests = get_available_tests() + ["tool-eval-bench", "trivia"]

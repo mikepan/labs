@@ -426,17 +426,6 @@ print("__JSON_START__" + json.dumps({"ok": ok, "details": result}) + "__JSON_END
         cmd = f"mkdir -p \"$(dirname '{remote_path}')\" && cat > '{remote_path}'"
         return run_cmd("sbx", "exec", self.name, "bash", "-c", cmd, input=content).returncode == 0
 
-    def upload_file(self, local_path: str | Path, remote_path: str) -> bool:
-        """Upload a local file from host to a remote path inside the sandbox."""
-        p = Path(local_path)
-        if not p.is_file():
-            return False
-        return self.write_file(remote_path, p.read_bytes())
-
-    def upload_dir(self, local_path: str | Path, remote_path: str) -> bool:
-        """Upload a local directory from host into a remote path inside the sandbox."""
-        return self.upload_tree(local_path, remote_path)
-
     def upload_tree(self, local_path: str | Path, remote_path: str, exclude: set[str] | list[str] | None = None) -> bool:
         """Upload a local directory tree into a remote sandbox path in a single atomic tar stream."""
         src = Path(local_path)
@@ -504,16 +493,6 @@ print("__JSON_START__" + json.dumps({"ok": ok, "details": result}) + "__JSON_END
         cmd = ["sbx", "exec", self.name, "tail", "-n", str(max_lines), remote_path] if max_lines is not None else ["sbx", "exec", self.name, "cat", remote_path]
         res = run_cmd(*cmd)
         return res.stdout if res.returncode == 0 else ""
-
-    def extract_file(self, remote_path: str, local_path: str | Path) -> bool:
-        """Copy a single file from sandbox to local filesystem."""
-        content = self.read_file(remote_path)
-        if content:
-            target = Path(local_path)
-            target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_text(content, encoding="utf-8")
-            return True
-        return False
 
     # ----- Workspace setup -----
 

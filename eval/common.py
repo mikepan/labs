@@ -123,6 +123,25 @@ def load_harnesses_config() -> dict:
     return load_json_config(HARNESSES_CONFIG_FILE, label="harnesses config")
 
 
+def resolve_target_models(models: dict[str, Any], model_arg: str | None = "all") -> list[str]:
+    """Resolve and filter target model names based on argument filter, comma-list, or 'all'."""
+    if not model_arg or model_arg == "all":
+        return [m for m, cfg in models.items() if not cfg.get("disabled", False) and cfg.get("enabled", True) is not False]
+
+    if "," in model_arg:
+        items = [x.strip() for x in model_arg.split(",") if x.strip()]
+        result: list[str] = []
+        for item in items:
+            matches = [item] if item in models else [m for m in models if item.lower() in m.lower()]
+            for m in matches:
+                if m not in result:
+                    result.append(m)
+        return result
+
+    if model_arg in models:
+        return [model_arg]
+
+    return [m for m in models if model_arg.lower() in m.lower()]
 
 
 def prevent_system_sleep() -> subprocess.Popen | None:

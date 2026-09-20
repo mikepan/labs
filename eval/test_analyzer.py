@@ -49,9 +49,7 @@ def main():
     step_durations: dict[tuple[str, int, str], list[float]] = {}
 
     for _, eid, _, t in models:
-        tests = t.get("tests", {})
-        test_items = tests.items() if isinstance(tests, dict) else enumerate(tests) if isinstance(tests, list) else []
-        for tname, tdata in test_items:
+        for tname, tdata in t.get("tests", {}).items():
             tname_str = str(tname)
             dur = tdata.get("duration_seconds")
             if dur is not None:

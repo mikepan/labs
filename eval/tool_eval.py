@@ -53,42 +53,22 @@ def parse_tool_eval_output(
           - 'normalized_earned_score': score scaled to max_normalized_points
     """
     if isinstance(data, str):
-        # Extract json payload if mixed with external logs
         trimmed = data.strip()
-        if not trimmed.startswith("{"):
-            match = re.search(r"(\{.*\})", trimmed, re.DOTALL)
-            if match:
-                trimmed = match.group(1)
-        data = json.loads(trimmed)
+        m = re.search(r"(\{.*\})", trimmed, re.DOTALL)
+        data = json.loads(m.group(1) if m else trimmed)
 
     scores = data.get("scores", {})
     scenario_results = scores.get("scenario_results", [])
-    total_scenarios = len(scenario_results)
-    max_benchmark_points = total_scenarios * 2 if total_scenarios > 0 else 176
+    max_benchmark_points = len(scenario_results) * 2 if scenario_results else 176
 
-    # Calculate earned points across ALL scenarios (ignoring score property to account for timed out tests)
-    if scenario_results:
-        earned_points = sum(r.get("points", 0) for r in scenario_results)
-    else:
-        earned_points = scores.get("total_points", 0)
-
-    # Normalize to 40 points and round final score to int
-    normalized_earned_score = (
-        int(round((earned_points / max_benchmark_points) * max_normalized_points))
-        if max_benchmark_points > 0
-        else 0
-    )
+    earned_points = sum(r.get("points", 0) for r in scenario_results) if scenario_results else scores.get("total_points", 0)
+    normalized_earned_score = int(round((earned_points / max_benchmark_points) * max_normalized_points)) if max_benchmark_points else 0
     normalized_max_score = int(round(max_normalized_points))
 
-    tokens_in = sum(r.get("prompt_tokens", 0) for r in scenario_results)
+    tokens_in = sum(r.get("prompt_tokens", 0) for r in scenario_results) or scores.get("total_tokens", 0)
     tokens_out = sum(r.get("completion_tokens", 0) for r in scenario_results)
-    if tokens_in == 0 and tokens_out == 0 and "total_tokens" in scores:
-        tokens_in = scores.get("total_tokens", 0)
-
-    passed_steps = sum(
-        1 for r in scenario_results if r.get("status") in ("pass", "PASS") or r.get("points", 0) == 2
-    )
-    total_steps = total_scenarios if total_scenarios > 0 else 88
+    passed_steps = sum(1 for r in scenario_results if str(r.get("status", "")).lower() == "pass" or r.get("points", 0) == 2)
+    total_steps = len(scenario_results) or 88
 
     # Build scenario step traces for interactive timeline visualization in trace.html
     step_traces = []

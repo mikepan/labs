@@ -50,7 +50,6 @@ from eval.config import (
     DEFAULT_IDLE_TIMEOUT_MINUTES,
     DEFAULT_MAX_STEP_TIMEOUT_MINUTES,
     MODELS_CONFIG_FILE,
-    RESULTS_DIR,
     TESTS_DIR,
 )
 from eval.drivers import HarnessDriver, get_driver
@@ -83,18 +82,25 @@ sys.modules['eval'] = eval_mod
 sys.modules['eval.config'] = eval_cfg
 
 tf = types.ModuleType('eval.tests.framework')
-sys.modules['tests'] = types.ModuleType('tests')
+tf.__path__ = []
+t = types.ModuleType('tests')
+t.__path__ = []
+sys.modules['tests'] = t
 sys.modules['tests'].framework = tf
 sys.modules['tests.framework'] = tf
 sys.modules['tests.framework.spec'] = tf
 sys.modules['tests.framework.assertions'] = tf
 sys.modules['tests.framework.runner'] = tf
-sys.modules['eval.tests'] = types.ModuleType('eval.tests')
+sys.modules['tests.assertions'] = tf
+et = types.ModuleType('eval.tests')
+et.__path__ = []
+sys.modules['eval.tests'] = et
 sys.modules['eval.tests'].framework = tf
 sys.modules['eval.tests.framework'] = tf
 sys.modules['eval.tests.framework.spec'] = tf
 sys.modules['eval.tests.framework.assertions'] = tf
 sys.modules['eval.tests.framework.runner'] = tf
+sys.modules['eval.tests.assertions'] = tf
 exec({spec_code!r}, tf.__dict__)
 exec({assertions_code!r}, tf.__dict__)
 exec({runner_code!r}, tf.__dict__)
@@ -145,18 +151,7 @@ test_mod.__file__ = {str(Path(workspace_dir) / 'run.py')!r}
 exec({test_code!r}, test_mod.__dict__)
 step = test_mod.TEST.steps[{step_idx}]
 res = sys.modules['eval.tests.framework'].evaluate_step(step, {workspace_dir!r}, response={response!r})
-out = {{
-    "step_name": res.step_name,
-    "passed": res.passed,
-    "point": res.point,
-    "score": res.score,
-    "duration_seconds": res.duration_seconds,
-    "check_results": [
-        {{"passed": c.passed, "message": c.message, "details": c.details}}
-        for c in res.check_results
-    ]
-}}
-print("__JSON_START__" + json.dumps(out) + "__JSON_END__")
+print("__JSON_START__" + json.dumps(res.to_dict()) + "__JSON_END__")
 """
     try:
         return sandbox.exec_python_json(eval_script, label=f"evaluate step {step_idx}")
@@ -182,19 +177,9 @@ def _evaluate_step_result(
 ) -> dict[str, Any]:
     if host_eval:
         from eval.tests.framework.runner import evaluate_step
-        res = evaluate_step(step, workspace_dir="", auto_commit=False, response=response)
-        return {
-            "step_name": res.step_name,
-            "passed": res.passed,
-            "point": res.point,
-            "score": res.score,
-            "duration_seconds": res.duration_seconds,
-            "check_results": [
-                {"passed": c.passed, "message": c.message, "details": c.details}
-                for c in res.check_results
-            ],
-        }
+        return evaluate_step(step, workspace_dir="", auto_commit=False, response=response).to_dict()
     return evaluate_step_in_sandbox(sandbox, test_path, idx, test_ws, response=response)
+
 
 
 # =====================================================================
@@ -653,18 +638,18 @@ def main():
         for harness_name in target_harnesses:
             harness_version = harnesses_cfg.get(harness_name, {}).get("version", "unknown")
             eval_id = str(uuid.uuid4())
+            now_str = datetime.now(timezone.utc).isoformat()
             suite_trace = {
                 "eval_id": eval_id,
                 "model": args.model,
-                "start_time": datetime.now(timezone.utc).isoformat(),
+                "start_time": now_str,
                 "tests": standalone_tests,
-                "end_time": datetime.now(timezone.utc).isoformat(),
+                "end_time": now_str,
             }
-            test_results_summary = standalone_summaries
             evaluation_output = {
                 "eval_id": eval_id,
                 "suite_trace": suite_trace,
-                "test_results_summary": test_results_summary,
+                "test_results_summary": standalone_summaries,
                 "stage_dir": None,
             }
             save_evaluation_results(

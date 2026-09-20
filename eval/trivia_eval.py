@@ -34,7 +34,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from eval.common import get_harness_logger, load_json_config, setup_logger
+from eval.common import get_harness_logger, load_json_config, setup_logger, http_json
 from eval.config import (
     API_BASE_URL,
     MODELS_CONFIG_FILE,
@@ -244,20 +244,11 @@ def send_chat_completion(
     if reasoning_effort and reasoning_effort.lower() not in ("off", "none", "on", ""):
         payload["reasoning_effort"] = reasoning_effort.lower()
 
-    req = urllib.request.Request(
-        target_url,
-        data=json.dumps(payload).encode("utf-8"),
-        headers={"Content-Type": "application/json"},
-    )
-
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
-        data = json.loads(resp.read().decode("utf-8"))
-
+    data = http_json(target_url, method="POST", data=payload, timeout=timeout) or {}
     msg = data.get("choices", [{}])[0].get("message", {})
     content = msg.get("content") or ""
     reasoning = msg.get("reasoning") or msg.get("reasoning_content") or ""
 
-    # If content was empty due to length limit or backend behavior, fallback to reasoning
     if not content and reasoning:
         content = reasoning
 
@@ -309,13 +300,7 @@ def run_trivia_benchmark(
     bench_model_key = model or server_model_id
     if not reasoning_effort and os.path.isfile(MODELS_CONFIG_FILE):
         cfg = load_json_config(MODELS_CONFIG_FILE)
-        if bench_model_key in cfg:
-            reasoning_effort = cfg[bench_model_key].get("reasoning_effort")
-        else:
-            for k, v in cfg.items():
-                if bench_model_key and (k == bench_model_key or k in bench_model_key or bench_model_key in k):
-                    reasoning_effort = v.get("reasoning_effort")
-                    break
+        reasoning_effort = cfg.get(bench_model_key, {}).get("reasoning_effort")
 
     logger.info("=" * 70)
     logger.info("RUNNING trivia benchmark (model=%s [server_id=%s], reasoning_effort=%s, reset_interval=%d) against %s",
@@ -437,13 +422,7 @@ def run_trivia_benchmark(
             logger.info("  Options:    %s", opts_str)
 
         reasoning_tokens = usage.get("reasoning_tokens", 0)
-        if reasoning_tokens > 0:
-            reasoning_summary = f"{reasoning_tokens} tokens"
-        elif reasoning_tokens > 0:
-            reasoning_summary = f"{reasoning_tokens} tokens"
-        else:
-            reasoning_summary = "0 tokens"
-        logger.info("  Reasoning:  %s", reasoning_summary)
+        logger.info("  Reasoning:  %s tokens", reasoning_tokens)
 
         disp_resp = " ".join(resp_content.strip().split()) if resp_content else "<empty>"
         if len(disp_resp) > 300:

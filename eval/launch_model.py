@@ -24,7 +24,7 @@ from eval.config import (
     REMOTE_HOST,
     REMOTE_VLLM_DIR,
 )
-from eval.common import setup_logger, load_json_config, run_cmd, http_json
+from eval.common import setup_logger, load_json_config, run_cmd, http_json, resolve_target_models
 
 logger = setup_logger("launch_model")
 
@@ -191,7 +191,7 @@ def check_kv_cache_concurrency(
     max_concurrency: float = 2.1,
 ) -> float | None:
     """Extract and validate the Maximum concurrency reported by vLLM in container logs."""
-    res = run_cmd("ssh", host, f"docker logs {container_name}")
+    res = run_remote(f"docker logs {container_name}", host=host)
     full_output = (res.stdout or "") + (res.stderr or "")
 
     # Look for memory difference guidance log
@@ -263,13 +263,7 @@ def main():
         ok = stop_model()
         sys.exit(0 if ok else 1)
 
-    if args.model in (None, "all"):
-        target_models = [m for m, cfg in models.items() if not cfg.get("disabled", False) and cfg.get("enabled", True) is not False]
-        disabled_models = [m for m, cfg in models.items() if cfg.get("disabled", False) or cfg.get("enabled", True) is False]
-        if disabled_models:
-            logger.info("Skipping %d disabled model(s) for 'all': %s", len(disabled_models), disabled_models)
-    else:
-        target_models = [args.model]
+    target_models = resolve_target_models(models, args.model)
 
     for m_name in target_models:
         ok, _ = ensure_model_running(m_name, models[m_name], verbose=args.verbose)

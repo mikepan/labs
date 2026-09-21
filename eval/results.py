@@ -205,7 +205,7 @@ def save_evaluation_results(
             if item.endswith(".log"):
                 shutil.copy2(src, os.path.join(eval_dir, item))
             elif os.path.isdir(src):
-                shutil.copytree(src, os.path.join(artifacts_dir, item), dirs_exist_ok=True)
+                shutil.copytree(src, os.path.join(artifacts_dir, item), symlinks=True, dirs_exist_ok=True)
             else:
                 shutil.copy2(src, os.path.join(artifacts_dir, item))
         shutil.rmtree(stage_root, ignore_errors=True)

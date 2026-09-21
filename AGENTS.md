@@ -12,4 +12,3 @@ Keep the codebase clean and minimal at all times.
 
 Remember, sometimes the best solution is to remove code, not add more code.
 
-If there is meaningful change to the code, run unittests (`python3 -m unittest eval/unittests/test_eval_pipeline.py`) after code changes to ensure pipeline correctness.

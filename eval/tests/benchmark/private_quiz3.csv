@@ -10,7 +10,6 @@ boolean,medium,Science: Computers,"FLAC stands for ""Free Lossless Audio Condens
 multiple,hard,Science: Computers,Which of these is not a key value of Agile software development?,Comprehensive documentation,"[""Individuals and interactions"", ""Customer collaboration"", ""Responding to change""]"
 boolean,easy,Science: Computers,JavaScript derives from a later version of Java,False,"[""True""]"
 multiple,medium,Science: Computers,"Originally used in PCM adapters, what frequency is the standard for sampling audio in the Compact Disc Digital Audio format?",44.1 kHz,"[""32.0 kHz"", ""1.5 MHz"", ""20.5 kHz""]"
-multiple,easy,Science: Computers,This mobile OS held the largest market share in 2012.,iOS,"[""Android"", ""BlackBerry"", ""Symbian""]"
 boolean,medium,Science: Computers,The first dual-core CPU was the Intel Pentium D.,False,"[""True""]"
 multiple,hard,Science: Computers,Which of these names was an actual codename for a cancelled Microsoft project?,Neptune,"[""Enceladus"", ""Pollux"", ""Saturn""]"
 multiple,easy,Science: Computers,Which computer language would you associate Django framework with?,Python,"[""C#"", ""C++"", ""Java""]"

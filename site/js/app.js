@@ -40,6 +40,9 @@ function extractEvalMetrics(e) {
     ? Math.round(totalTimeSec / 60)
     : 0;
 
+  const totalTokensIn = tests.reduce((acc, t) => acc + (Number(t.tokens_in) || 0), 0) || (Number(e.tokens_in) || 0);
+  const totalTokensOut = tests.reduce((acc, t) => acc + (Number(t.tokens_out) || 0), 0) || (Number(e.tokens_out) || 0);
+
   const runMemGb = Number(e.memory_gb || 0);
 
   return {
@@ -49,6 +52,8 @@ function extractEvalMetrics(e) {
     intelligence: e.intelligence ?? 0,
     timeMin,
     totalTimeSec,
+    tokensIn: totalTokensIn,
+    tokensOut: totalTokensOut,
     runMemGb,
     memoryGb: Math.round(runMemGb),
     modelName: e.name || '',
@@ -90,6 +95,8 @@ function initDashboard(data) {
       harness_name: m.harnessName,
       harness_version: m.harnessVersion,
       reasoning: m.reasoning,
+      tokens_in: m.tokensIn,
+      tokens_out: m.tokensOut,
       test_results: e.test_results
     };
   });
@@ -941,6 +948,13 @@ function escapeHtml(str) {
   });
 }
 
+function formatTokensK(count) {
+  const num = Number(count) || 0;
+  if (num <= 0) return '0k';
+  const k = Math.round(num / 1000);
+  return `${Math.max(1, k).toLocaleString()}k`;
+}
+
 function formatModelCardTooltip(evalRecord) {
   if (!evalRecord) return '';
 
@@ -949,7 +963,7 @@ function formatModelCardTooltip(evalRecord) {
   const row = (label, val) => `
     <div style="display:flex; align-items:baseline; justify-content:space-between; font-size:0.825rem; margin-bottom:0.3rem;">
       <span style="color:#64748b; white-space:nowrap;">${label}</span>
-      <span style="flex:1; border-bottom:1px dashed rgba(148, 163, 184, 0.35); margin:0 0.4rem 0.2rem;"></span>
+      <span style="flex:1; border-bottom:1px dotted rgba(148, 163, 184, 0.45); margin:0 0.4rem 0.2rem;"></span>
       <span style="font-weight:600; color:#0f172a; white-space:nowrap;">${val}</span>
     </div>
   `;
@@ -964,6 +978,8 @@ function formatModelCardTooltip(evalRecord) {
       ${row('Intelligence', m.intelligence)}
       ${row('Completion Time', m.timeMin + ' min')}
       ${row('Memory Use', m.memoryGb + ' GB')}
+      ${row('Token Sent', formatTokensK(m.tokensIn))}
+      ${row('Token Received', formatTokensK(m.tokensOut))}
       ${row('Speculative', m.speculativeDecoding)}
       ${row('Reasoning', m.reasoning)}
       ${row('KV Cache Quant', m.kvQuant)}

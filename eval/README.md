@@ -24,8 +24,8 @@ Instead of vanity tokens-per-second, we measure **verified work delivered**:
 │                       Local Host (Mac)                       │
 │  ┌──────────────────┐           ┌─────────────────────────┐  │
 │  │   Orchestrator   │   stdin   │   Docker Sandbox (sbx)  │  │
-│  │ (run-eval /      │──────────>│   - Ephemeral workspace │  │
-│  │  run-harness)    │  RAM-only │   - Agent CLI (Pi/OC)   │  │
+│  │ (eval / harness) │──────────>│   - Ephemeral workspace │  │
+│  │                  │  RAM-only │   - Agent CLI (Pi/OC)   │  │
 │  └──────────────────┘ assertions└─────────────────────────┘  │
 └──────────────────────────────────────────────│───────────────┘
                                                │ HTTP / Port 8000
@@ -60,41 +60,41 @@ uv sync
 
 ## 💻 Running Benchmarks
 
-### 1. End-to-End (`run-eval`)
+### 1. End-to-End (`eval`)
 Handles remote model startup, readiness checks, sandbox creation, test execution, and teardown:
 
 ```bash
 # Run all configured models
-uv run run-eval
+uv run eval
 
 # Target a specific model, harness, or test
-uv run run-eval --model Qwen3.6-35B-A3B-NVFP4 --harness "opencode cli" --test test0
+uv run eval --model Qwen3.6-35B-A3B-NVFP4 --harness "opencode cli" --test test0
 ```
 
-### 2. Standalone Model Server (`run-model`)
+### 2. Standalone Model Server (`model`)
 Manage remote vLLM containers independently:
 
 ```bash
 # Launch model and wait for readiness probe
-uv run run-model --model Qwen3.6-35B-A3B-NVFP4
+uv run model --model Qwen3.6-35B-A3B-NVFP4
 
 # Stream startup logs / stop container
-uv run run-model --model Qwen3.6-35B-A3B-NVFP4 --v
-uv run run-model --stop
+uv run model --model Qwen3.6-35B-A3B-NVFP4 --v
+uv run model --stop
 ```
 
-### 3. Direct Sandbox Runner (`run-harness`)
+### 3. Direct Sandbox Runner (`harness`)
 Run tests against an existing, active LLM endpoint:
 
 ```bash
-uv run run-harness --model Qwen3.6-35B-A3B-NVFP4 --test test0
-uv run run-harness --model Qwen3.6-35B-A3B-NVFP4 --test all --harness all
+uv run harness --model Qwen3.6-35B-A3B-NVFP4 --test test0
+uv run harness --model Qwen3.6-35B-A3B-NVFP4 --test all --harness all
 ```
 
 ### 4. Standalone Tool & Trivia Benchmarks
 ```bash
-uv run trivia-eval
-uv run run-benchmark --model Qwen3.8-27B-NVFP4-xhigh --runs 2
+uv run trivia
+uv run benchmark --model Qwen3.8-27B-NVFP4-xhigh --runs 2
 ```
 
 ### 5. Results & Web Dashboard

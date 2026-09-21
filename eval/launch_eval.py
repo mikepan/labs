@@ -6,7 +6,7 @@ Orchestrates full evaluation pipeline across models, tests, and harnesses
 with upfront validation of all parameters before starting any containers.
 
 Usage:
-    uv run run-eval [--model model_name] [--harness harness_name] [--test test_name] [--keep-alive] [--v]
+    uv run eval [--model model_name] [--harness harness_name] [--test test_name] [--keep-alive] [--v]
 
 """
 
@@ -174,6 +174,7 @@ def main():
     logger.info("Validated configuration: %d model(s) %s, test '%s', harness '%s'",
                 len(target_models), target_models, valid_test, valid_harness)
 
+    failed_models: list[str] = []
     for model_name in target_models:
         ok = run_model_pipeline(
             model_name,
@@ -184,8 +185,12 @@ def main():
             harness=valid_harness,
         )
         if not ok:
-            logger.error("Pipeline stopped on failure for model: %s", model_name)
-            sys.exit(1)
+            logger.error("Pipeline failed for model: %s", model_name)
+            failed_models.append(model_name)
+
+    if failed_models:
+        logger.error("Evaluation finished with %d failed model(s): %s", len(failed_models), failed_models)
+        sys.exit(1)
 
     sys.exit(0)
 

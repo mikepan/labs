@@ -423,7 +423,7 @@ except Exception:
                 elif p_type == "step-finish":
                     toks = p.get("tokens", {})
                     t_in = toks.get("input", 0)
-                    t_out = toks.get("output", 0)
+                    t_out = toks.get("output", 0) + toks.get("reasoning", 0)
                     turn.tokens_in += t_in
                     turn.tokens_out += t_out
                     turn.peak_context_tokens = max(turn.peak_context_tokens, t_in + t_out)
@@ -431,7 +431,7 @@ except Exception:
             msg_toks = msg.get("info", {}).get("tokens", {})
             if msg_toks:
                 m_in = msg_toks.get("input", 0)
-                m_out = msg_toks.get("output", 0)
+                m_out = msg_toks.get("output", 0) + msg_toks.get("reasoning", 0)
                 turn.peak_context_tokens = max(turn.peak_context_tokens, m_in + m_out)
 
         # Promote final reasoning to response if no explicit text was emitted

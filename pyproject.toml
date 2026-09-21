@@ -13,12 +13,12 @@ dependencies = [
 ]
 
 [project.scripts]
-run-eval         = "eval.launch_eval:main"
-run-model        = "eval.launch_model:main"
-run-harness      = "eval.run_harness:main"
-run-benchmark    = "eval.launch_benchmark:main"
+eval             = "eval.launch_eval:main"
+model            = "eval.launch_model:main"
+harness          = "eval.run_harness:main"
+benchmark        = "eval.launch_benchmark:main"
 create-harness   = "eval.create_harness:main"
-trivia-eval      = "eval.trivia_eval:main"
+trivia           = "eval.trivia_eval:main"
 test-analyzer    = "eval.test_analyzer:main"
 
 [tool.setuptools.packages.find]

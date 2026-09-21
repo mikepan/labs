@@ -194,7 +194,7 @@ except Exception as e:
                 "id": config_alias,
                 "name": config_alias,
                 "reasoning": is_reasoning,
-                "maxTokens": 65536,
+                "maxTokens": DEFAULT_MAX_OUTPUT_TOKENS,
                 "contextWindow": max_context,
             }
             if supports_effort:
@@ -405,19 +405,29 @@ class PiSession:
                     if not line_str:
                         continue
 
-                    # Any line received indicates active progress from agent
-                    last_activity_time = time.time()
-
-                    # Log raw line to stderr for logging
-                    sys.stderr.write(f"[pi_rpc] {{line_str[:200]}}\\n")
-
                     try:
                         event = json.loads(line_str)
                     except Exception:
+                        last_activity_time = time.time()
+                        sys.stderr.write(f"[pi_rpc] {{line_str[:200]}}\\n")
                         continue
 
                     events.append(event)
                     e_type = event.get("type")
+
+                    if e_type == "message_update":
+                        ame = event.get("assistantMessageEvent", {{}})
+                        ame_type = ame.get("type")
+                        delta = ame.get("delta", "")
+                        if ame_type == "text_delta":
+                            text_chunks.append(delta)
+                        elif ame_type == "thinking_delta":
+                            reasoning_chunks.append(delta)
+                        if delta.strip():
+                            last_activity_time = time.time()
+                    else:
+                        last_activity_time = time.time()
+                        sys.stderr.write(f"[pi_rpc] {{line_str[:200]}}\\n")
 
                     if e_type == "response":
                         cmd = event.get("command")
@@ -431,14 +441,6 @@ class PiSession:
 
                     elif e_type == "agent_start":
                         agent_started = True
-
-                    elif e_type == "message_update":
-                        ame = event.get("assistantMessageEvent", {{}})
-                        ame_type = ame.get("type")
-                        if ame_type == "text_delta":
-                            text_chunks.append(ame.get("delta", ""))
-                        elif ame_type == "thinking_delta":
-                            reasoning_chunks.append(ame.get("delta", ""))
 
                     elif e_type == "tool_execution_start":
                         call_id = event.get("toolCallId") or str(uuid.uuid4())
@@ -513,12 +515,14 @@ class PiSession:
                                 sys.stderr.write(f"NETWORK_ERROR: Pi agent backend connection failed: {{final_err.strip()}}\\n")
                                 self._start_process()
                                 raise RuntimeError(f"NETWORK_ERROR: Pi agent backend connection failed: {{final_err.strip()}}")
+                        else:
+                            last_retry_error = ""
 
                     elif e_type == "agent_end":
                         gen_msgs = event.get("messages", [])
                         if gen_msgs:
                             raw_messages = gen_msgs
-                        if last_retry_error and any(p in last_retry_error.lower() for p in ["connect: no route to host", "connection refused", "dial tcp", "ehostunreach", "econnrefused", "network is unreachable"]):
+                        if not raw_messages and last_retry_error and any(p in last_retry_error.lower() for p in ["connect: no route to host", "connection refused", "dial tcp", "ehostunreach", "econnrefused", "network is unreachable"]):
                             sys.stderr.write(f"NETWORK_ERROR: Pi agent backend connection failed: {{last_retry_error.strip()}}\\n")
                             self._start_process()
                             raise RuntimeError(f"NETWORK_ERROR: Pi agent backend connection failed: {{last_retry_error.strip()}}")

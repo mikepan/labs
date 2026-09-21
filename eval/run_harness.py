@@ -321,11 +321,42 @@ def run_test_suite_on_agent(
                 )
             except Exception as e:
                 if is_network_error(e):
-                    h_logger.error("  ✗ FATAL: Network connectivity failure during step %d: %s", idx + 1, e)
-                    raise NetworkConnectivityError(
-                        f"Aborting test '{test_id}' at step {idx + 1} due to network connectivity failure: {e}"
-                    ) from e
-                step_elapsed = round(time.time() - step_t0, 2)
+                    is_ok, net_err = sandbox.check_backend_connectivity(llm_base_url)
+                    if not is_ok:
+                        h_logger.warning("Backend connectivity check failed (%s). Attempting sbx daemon restart...", net_err)
+                        run_cmd("sbx", "daemon", "restart")
+                        time.sleep(2)
+                        is_ok, net_err = sandbox.check_backend_connectivity(llm_base_url)
+                    if not is_ok:
+                        h_logger.error("  ✗ FATAL: Network connectivity failure during step %d: %s", idx + 1, e)
+                        raise NetworkConnectivityError(
+                            f"Aborting test '{test_id}' at step {idx + 1} due to network connectivity failure: {e}"
+                        ) from e
+
+                    h_logger.warning("  ℹ Transient backend connectivity glitch during step %d (%s). Backend is reachable, retrying...", idx + 1, e)
+                    time.sleep(2)
+                    try:
+                        turn = driver.send_prompt(
+                            sandbox,
+                            session_id,
+                            step.prompt,
+                            active_model,
+                            timeout=step_timeout_seconds,
+                            idle_timeout=step_idle_seconds,
+                            reasoning_effort=reasoning_effort,
+                        )
+                    except Exception as retry_e:
+                        if is_network_error(retry_e):
+                            h_logger.error("  ✗ FATAL: Network connectivity failure during step %d: %s", idx + 1, retry_e)
+                            raise NetworkConnectivityError(
+                                f"Aborting test '{test_id}' at step {idx + 1} due to network connectivity failure: {retry_e}"
+                            ) from retry_e
+                        e = retry_e
+                    else:
+                        e = None
+
+                if e is not None:
+                    step_elapsed = round(time.time() - step_t0, 2)
                 step_end_iso = datetime.now(timezone.utc).isoformat()
                 is_timeout = isinstance(e, TimeoutError) or "timeout" in str(e).lower() or "timed out" in str(e).lower()
                 fail_reason = "TIMEOUT" if is_timeout else "ERROR"

@@ -639,10 +639,16 @@ function renderTopScatterChart(evaluations, viewMode = 'time', colorMode = 'base
   // 2. Group points dynamically by colorMode (base_model or harness)
   const groupsMap = new Map();
   rawPoints.forEach(p => {
-    const groupKey = (colorMode === 'harness'
+    let groupKey = (colorMode === 'harness'
       ? (p.harnessName || 'Unknown')
       : (p.baseModel || 'Unknown')
     ).trim();
+
+    if (colorMode !== 'harness') {
+      if (groupKey.startsWith('Nvidia-') || /^nvidia-/i.test(groupKey)) {
+        groupKey = groupKey.replace(/^nvidia-/i, '');
+      }
+    }
 
     if (!groupsMap.has(groupKey)) {
       groupsMap.set(groupKey, []);
@@ -714,6 +720,7 @@ function renderTopScatterChart(evaluations, viewMode = 'time', colorMode = 'base
       type: 'scroll',
       orient: 'vertical',
       data: sortedGroupKeys,
+      formatter: (name) => (name.startsWith('Nvidia-') || /^nvidia-/i.test(name) ? name.replace(/^nvidia-/i, '') : name),
       top: 'middle',
       right: 12,
       textStyle: { color: '#64748b', fontFamily: 'system-ui, -apple-system, sans-serif', fontSize: 12 },

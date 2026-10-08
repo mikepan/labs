@@ -483,6 +483,11 @@ class PiSession:
                             tool_calls_map[call_id]["output"] = text_out
                             tool_calls_map[call_id]["duration_ms"] = dur_ms
 
+                    elif e_type == "message_end":
+                        msg = event.get("message", {{}})
+                        if msg and msg.get("role") == "toolResult":
+                            raw_messages.append(msg)
+
                     elif e_type == "turn_end":
                         msg = event.get("message", {{}})
                         if msg:
@@ -550,13 +555,22 @@ class PiSession:
 
                 # Preserve partial messages and tool executions so traces can be recovered
                 partial_msgs = list(raw_messages)
-                if not partial_msgs and (tool_calls_map or text_chunks or reasoning_chunks):
+                seen_tool_ids = set()
+                for m in partial_msgs:
+                    for part in m.get("content", []):
+                        if isinstance(part, dict) and part.get("type") in ("toolCall", "tool_call") and part.get("id"):
+                            seen_tool_ids.add(part["id"])
+
+                uncommitted_tool_calls = {{
+                    cid: tc for cid, tc in tool_calls_map.items() if cid not in seen_tool_ids
+                }}
+                if uncommitted_tool_calls or (not partial_msgs and (text_chunks or reasoning_chunks)):
                     parts = []
                     if reasoning_chunks:
                         parts.append({{"type": "thinking", "thinking": "".join(reasoning_chunks)}})
                     if text_chunks:
                         parts.append({{"type": "text", "text": "".join(text_chunks)}})
-                    for tc_id, tc in tool_calls_map.items():
+                    for tc_id, tc in uncommitted_tool_calls.items():
                         try:
                             args = json.loads(tc.get("input", "{{}}"))
                         except Exception:
@@ -828,3 +842,124 @@ except Exception:
             peak_context_tokens=turn_dict.get("peak_context_tokens", 0),
             raw_messages=turn_dict.get("raw_messages", []),
         )
+
+    def _parse_turn(self, step_messages: list[dict[str, Any]], step_start_iso: str) -> TurnData:
+        """Parse Pi message history into normalized TurnData."""
+        turn = TurnData(raw_messages=step_messages)
+
+        tool_results: dict[str, dict[str, Any]] = {}
+        for msg in step_messages:
+            m_role = msg.get("role")
+            if m_role in ("toolResult", "tool_result", "tool"):
+                cid = msg.get("toolCallId") or msg.get("tool_call_id") or msg.get("id") or msg.get("call_id")
+                content = msg.get("content", "")
+                text_out = ""
+                if isinstance(content, str):
+                    text_out = content
+                elif isinstance(content, list):
+                    text_out = "".join(
+                        c.get("text", "") if isinstance(c, dict) else str(c)
+                        for c in content
+                    )
+                if not text_out and msg.get("output"):
+                    text_out = str(msg.get("output"))
+                is_err = bool(msg.get("isError") or msg.get("is_error"))
+                if cid:
+                    tool_results[cid] = {"output": text_out, "is_error": is_err}
+
+            content = msg.get("content", [])
+            if isinstance(content, list):
+                for part in content:
+                    if isinstance(part, dict) and part.get("type") in ("toolResult", "tool_result"):
+                        cid = part.get("toolCallId") or part.get("id") or part.get("call_id")
+                        p_content = part.get("content", "")
+                        text_out = ""
+                        if isinstance(p_content, str):
+                            text_out = p_content
+                        elif isinstance(p_content, list):
+                            text_out = "".join(
+                                c.get("text", "") if isinstance(c, dict) else str(c)
+                                for c in p_content
+                            )
+                        if not text_out and part.get("text"):
+                            text_out = str(part.get("text"))
+                        if not text_out and part.get("output"):
+                            text_out = str(part.get("output"))
+                        is_err = bool(part.get("isError") or part.get("is_error"))
+                        if cid:
+                            tool_results[cid] = {"output": text_out, "is_error": is_err}
+
+        for msg in step_messages:
+            msg_ts = msg.get("timestamp") or step_start_iso
+            m_role = msg.get("role")
+
+            usage = msg.get("usage") or {}
+            if usage:
+                u_in = usage.get("input", 0)
+                u_out = usage.get("output", 0)
+                turn.tokens_in += u_in
+                turn.tokens_out += u_out
+                turn.peak_context_tokens = max(turn.peak_context_tokens, u_in + u_out)
+
+            content = msg.get("content", [])
+            if isinstance(content, str):
+                if m_role == "assistant" and content.strip():
+                    text = content.strip()
+                    turn.text.append(text)
+                    turn.events.append({"type": "response", "timestamp": msg_ts, "content": text})
+            elif isinstance(content, list):
+                for part in content:
+                    if not isinstance(part, dict):
+                        continue
+                    p_type = part.get("type")
+
+                    if p_type in ("thinking", "reasoning"):
+                        th = (part.get("thinking") or part.get("text") or "").strip()
+                        if th:
+                            turn.reasoning.append(th)
+                            turn.events.append({"type": "reasoning", "timestamp": msg_ts, "content": th})
+
+                    elif p_type in ("text", "response") and m_role == "assistant":
+                        tx = (part.get("text") or part.get("content") or "").strip()
+                        if tx:
+                            turn.text.append(tx)
+                            turn.events.append({"type": "response", "timestamp": msg_ts, "content": tx})
+
+                    elif p_type in ("toolCall", "tool_call"):
+                        cid = part.get("id") or part.get("call_id") or part.get("toolCallId")
+                        tool_name = part.get("name") or part.get("tool") or "tool"
+                        raw_args = part.get("arguments") or part.get("args") or part.get("input") or {}
+                        input_str = json.dumps(raw_args) if isinstance(raw_args, (dict, list)) else str(raw_args)
+
+                        res = tool_results.get(cid)
+                        if res is not None:
+                            is_err = res.get("is_error", False)
+                            status = "error" if is_err else "completed"
+                            exit_code = 1 if is_err else 0
+                            out = res.get("output", "")
+                        else:
+                            status = "running"
+                            exit_code = None
+                            out = ""
+
+                        tc = ToolCallEvent(
+                            tool=tool_name,
+                            call_id=cid,
+                            status=status,
+                            input=input_str,
+                            output=out,
+                            exit_code=exit_code,
+                            timestamp=msg_ts,
+                        )
+                        turn.tool_calls.append(tc)
+                        turn.events.append({"type": "tool", "timestamp": msg_ts, "data": tc.to_dict()})
+
+        # Promote final reasoning to response if no explicit text was emitted
+        if not turn.text and turn.reasoning:
+            for i in range(len(turn.events) - 1, -1, -1):
+                if turn.events[i]["type"] == "reasoning":
+                    turn.events[i]["type"] = "response"
+                    turn.text.append(turn.events[i]["content"])
+                    break
+
+        return turn

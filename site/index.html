@@ -123,7 +123,8 @@
             </div>
           </div>
         </div>
-        <div id="chart-top-scatter" class="chart-container" style="height: 410px;"></div>
+        <div id="chart-top-scatter" class="chart-container chart-container--scatter"></div>
+        <div id="scatter-legend" class="chart-legend" hidden></div>
         <div class="chart-footer-controls">
           <div class="toggle-group" id="scatter-view-toggle">
             <button type="button" class="toggle-btn active" data-view="time">Completion Time (min)</button>
@@ -140,7 +141,7 @@
             <h3 class="chart-title">Task Speed Leaderboard</h3>
             <p class="chart-desc">Comparing execution speed (tasks/hr) across evaluated model configurations.</p>
           </div>
-          <div id="chart-model-speed" class="chart-container" style="height: 270px;"></div>
+          <div id="chart-model-speed" class="chart-container chart-container--compact"></div>
         </div>
 
         <!-- Top Chart 3: Intelligence Density Leaderboard -->
@@ -149,7 +150,7 @@
             <h3 class="chart-title">Intelligence Density Leaderboard</h3>
             <p class="chart-desc">Comparing hardware efficiency (tasks/GB) across evaluated model configurations.</p>
           </div>
-          <div id="chart-model-density" class="chart-container" style="height: 270px;"></div>
+          <div id="chart-model-density" class="chart-container chart-container--compact"></div>
         </div>
       </div>
 
@@ -161,7 +162,7 @@
             <h3 class="chart-title">Problem Solving: Tasks Completed</h3>
             <p class="chart-desc">Comparing total tasks completed with full score by each harness (pi vs opencode cli).</p>
           </div>
-          <div id="chart-harness-tasks" class="chart-container" style="height: 340px;"></div>
+          <div id="chart-harness-tasks" class="chart-container chart-container--pie"></div>
         </div>
 
         <!-- Pie Chart 2: Total Execution Time -->
@@ -170,7 +171,7 @@
             <h3 class="chart-title">Execution Speed: Total Time Taken</h3>
             <p class="chart-desc">Comparing aggregate time spent completing tasks by each harness (lower is faster).</p>
           </div>
-          <div id="chart-harness-time" class="chart-container" style="height: 340px;"></div>
+          <div id="chart-harness-time" class="chart-container chart-container--pie"></div>
         </div>
       </div>
     </section>
@@ -190,7 +191,7 @@
               <th data-sort="task_speed" class="sortable-header">Speed <span class="sort-icon"></span></th>
               <th data-sort="intelligence_density" class="sortable-header">Density <span class="sort-icon"></span></th>
               <th data-sort="intelligence" class="sortable-header">Intelligence <span class="sort-icon"></span></th>
-              <th data-sort="memory_gb" class="sortable-header">Memory <span class="sort-icon"></span></th>
+              <th data-sort="memory_gb" class="sortable-header hide-mobile">Memory <span class="sort-icon"></span></th>
               <th data-sort="harness_name" class="sortable-header hide-mobile">Harness <span class="sort-icon"></span>
               </th>
               <th data-sort="reasoning" class="sortable-header hide-mobile">Reasoning <span class="sort-icon"></span>

@@ -181,14 +181,28 @@ function getOrCreateChart(chartEl) {
   if (!chart) {
     chart = echarts.init(chartEl);
     if (typeof ResizeObserver !== 'undefined') {
-      const ro = new ResizeObserver(() => chart.resize({ animation: { duration: 0 } }));
+      const ro = new ResizeObserver(() => {
+        chart.resize({ animation: { duration: 0 } });
+        if (typeof chartEl._relayout === 'function') chartEl._relayout();
+      });
       ro.observe(chartEl);
       chartEl._resizeObserver = ro;
     } else {
-      window.addEventListener('resize', () => chart.resize({ animation: { duration: 0 } }));
+      window.addEventListener('resize', () => {
+        chart.resize({ animation: { duration: 0 } });
+        if (typeof chartEl._relayout === 'function') chartEl._relayout();
+      });
     }
   }
   return chart;
+}
+
+/**
+ * Charts switch to their mobile layout when the container is too narrow for
+ * side legends and rotated labels.
+ */
+function isNarrowChart(chartEl, maxWidth = 620) {
+  return Boolean(chartEl) && chartEl.clientWidth > 0 && chartEl.clientWidth < maxWidth;
 }
 
 function formatChartModelLabel(name) {
@@ -230,7 +244,8 @@ function formatChartModelLabel(name) {
   return name;
 }
 
-function renderRankingBarChart(containerId, evaluations, { metricKey, yAxisName, gradientColors, hoverColor }) {
+function renderRankingBarChart(containerId, evaluations, options) {
+  const { metricKey, yAxisName, gradientColors, hoverColor } = options;
   const chartEl = document.getElementById(containerId);
   const chart = getOrCreateChart(chartEl);
   if (!chart) return;
@@ -239,6 +254,7 @@ function renderRankingBarChart(containerId, evaluations, { metricKey, yAxisName,
   const sorted = normalized.sort((a, b) => (b[metricKey] || 0) - (a[metricKey] || 0)).slice(0, 10);
   const modelLabels = sorted.map(m => m.modelName);
   const metricValues = sorted.map(m => Number(m[metricKey] || 0).toFixed(1));
+  const isNarrow = isNarrowChart(chartEl, 450);
 
   const option = {
     backgroundColor: 'transparent',
@@ -252,45 +268,66 @@ function renderRankingBarChart(containerId, evaluations, { metricKey, yAxisName,
       textStyle: { color: '#0f172a', fontFamily: 'system-ui, -apple-system, sans-serif' },
       formatter: (params) => formatModelCardTooltip(sorted[params[0].dataIndex]?.raw)
     },
-    grid: { left: '3%', right: '4%', bottom: '12%', top: '12%', containLabel: true },
+    grid: { left: 4, right: 38, top: 10, bottom: 6, containLabel: true },
     xAxis: {
+      type: 'value',
+      splitNumber: 4,
+      axisLine: { show: false },
+      axisTick: { show: false },
+      splitLine: { lineStyle: { color: '#f1f5f9' } },
+      axisLabel: {
+        color: '#94a3b8',
+        fontFamily: 'system-ui, -apple-system, sans-serif',
+        fontSize: isNarrow ? 10 : 11
+      }
+    },
+    yAxis: {
       type: 'category',
       data: modelLabels,
-      axisLine: { lineStyle: { color: '#cbd5e1' } },
+      inverse: true,
+      axisLine: { show: false },
+      axisTick: { show: false },
       axisLabel: {
         color: '#64748b',
         fontFamily: 'system-ui, -apple-system, sans-serif',
         interval: 0,
-        rotate: 45,
-        fontSize: 10,
-        lineHeight: 13,
+        fontSize: isNarrow ? 9 : 10,
+        lineHeight: isNarrow ? 11 : 12,
+        width: isNarrow ? 170 : 180,
+        overflow: 'break',
         formatter: (value) => formatChartModelLabel(value)
       }
-    },
-    yAxis: {
-      type: 'value',
-      name: yAxisName,
-      axisLine: { lineStyle: { color: '#cbd5e1' } },
-      splitLine: { lineStyle: { color: '#f1f5f9' } },
-      axisLabel: { color: '#64748b', fontFamily: 'system-ui, -apple-system, sans-serif' }
     },
     series: [{
       name: yAxisName,
       type: 'bar',
       data: metricValues,
       itemStyle: {
-        color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+        color: new echarts.graphic.LinearGradient(1, 0, 0, 0, [
           { offset: 0, color: gradientColors[0] },
           { offset: 1, color: gradientColors[1] }
         ]),
-        borderRadius: [6, 6, 0, 0]
+        borderRadius: [0, 6, 6, 0]
       },
-      barWidth: 18,
+      barWidth: isNarrow ? 14 : 16,
+      label: {
+        show: true,
+        position: 'right',
+        color: '#64748b',
+        fontFamily: 'system-ui, -apple-system, sans-serif',
+        fontSize: isNarrow ? 9 : 10,
+        formatter: (params) => Number(params.value).toFixed(1)
+      },
       emphasis: { itemStyle: { color: hoverColor } }
     }]
   };
 
-  chart.setOption(option);
+  chart.setOption(option, true);
+  chartEl._relayout = () => {
+    if (isNarrowChart(chartEl, 450) !== isNarrow) {
+      renderRankingBarChart(containerId, evaluations, options);
+    }
+  };
   chart.off('click');
   chart.on('click', function (params) {
     const rawEval = sorted[params.dataIndex]?.raw;
@@ -365,6 +402,8 @@ function renderHarnessPieCharts(evaluations) {
   const harnessList = Object.values(harnessStats);
   if (harnessList.length === 0) return;
 
+  const isNarrow = isNarrowChart(document.getElementById('chart-harness-tasks'), 450);
+
   // Distinct branded colors for harnesses
   const harnessColors = {
     'pi': '#f97316',          // Warm vibrant orange
@@ -406,12 +445,32 @@ function renderHarnessPieCharts(evaluations) {
           `;
         }
       },
+      legend: isNarrow ? {
+        show: true,
+        bottom: 4,
+        left: 'center',
+        orient: 'horizontal',
+        icon: 'circle',
+        itemWidth: 9,
+        itemHeight: 9,
+        itemGap: 18,
+        data: harnessList.map(h => h.name),
+        formatter: (name) => {
+          const item = tasksData.find(d => d.name === name);
+          return `${name} (${item ? item.value : 0})`;
+        },
+        textStyle: {
+          color: '#64748b',
+          fontFamily: 'system-ui, -apple-system, sans-serif',
+          fontSize: 11
+        }
+      } : undefined,
       series: [
         {
           name: 'Tasks Completed',
           type: 'pie',
-          radius: ['45%', '72%'],
-          center: ['50%', '50%'],
+          radius: isNarrow ? ['40%', '64%'] : ['45%', '72%'],
+          center: isNarrow ? ['50%', '44%'] : ['50%', '50%'],
           avoidLabelOverlap: true,
           itemStyle: {
             borderRadius: 8,
@@ -419,18 +478,19 @@ function renderHarnessPieCharts(evaluations) {
             borderWidth: 2
           },
           label: {
-            show: true,
+            show: !isNarrow,
             formatter: '{b}\n{c} ({d}%)',
             fontFamily: 'system-ui, -apple-system, sans-serif',
             fontSize: 12,
             fontWeight: 500,
             color: '#334155'
           },
+          labelLine: { show: !isNarrow },
           emphasis: {
             scale: true,
             scaleSize: 8,
             label: {
-              show: true,
+              show: !isNarrow,
               fontSize: 14,
               fontWeight: 700
             }
@@ -480,12 +540,32 @@ function renderHarnessPieCharts(evaluations) {
           `;
         }
       },
+      legend: isNarrow ? {
+        show: true,
+        bottom: 4,
+        left: 'center',
+        orient: 'horizontal',
+        icon: 'circle',
+        itemWidth: 9,
+        itemHeight: 9,
+        itemGap: 18,
+        data: harnessList.map(h => h.name),
+        formatter: (name) => {
+          const item = timeData.find(d => d.name === name);
+          return `${name} (${item ? item.value.toLocaleString() : 0} min)`;
+        },
+        textStyle: {
+          color: '#64748b',
+          fontFamily: 'system-ui, -apple-system, sans-serif',
+          fontSize: 11
+        }
+      } : undefined,
       series: [
         {
           name: 'Total Time Taken',
           type: 'pie',
-          radius: ['45%', '72%'],
-          center: ['50%', '50%'],
+          radius: isNarrow ? ['40%', '64%'] : ['45%', '72%'],
+          center: isNarrow ? ['50%', '44%'] : ['50%', '50%'],
           avoidLabelOverlap: true,
           itemStyle: {
             borderRadius: 8,
@@ -493,18 +573,19 @@ function renderHarnessPieCharts(evaluations) {
             borderWidth: 2
           },
           label: {
-            show: true,
+            show: !isNarrow,
             formatter: (params) => `${params.name}\n${params.value} min (${params.percent}%)`,
             fontFamily: 'system-ui, -apple-system, sans-serif',
             fontSize: 12,
             fontWeight: 500,
             color: '#334155'
           },
+          labelLine: { show: !isNarrow },
           emphasis: {
             scale: true,
             scaleSize: 8,
             label: {
-              show: true,
+              show: !isNarrow,
               fontSize: 14,
               fontWeight: 700
             }
@@ -516,6 +597,14 @@ function renderHarnessPieCharts(evaluations) {
 
     timeChart.setOption(timeOption, true);
   }
+
+  const relayoutPie = () => {
+    if (isNarrowChart(tasksChartEl, 450) !== isNarrow) {
+      renderHarnessPieCharts(evaluations);
+    }
+  };
+  if (tasksChartEl) tasksChartEl._relayout = relayoutPie;
+  if (timeChartEl) timeChartEl._relayout = relayoutPie;
 }
 
 /**
@@ -615,6 +704,8 @@ function renderTopScatterChart(evaluations, viewMode = 'time', colorMode = 'base
   const chart = getOrCreateChart(chartEl);
   if (!chart) return;
 
+  const isNarrow = isNarrowChart(chartEl);
+
   // 1. Prepare raw data points
   const rawPoints = [];
   evaluations.forEach((e, idx) => {
@@ -673,7 +764,7 @@ function renderTopScatterChart(evaluations, viewMode = 'time', colorMode = 'base
     return {
       name: groupName,
       type: 'scatter',
-      symbolSize: 11,
+      symbolSize: isNarrow ? 13 : 11,
       data: data,
       itemStyle: {
         color: color,
@@ -716,7 +807,10 @@ function renderTopScatterChart(evaluations, viewMode = 'time', colorMode = 'base
       textStyle: { color: '#0f172a', fontFamily: 'system-ui, -apple-system, sans-serif' },
       formatter: (params) => formatModelCardTooltip(params.data?.rawEval)
     },
-    legend: {
+    legend: isNarrow ? {
+      show: false,
+      data: sortedGroupKeys
+    } : {
       type: 'scroll',
       orient: 'vertical',
       data: sortedGroupKeys,
@@ -731,29 +825,68 @@ function renderTopScatterChart(evaluations, viewMode = 'time', colorMode = 'base
       pageIconInactiveColor: '#cbd5e1',
       pageTextStyle: { color: '#64748b' }
     },
-    grid: { left: '4%', right: 260, bottom: '12%', top: '8%', containLabel: true },
+    grid: isNarrow
+      ? { left: 8, right: 16, top: 30, bottom: 58, containLabel: true }
+      : { left: '4%', right: 260, bottom: '12%', top: '8%', containLabel: true },
     xAxis: {
       type: 'value',
       name: xAxisName,
       nameLocation: 'middle',
-      nameGap: 32,
+      nameGap: isNarrow ? 30 : 32,
+      nameTextStyle: { color: '#94a3b8', fontFamily: 'system-ui, -apple-system, sans-serif', fontSize: isNarrow ? 11 : 12 },
       axisLine: { lineStyle: { color: '#cbd5e1' } },
       splitLine: { lineStyle: { color: '#f1f5f9' } },
-      axisLabel: { color: '#64748b', fontFamily: 'system-ui, -apple-system, sans-serif' }
+      axisLabel: {
+        color: '#64748b',
+        fontFamily: 'system-ui, -apple-system, sans-serif',
+        fontSize: isNarrow ? 11 : 12
+      }
     },
     yAxis: {
       type: 'value',
       name: 'Intelligence',
       max: 100,
       min: 0,
+      nameTextStyle: { color: '#94a3b8', fontFamily: 'system-ui, -apple-system, sans-serif', fontSize: isNarrow ? 11 : 12 },
       axisLine: { lineStyle: { color: '#cbd5e1' } },
       splitLine: { lineStyle: { color: '#f1f5f9' } },
-      axisLabel: { color: '#64748b', fontFamily: 'system-ui, -apple-system, sans-serif' }
+      axisLabel: {
+        color: '#64748b',
+        fontFamily: 'system-ui, -apple-system, sans-serif',
+        fontSize: isNarrow ? 11 : 12
+      }
     },
     series: series
   };
 
   chart.setOption(option, true);
+
+  // On narrow screens the vertical legend consumes the plot area, so render
+  // a wrapping legend beneath the chart instead.
+  const legendEl = document.getElementById('scatter-legend');
+  if (legendEl) {
+    legendEl.hidden = !isNarrow;
+    legendEl.innerHTML = isNarrow ? sortedGroupKeys.map((name, idx) => {
+      const color = getDistinctGroupColor(name, idx, colorMode);
+      return `
+        <button type="button" class="legend-chip" data-name="${escapeHtml(name)}">
+          <span class="legend-dot" style="background:${color};"></span>
+          <span>${escapeHtml(name)}</span>
+        </button>
+      `;
+    }).join('') : '';
+    legendEl.onclick = (event) => {
+      const chip = event.target.closest('.legend-chip');
+      if (!chip) return;
+      chart.dispatchAction({ type: 'legendToggleSelect', name: chip.dataset.name });
+    };
+  }
+
+  chartEl._relayout = () => {
+    if (isNarrowChart(chartEl) !== isNarrow) {
+      renderTopScatterChart(evaluations, viewMode, colorMode);
+    }
+  };
 
   // Helper to compute exact identity key: model / harness / reasoning / kv_quant
   function getExactConfigKey(rawEval) {
@@ -834,6 +967,13 @@ function renderTopScatterChart(evaluations, viewMode = 'time', colorMode = 'base
     chart.setOption({
       legend: { selected: selected }
     });
+
+    if (legendEl && isNarrow) {
+      legendEl.querySelectorAll('.legend-chip').forEach(chip => {
+        const isActive = !activeSelectedSet || activeSelectedSet.has(chip.dataset.name);
+        chip.classList.toggle('is-inactive', !isActive);
+      });
+    }
   });
 }
 
@@ -907,13 +1047,12 @@ function renderLeaderboard(models) {
             <a href="${traceHref}" style="color:inherit; text-decoration:none; display:inline-block;" onclick="event.stopPropagation();">
               <strong>${escapeHtml(m.name)}</strong>
             </a>
-            <br/><span style="font-size:0.75rem; color:#6b7280;">${m.base_model || m.family}</span>
-            <div class="mobile-sub-info">${escapeHtml(m.harness_name)} • ${escapeHtml(m.reasoning)} • ${escapeHtml(m.kv_quant)}</div>
+            <div class="mobile-sub-info">${escapeHtml(m.harness_name)} • ${escapeHtml(m.reasoning)} • ${escapeHtml(m.kv_quant)} • ${Math.round(m.memory_gb)} GB</div>
           </td>
           <td class="${cls('task_speed')}">${Number(m.task_speed).toFixed(1)}</td>
           <td class="${cls('intelligence_density')}">${Number(m.intelligence_density).toFixed(1)}</td>
           <td class="${cls('intelligence')}">${Number(m.intelligence).toFixed(1)}%</td>
-          <td class="${cls('memory_gb')}">${Math.round(m.memory_gb)} GB</td>
+          <td class="hide-mobile ${cls('memory_gb')}">${Math.round(m.memory_gb)} GB</td>
           <td class="hide-mobile ${cls('harness_name')}">${escapeHtml(m.harness_name)}</td>
           <td class="hide-mobile ${cls('reasoning')}"><span style="font-family:var(--font-mono); font-size:0.85rem; font-weight:500;">${escapeHtml(m.reasoning)}</span></td>
         </tr>

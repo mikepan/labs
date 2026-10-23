@@ -23,6 +23,7 @@ from eval.config import (
     MODELS_CONFIG_FILE,
     REMOTE_HOST,
     REMOTE_VLLM_DIR,
+    REMOTE_VLLM_IMAGE,
 )
 from eval.common import setup_logger, load_json_config, run_cmd, http_json, resolve_target_models
 
@@ -88,7 +89,7 @@ def launch_model(model_name: str, vllm_cmd: str, host: str = REMOTE_HOST) -> boo
     if "Nemotron-3-Super" in model_name or "Nemotron-3-Super" in single_line_cmd:
         mod_flag = "--apply-mod mods/nemotron-super"
 
-    launch_script_cmd = f"./launch-cluster.sh -d --solo {mod_flag} exec {single_line_cmd}".replace("  ", " ")
+    launch_script_cmd = f"./launch-cluster.sh -d --solo -t {REMOTE_VLLM_IMAGE} {mod_flag} exec {single_line_cmd}".replace("  ", " ")
     res = run_remote(f"cd {REMOTE_VLLM_DIR} && {launch_script_cmd}", host=host)
     if res.stdout and res.stdout.strip():
         logger.debug("[launch_model] %s", res.stdout.strip())
@@ -113,7 +114,7 @@ def is_server_ready(expected_weight: str | None = None, base_url: str = API_BASE
 def wait_for_server_ready(
     expected_weight: str | None = None,
     base_url: str = API_BASE_URL,
-    timeout_seconds: int = 600,
+    timeout_seconds: int = 1200,
     verbose: bool = False,
     host: str = REMOTE_HOST,
 ) -> bool:

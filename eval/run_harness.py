@@ -49,6 +49,7 @@ from eval.config import (
     DEFAULT_HINT_SCORE_FACTOR,
     DEFAULT_IDLE_TIMEOUT_MINUTES,
     DEFAULT_MAX_STEP_TIMEOUT_MINUTES,
+    DEFAULT_TOOL_EVAL_PARALLEL,
     MODELS_CONFIG_FILE,
     TESTS_DIR,
 )
@@ -617,6 +618,7 @@ def main():
     parser.add_argument("--model", required=True, help="Model name (e.g. qwen/Qwen3.6-27B-FP8)")
     parser.add_argument("--test", default="all", help="Specific test to run (e.g. 'test0', 'tool-eval-bench', or 'all', default: all)")
     parser.add_argument("--harness", default="all", help="Harness name (e.g. 'pi', 'opencode', or 'all', default: all)")
+    parser.add_argument("--sequential", action="store_true", help="Run harnesses sequentially instead of in parallel")
     parser.add_argument("--reasoning", default=None, help="Reasoning effort override (e.g. 'low', 'medium', 'xhigh', 'off')")
     parser.add_argument("--base-url", default=None, help=f"LLM base URL override (default: {API_BASE_URL})")
     parser.add_argument("--memory-gb", type=float, default=None, help="Measured runtime GPU memory in GB")
@@ -652,6 +654,7 @@ def main():
         tool_eval_output = run_tool_eval_benchmark(
             base_url=llm_base_url,
             model=args.model,
+            parallel=1 if args.sequential else DEFAULT_TOOL_EVAL_PARALLEL,
             reasoning_effort=reasoning_effort,
             verbose=args.verbose,
         )
@@ -753,8 +756,9 @@ def main():
             sandbox.remove()
 
     try:
-        if len(target_harnesses) == 1:
-            run_single_harness(target_harnesses[0])
+        if len(target_harnesses) == 1 or args.sequential:
+            for harness_name in target_harnesses:
+                run_single_harness(harness_name)
         else:
             logger.info("Executing %d harnesses concurrently in parallel: %s", len(target_harnesses), target_harnesses)
             with concurrent.futures.ThreadPoolExecutor(max_workers=len(target_harnesses)) as executor:

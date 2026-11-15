@@ -14,7 +14,7 @@ import time
 from datetime import datetime, timezone
 from typing import Any
 
-from eval.common import setup_logger, NetworkConnectivityError, is_network_error
+from eval.common import setup_logger, NetworkConnectivityError, is_network_error, load_json_config
 from eval.results import resolve_model_info
 from eval.config import (
     DEFAULT_CONTEXT_WINDOW,
@@ -22,6 +22,7 @@ from eval.config import (
     DEFAULT_MAX_OUTPUT_TOKENS,
     DEFAULT_MAX_STEP_TIMEOUT_MINUTES,
     DEFAULT_PI_PORT,
+    MODELS_CONFIG_FILE,
 )
 from eval.drivers import HarnessDriver, register_driver
 from eval.sandbox import SandboxClient
@@ -180,7 +181,7 @@ except Exception as e:
 
         model_entry: dict[str, Any] = {
             "id": active_model,
-            "name": active_model,
+            "name": config_alias or active_model,
             "reasoning": is_reasoning,
             "maxTokens": DEFAULT_MAX_OUTPUT_TOKENS,
             "contextWindow": max_context,
@@ -188,18 +189,13 @@ except Exception as e:
         if supports_effort:
             model_entry["defaultReasoningEffort"] = reasoning_effort
 
+        launch_cfg = ""
+        if os.path.exists(MODELS_CONFIG_FILE):
+            launch_cfg = (load_json_config(MODELS_CONFIG_FILE).get(config_alias) or {}).get("model-arg", "")
+        # vLLM supports strict tool schemas; llama.cpp/ninfer backends do not.
+        is_non_vllm = bool(launch_cfg) and not launch_cfg.lstrip().startswith("vllm")
+
         models_list = [model_entry]
-        if config_alias and config_alias != active_model:
-            alias_entry: dict[str, Any] = {
-                "id": config_alias,
-                "name": config_alias,
-                "reasoning": is_reasoning,
-                "maxTokens": DEFAULT_MAX_OUTPUT_TOKENS,
-                "contextWindow": max_context,
-            }
-            if supports_effort:
-                alias_entry["defaultReasoningEffort"] = reasoning_effort
-            models_list.append(alias_entry)
 
         models_data = {
             "providers": {
@@ -210,6 +206,7 @@ except Exception as e:
                     "compat": {
                         "supportsDeveloperRole": False,
                         "supportsReasoningEffort": supports_effort,
+                        **({"supportsStrictMode": False} if is_non_vllm else {}),
                     },
                     "models": models_list,
                 }

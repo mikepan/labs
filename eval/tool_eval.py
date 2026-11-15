@@ -213,9 +213,8 @@ def run_tool_eval_benchmark(
     logger.info("=" * 70)
 
     from eval.results import resolve_model_info
-    target_model = model
-    if not target_model:
-        target_model, _ = resolve_model_info(base_url, fallback_name="")
+    target_model, _ = resolve_model_info(base_url, fallback_name=model or "")
+    logger.info("tool-eval-bench API model ID: %s", target_model)
 
     t0 = time.perf_counter()
     raw_result = asyncio.run(

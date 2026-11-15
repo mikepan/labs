@@ -1,4 +1,12 @@
 {
+  "Qwen3.8-27B-Ninfer-4090": {
+    "model-arg": "ninfer serve Qwen/Qwen3.8-27B",
+    "model-arg-speculative": "--speculative-config '{\"method\":\"mtp\",\"num_speculative_tokens\":3}'",
+    "model-arg-kv-quant": "--kv-cache-dtype rk4v4-e8",
+    "model-arg-platform": "RTX 4090 24GB",
+    "model-arg-env": "",
+    "reasoning_effort": "on"
+  },
   "diffusiongemma-26B-A4B-IT-NVFP4": {
     "model-arg": "vllm serve nvidia/diffusiongemma-26B-A4B-IT-NVFP4 --enable-prefix-caching --max-num-batched-tokens 8192 --trust-remote-code --attention-backend TRITON_ATTN --enable-auto-tool-choice --tool-call-parser gemma4 --reasoning-parser gemma4 --override-generation-config '{\"max_new_tokens\": null}' --default-chat-template-kwargs '{\"enable_thinking\":true}'",
     "model-arg-speculative": "--diffusion-config '{\"canvas_length\":256}'",

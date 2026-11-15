@@ -651,6 +651,7 @@ def main():
     if should_run_tool_eval:
         tool_eval_output = run_tool_eval_benchmark(
             base_url=llm_base_url,
+            model=args.model,
             reasoning_effort=reasoning_effort,
             verbose=args.verbose,
         )

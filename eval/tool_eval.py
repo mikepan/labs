@@ -162,6 +162,7 @@ def parse_tool_eval_output(
 
 def run_tool_eval_benchmark(
     base_url: str = API_BASE_URL,
+    model: str = "",
     timeout: int = DEFAULT_TOOL_EVAL_TIMEOUT_SECONDS,
     parallel: int = DEFAULT_TOOL_EVAL_PARALLEL,
     hardmode: bool = True,
@@ -211,10 +212,15 @@ def run_tool_eval_benchmark(
                 len(scenarios), timeout, parallel, normalized_effort or "default", base_url)
     logger.info("=" * 70)
 
+    from eval.results import resolve_model_info
+    target_model = model
+    if not target_model:
+        target_model, _ = resolve_model_info(base_url, fallback_name="")
+
     t0 = time.perf_counter()
     raw_result = asyncio.run(
         tool_eval_api.run_benchmark(
-            model="",
+            model=target_model,
             base_url=base_url,
             backend="vllm",
             scenarios=scenarios,

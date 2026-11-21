@@ -42,7 +42,7 @@ Instead of vanity tokens-per-second, we measure **verified work delivered**:
 - **Network Isolation**: Blocks general internet access; only permits traffic to the LLM backend.
 
 ### 2. Evaluation Battery
-1. **Multi-Step Workflows (`test0` – `test3`)**: Greenfield coding, debugging, language porting (Kotlin), and texture classification.
+1. **Multi-Step Workflows (`test0` – `test4`)**: Greenfield coding, debugging, language porting (Kotlin), texture classification, and chess move generation.
 2. **Trivia QA (`trivia`)**: 700+ questions measuring breadth of knowledge, instruction-following, and consistency.
 3. **Structured Tool Calling (`tool-eval-bench`)**: Tests tool-calling decisions and schema accuracy across diverse scenarios.
 

@@ -7,6 +7,7 @@ import json
 import os
 from pathlib import Path
 import re
+import shlex
 import shutil
 import signal
 import subprocess
@@ -38,6 +39,24 @@ logger = setup_logger("sandbox")
 _ACTIVE_SANDBOXES: set[str] = set()
 _ACTIVE_EPHEMERAL_DIRS: set[str] = set()
 _REGISTRY_LOCK = threading.Lock()
+
+# Build/cache artifacts are never part of a solution. Excluding them via
+# .git/info/exclude keeps agent-generated caches out of the automatic step
+# commits (and out of git status) without planting a .gitignore in the project.
+GIT_EXCLUDE_PATTERNS = (
+    "__pycache__/",
+    "*.py[cod]",
+    ".pytest_cache/",
+    ".mypy_cache/",
+    ".ruff_cache/",
+    ".coverage",
+    "htmlcov/",
+    "*.log",
+    ".DS_Store",
+    "node_modules/",
+    ".venv/",
+    "*.egg-info/",
+)
 
 
 def _register_active_sandbox(name: str) -> None:
@@ -461,10 +480,14 @@ print("__JSON_START__" + json.dumps({"ok": ok, "details": result}) + "__JSON_END
             return False
 
     def extract_artifacts(self, workspace_dir: str, dest_dir: str | Path) -> None:
-        """Extract workspace files (excluding .git) from sandbox to a local directory."""
+        """Extract workspace files (excluding git and build artifacts) to a local directory."""
         dest = Path(dest_dir)
         dest.mkdir(parents=True, exist_ok=True)
-        tar_cmd = f"cd {workspace_dir} && tar --exclude='.git' -cf - ."
+        excludes = " ".join(
+            f"--exclude={shlex.quote(p)}"
+            for p in (".git", "__pycache__", "*.pyc", "*.pyo", ".pytest_cache", ".mypy_cache", ".ruff_cache", ".DS_Store", "node_modules")
+        )
+        tar_cmd = f"cd {workspace_dir} && tar {excludes} -cf - ."
         try:
             p1 = subprocess.Popen(
                 ["sbx", "exec", self.name, "bash", "-c", tar_cmd],
@@ -506,6 +529,7 @@ print("__JSON_START__" + json.dumps({"ok": ok, "details": result}) + "__JSON_END
             "git init",
             "git config user.email 'alex.chen@innovatech.io'",
             "git config user.name 'Alex Chen'",
+            "printf '%s\\n' " + " ".join(shlex.quote(p) for p in GIT_EXCLUDE_PATTERNS) + " > .git/info/exclude",
             "git add -A",
             "git commit --allow-empty -m 'chore: initialize project structure'",
         ]

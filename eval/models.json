@@ -1,9 +1,18 @@
 {
   "qwen38_27b_a8_mtpq4q5": {
+    "disabled": true,
     "model-arg": "ninfer serve Qwen/Qwen3.8-27B",
     "model-arg-speculative": "--speculative-config '{\"method\":\"mtp\",\"num_speculative_tokens\":3}'",
     "model-arg-kv-quant": "--kv-cache-dtype rk4v4-e8",
-    "model-arg-platform": "RTX 4090 24GB",
+    "model-arg-env": "",
+    "reasoning_effort": "medium"
+  },
+  "qwen38_27b_ternary": {
+    "disabled": true,
+    "model-arg": "ninfer serve Qwen/Qwen3.8-27B",
+    "model-arg-speculative": "--speculative-config '{\"method\":\"mtp\",\"num_speculative_tokens\":3}'",
+    "model-arg-kv-quant": "--kv-cache-dtype rk4v4-e8",
+    "model-arg-platform": "",
     "model-arg-env": "",
     "reasoning_effort": "medium"
   },

@@ -32,7 +32,7 @@ logger = get_harness_logger("simplebench")
 
 SIMPLEBENCH_TEST_KEY = "simplebench"
 DEFAULT_SIMPLEBENCH_MAX_POINTS = 20.0
-DEFAULT_SIMPLEBENCH_TIMEOUT_SECONDS = 600
+DEFAULT_SIMPLEBENCH_TIMEOUT_SECONDS = 1800
 
 SYSTEM_PROMPT_FILE = TESTS_DIR / "benchmark" / "simple_bench_system_prompt.txt"
 DATASET_FILE = TESTS_DIR / "benchmark" / "simple_bench_public.json"

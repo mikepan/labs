@@ -56,12 +56,16 @@ from eval.config import (
 from eval.drivers import HarnessDriver, get_driver
 from eval.results import get_vllm_model_info, save_evaluation_results
 from eval.sandbox import SandboxClient, ensure_sandbox_policy_isolated
+from eval.simplebench_eval import run_simplebench_benchmark, SIMPLEBENCH_TEST_KEY
 from eval.tool_eval import run_tool_eval_benchmark, TOOL_EVAL_TEST_KEY
 from eval.trivia_eval import run_trivia_benchmark, TRIVIA_TEST_KEY
 from eval.trace import StepTrace, TurnData
 
 
 logger = setup_logger("run_harness")
+
+# Benchmarks that run directly against the OpenAI endpoint, outside any agent sandbox.
+DIRECT_BENCHMARKS = (TRIVIA_TEST_KEY, TOOL_EVAL_TEST_KEY, SIMPLEBENCH_TEST_KEY)
 
 
 # =====================================================================
@@ -635,40 +639,37 @@ def main():
     reasoning_effort = args.reasoning if args.reasoning is not None else models_cfg.get(args.model, {}).get("reasoning_effort")
     llm_base_url = args.base_url if args.base_url else API_BASE_URL
 
-    should_run_trivia = args.test in ("all", TRIVIA_TEST_KEY)
-    trivia_output = None
-
-    # 1. Run trivia benchmark first before any sandbox harness execution
-    if should_run_trivia:
-        trivia_output = run_trivia_benchmark(
+    # 1. Run direct-API benchmarks before any sandbox harness execution
+    direct_runners = {
+        TRIVIA_TEST_KEY: lambda: run_trivia_benchmark(
             base_url=llm_base_url,
             model=args.model,
             reasoning_effort=reasoning_effort,
             verbose=args.verbose,
-        )
-
-    # 1b. Run tool-eval-bench directly against OpenAPI endpoint
-    should_run_tool_eval = args.test in ("all", TOOL_EVAL_TEST_KEY)
-    tool_eval_output = None
-    if should_run_tool_eval:
-        tool_eval_output = run_tool_eval_benchmark(
+        ),
+        TOOL_EVAL_TEST_KEY: lambda: run_tool_eval_benchmark(
             base_url=llm_base_url,
             model=args.model,
             parallel=1 if args.sequential else DEFAULT_TOOL_EVAL_PARALLEL,
             reasoning_effort=reasoning_effort,
             verbose=args.verbose,
-        )
+        ),
+        SIMPLEBENCH_TEST_KEY: lambda: run_simplebench_benchmark(
+            base_url=llm_base_url,
+            model=args.model,
+            reasoning_effort=reasoning_effort,
+            verbose=args.verbose,
+        ),
+    }
+    direct_outputs = {
+        key: runner() for key, runner in direct_runners.items()
+        if args.test in ("all", key)
+    }
 
-    # If only running tool-eval-bench or trivia, save results standalone without sandbox harness
-    if args.test in (TOOL_EVAL_TEST_KEY, TRIVIA_TEST_KEY):
-        standalone_tests = {}
-        standalone_summaries = {}
-        if tool_eval_output and args.test == TOOL_EVAL_TEST_KEY:
-            standalone_tests[TOOL_EVAL_TEST_KEY] = tool_eval_output["trace"]
-            standalone_summaries[TOOL_EVAL_TEST_KEY] = tool_eval_output["summary"]
-        if trivia_output and args.test == TRIVIA_TEST_KEY:
-            standalone_tests[TRIVIA_TEST_KEY] = trivia_output["trace"]
-            standalone_summaries[TRIVIA_TEST_KEY] = trivia_output["summary"]
+    # If only running a direct benchmark, save results standalone without a sandbox harness
+    if args.test in DIRECT_BENCHMARKS:
+        standalone_tests = {key: output["trace"] for key, output in direct_outputs.items()}
+        standalone_summaries = {key: output["summary"] for key, output in direct_outputs.items()}
 
         for harness_name in target_harnesses:
             harness_version = harnesses_cfg.get(harness_name, {}).get("version", "unknown")
@@ -702,7 +703,7 @@ def main():
     target_tests = get_available_tests() if args.test == "all" else [args.test]
     test_specs = []
     for t_name in target_tests:
-        if t_name in (TOOL_EVAL_TEST_KEY, TRIVIA_TEST_KEY):
+        if t_name in DIRECT_BENCHMARKS:
             continue
         run_file = str(TESTS_DIR / t_name / "run.py") if not os.path.isfile(t_name) else t_name
         test_specs.append((run_file, load_test_spec(run_file)))
@@ -733,15 +734,10 @@ def main():
                 llm_base_url=llm_base_url,
             )
 
-            # Attach pre-computed tool-eval-bench results (deep copy for thread safety)
-            if tool_eval_output:
-                evaluation_output["test_results_summary"][TOOL_EVAL_TEST_KEY] = copy.deepcopy(tool_eval_output["summary"])
-                evaluation_output["suite_trace"]["tests"][TOOL_EVAL_TEST_KEY] = copy.deepcopy(tool_eval_output["trace"])
-
-            # Attach pre-computed trivia results
-            if trivia_output:
-                evaluation_output["test_results_summary"][TRIVIA_TEST_KEY] = copy.deepcopy(trivia_output["summary"])
-                evaluation_output["suite_trace"]["tests"][TRIVIA_TEST_KEY] = copy.deepcopy(trivia_output["trace"])
+            # Attach pre-computed direct-API benchmark results (deep copy for thread safety)
+            for key, output in direct_outputs.items():
+                evaluation_output["test_results_summary"][key] = copy.deepcopy(output["summary"])
+                evaluation_output["suite_trace"]["tests"][key] = copy.deepcopy(output["trace"])
 
             save_evaluation_results(
                 model_name=args.model,

@@ -19,6 +19,7 @@ harness          = "eval.run_harness:main"
 benchmark        = "eval.launch_benchmark:main"
 create-harness   = "eval.create_harness:main"
 trivia           = "eval.trivia_eval:main"
+simplebench      = "eval.simplebench_eval:main"
 test-analyzer    = "eval.test_analyzer:main"
 
 [tool.setuptools.packages.find]

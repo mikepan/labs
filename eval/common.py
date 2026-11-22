@@ -10,6 +10,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import urllib.error
 import urllib.request
 
 class ColorFormatter(logging.Formatter):
@@ -104,6 +105,73 @@ def http_json(url: str, method: str = "GET", data: dict | None = None, timeout: 
     except Exception:
         pass
     return None
+
+
+def http_json_strict(url: str, method: str = "GET", data: dict | None = None, timeout: int = 5) -> dict:
+    """Perform an HTTP JSON request, raising RuntimeError with the server body on failure."""
+    payload = json.dumps(data).encode("utf-8") if data else None
+    headers = {"Content-Type": "application/json"} if payload else {}
+    req = urllib.request.Request(url, data=payload, headers=headers, method=method)
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            body = resp.read().decode("utf-8")
+    except urllib.error.HTTPError as e:
+        detail = e.read().decode("utf-8", errors="replace")
+        raise RuntimeError(f"HTTP {e.code} from {url}: {detail[:1000]}") from e
+    except Exception as e:
+        raise RuntimeError(f"Request to {url} failed: {e}") from e
+    try:
+        return json.loads(body)
+    except json.JSONDecodeError as e:
+        raise RuntimeError(f"Invalid JSON from {url}: {body[:1000]}") from e
+
+
+def send_chat_completion(
+    base_url: str,
+    model: str,
+    messages: list[dict[str, str]],
+    reasoning_effort: str | None = None,
+    max_tokens: int = 1024,
+    temperature: float | None = None,
+    top_p: float | None = None,
+    timeout: int = 30,
+) -> tuple[str, str, dict[str, int]]:
+    """Send a chat completion request to an OpenAI-compatible endpoint.
+
+    Returns:
+        (content, reasoning_content, token_usage_dict)
+    """
+    target_url = f"{base_url.rstrip('/')}/v1/chat/completions"
+    payload: dict[str, Any] = {
+        "model": model,
+        "messages": messages,
+        "max_tokens": max_tokens,
+    }
+    if reasoning_effort and reasoning_effort.lower() not in ("off", "none", "on", ""):
+        payload["reasoning_effort"] = reasoning_effort.lower()
+    if temperature is not None:
+        payload["temperature"] = temperature
+    if top_p is not None:
+        payload["top_p"] = top_p
+
+    data = http_json_strict(target_url, method="POST", data=payload, timeout=timeout)
+    msg = data.get("choices", [{}])[0].get("message", {})
+    content = msg.get("content") or ""
+    reasoning = msg.get("reasoning") or msg.get("reasoning_content") or ""
+
+    if not content and reasoning:
+        content = reasoning
+
+    usage = data.get("usage", {})
+    comp_details = usage.get("completion_tokens_details") or {}
+    reasoning_toks = comp_details.get("reasoning_tokens") if isinstance(comp_details, dict) else 0
+    token_usage = {
+        "prompt_tokens": usage.get("prompt_tokens", 0),
+        "completion_tokens": usage.get("completion_tokens", 0),
+        "total_tokens": usage.get("total_tokens", 0),
+        "reasoning_tokens": reasoning_toks or 0,
+    }
+    return content, reasoning, token_usage
 
 
 def get_available_tests() -> list[str]:

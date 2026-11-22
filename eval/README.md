@@ -44,7 +44,8 @@ Instead of vanity tokens-per-second, we measure **verified work delivered**:
 ### 2. Evaluation Battery
 1. **Multi-Step Workflows (`test0` – `test4`)**: Greenfield coding, debugging, language porting (Kotlin), texture classification, and chess move generation.
 2. **Trivia QA (`trivia`)**: 700+ questions measuring breadth of knowledge, instruction-following, and consistency.
-3. **Structured Tool Calling (`tool-eval-bench`)**: Tests tool-calling decisions and schema accuracy across diverse scenarios.
+3. **SimpleBench (`simplebench`)**: The official 10-question public set, using SimpleBench's own system prompt and strict `Final Answer: X` scoring.
+4. **Structured Tool Calling (`tool-eval-bench`)**: Tests tool-calling decisions and schema accuracy across diverse scenarios.
 
 ---
 
@@ -94,6 +95,7 @@ uv run harness --model Qwen3.6-35B-A3B-NVFP4 --test all --harness all
 ### 4. Standalone Tool & Trivia Benchmarks
 ```bash
 uv run trivia
+uv run simplebench --limit 3
 uv run benchmark --model Qwen3.8-27B-NVFP4-xhigh --runs 2
 ```
 

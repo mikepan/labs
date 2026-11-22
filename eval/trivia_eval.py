@@ -34,7 +34,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from eval.common import get_harness_logger, load_json_config, setup_logger, http_json
+from eval.common import get_harness_logger, load_json_config, setup_logger, send_chat_completion
 from eval.config import (
     API_BASE_URL,
     MODELS_CONFIG_FILE,
@@ -221,47 +221,6 @@ def format_multiple_choice_question(
     opt_lines = [f"{l}) {options[l]}" for l in letters]
     prompt = f"{question}\n" + "\n".join(opt_lines)
     return prompt, correct_letter, options
-
-
-def send_chat_completion(
-    base_url: str,
-    model: str,
-    messages: list[dict[str, str]],
-    reasoning_effort: str | None = None,
-    timeout: int = 30,
-) -> tuple[str, str, dict[str, int]]:
-    """Send chat completion request to OpenAPI endpoint.
-
-    Returns:
-        (content, reasoning_content, token_usage_dict)
-    """
-    target_url = f"{base_url.rstrip('/')}/v1/chat/completions"
-    payload: dict[str, Any] = {
-        "model": model,
-        "messages": messages,
-        "max_tokens": 1024,
-    }
-    if reasoning_effort and reasoning_effort.lower() not in ("off", "none", "on", ""):
-        payload["reasoning_effort"] = reasoning_effort.lower()
-
-    data = http_json(target_url, method="POST", data=payload, timeout=timeout) or {}
-    msg = data.get("choices", [{}])[0].get("message", {})
-    content = msg.get("content") or ""
-    reasoning = msg.get("reasoning") or msg.get("reasoning_content") or ""
-
-    if not content and reasoning:
-        content = reasoning
-
-    usage = data.get("usage", {})
-    comp_details = usage.get("completion_tokens_details") or {}
-    reasoning_toks = comp_details.get("reasoning_tokens") if isinstance(comp_details, dict) else 0
-    token_usage = {
-        "prompt_tokens": usage.get("prompt_tokens", 0),
-        "completion_tokens": usage.get("completion_tokens", 0),
-        "total_tokens": usage.get("total_tokens", 0),
-        "reasoning_tokens": reasoning_toks or 0,
-    }
-    return content, reasoning, token_usage
 
 
 def run_trivia_benchmark(

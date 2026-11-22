@@ -12,11 +12,10 @@ import shutil
 import uuid
 from typing import Any
 
-from eval.common import setup_logger, run_cmd, http_json, load_json_config
+from eval.common import setup_logger, run_cmd, http_json, load_models
 from eval.config import (
     API_BASE_URL,
     BENCHMARK_DATA_FILE,
-    MODELS_CONFIG_FILE,
     REMOTE_HOST,
     RESULTS_DIR,
 )
@@ -92,9 +91,8 @@ def get_model_metadata(model_name: str, base_url: str, memory_gb: float | None =
     company = "Community"
     base_model = model_name
 
-    if os.path.exists(MODELS_CONFIG_FILE):
-        models = load_json_config(MODELS_CONFIG_FILE)
-        if model_name in models:
+    models = load_models()
+    if model_name in models:
             cfg = models[model_name]
             spec_arg = cfg.get("model-arg-speculative", "")
             kv_arg = cfg.get("model-arg-kv-quant", "")

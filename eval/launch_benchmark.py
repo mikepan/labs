@@ -24,11 +24,10 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from eval.common import setup_logger, load_json_config, resolve_target_models
+from eval.common import setup_logger, load_models, resolve_target_models
 from eval.config import (
     API_BASE_URL,
     BENCHMARK_RESULT_FILE,
-    MODELS_CONFIG_FILE,
     REMOTE_HOST,
     TESTS_DIR,
 )
@@ -351,6 +350,7 @@ def main():
     parser.add_argument("--base-url", default=API_BASE_URL, help=f"Base URL of the serving server (default: {API_BASE_URL})")
     parser.add_argument("--no-manage", action="store_true", help="Do not stop or start model, benchmark active server directly")
     parser.add_argument("--title", default="OVERALL SERVING BENCHMARK LEADERBOARD", help="Title for the benchmark leaderboard table")
+    parser.add_argument("--output", type=Path, default=BENCHMARK_RESULT_FILE, help=f"Results file to append the leaderboard to (default: {BENCHMARK_RESULT_FILE})")
     parser.add_argument("--context-pressure", type=int, default=25000, metavar="TOKENS",
                         help="Stuff the prompt with news articles to fill approximately TOKENS of context before benchmarking (default: 25000)")
     parser.add_argument("--verbose", action="store_true", help="Print full prompt sent and stream response tokens to stdout")
@@ -369,7 +369,7 @@ def main():
         res = benchmark_model(model_name, None, prompt, runs=args.runs, base_url=args.base_url, manage=False, verbose=args.verbose)
         summaries = [res] if res else []
     else:
-        models = load_json_config(MODELS_CONFIG_FILE)
+        models = load_models()
         targets = resolve_target_models(models, args.model)
         logger.info("Starting benchmark across %d model(s): %s", len(targets), targets)
         summaries = []
@@ -379,7 +379,7 @@ def main():
                 summaries.append(res)
 
     if summaries:
-        write_results_file(summaries, title=args.title)
+        write_results_file(summaries, filepath=args.output, title=args.title)
         print("\n" + format_leaderboard(summaries, title=args.title) + "\n")
 
 

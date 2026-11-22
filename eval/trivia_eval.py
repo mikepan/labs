@@ -34,10 +34,9 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from eval.common import get_harness_logger, load_json_config, setup_logger, send_chat_completion
+from eval.common import get_harness_logger, load_models, setup_logger, send_chat_completion
 from eval.config import (
     API_BASE_URL,
-    MODELS_CONFIG_FILE,
     TESTS_DIR,
 )
 
@@ -259,9 +258,8 @@ def run_trivia_benchmark(
 
     # 2. Resolve reasoning_effort from models.json using benchmark model name
     bench_model_key = model or server_model_id
-    if not reasoning_effort and os.path.isfile(MODELS_CONFIG_FILE):
-        cfg = load_json_config(MODELS_CONFIG_FILE)
-        reasoning_effort = cfg.get(bench_model_key, {}).get("reasoning_effort")
+    if not reasoning_effort:
+        reasoning_effort = load_models().get(bench_model_key, {}).get("reasoning_effort")
 
     logger.info("=" * 70)
     logger.info("RUNNING trivia benchmark (model=%s [server_id=%s], reasoning_effort=%s, reset_interval=%d) against %s",

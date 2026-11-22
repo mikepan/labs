@@ -13,7 +13,6 @@ from __future__ import annotations
 import argparse
 import json
 import logging
-import os
 import re
 import sys
 import time
@@ -25,8 +24,8 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from eval.common import get_harness_logger, load_json_config, send_chat_completion
-from eval.config import API_BASE_URL, MODELS_CONFIG_FILE, TESTS_DIR
+from eval.common import get_harness_logger, load_models, send_chat_completion
+from eval.config import API_BASE_URL, TESTS_DIR
 
 logger = get_harness_logger("simplebench")
 
@@ -99,7 +98,7 @@ def run_simplebench_benchmark(
     server_model_id, _ = resolve_model_info(base_url, fallback_name=model or "")
 
     bench_model_key = model or server_model_id
-    models_cfg = load_json_config(MODELS_CONFIG_FILE) if os.path.isfile(MODELS_CONFIG_FILE) else {}
+    models_cfg = load_models()
     model_cfg = models_cfg.get(bench_model_key, {})
     if not reasoning_effort:
         reasoning_effort = model_cfg.get("reasoning_effort")

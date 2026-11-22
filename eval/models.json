@@ -5,7 +5,7 @@
     "model-arg-speculative": "--speculative-config '{\"method\":\"mtp\",\"num_speculative_tokens\":3}'",
     "model-arg-kv-quant": "--kv-cache-dtype rk4v4-e8",
     "model-arg-env": "",
-    "reasoning_effort": "medium"
+    "reasoning_effort": ["medium"]
   },
   "qwen38_27b_ternary": {
     "disabled": true,
@@ -14,7 +14,7 @@
     "model-arg-kv-quant": "--kv-cache-dtype rk4v4-e8",
     "model-arg-platform": "",
     "model-arg-env": "",
-    "reasoning_effort": "medium"
+    "reasoning_effort": ["medium"]
   },
   "diffusiongemma-26B-A4B-IT-NVFP4": {
     "model-arg": "vllm serve nvidia/diffusiongemma-26B-A4B-IT-NVFP4 --enable-prefix-caching --max-num-batched-tokens 8192 --trust-remote-code --attention-backend TRITON_ATTN --enable-auto-tool-choice --tool-call-parser gemma4 --reasoning-parser gemma4 --override-generation-config '{\"max_new_tokens\": null}' --default-chat-template-kwargs '{\"enable_thinking\":true}'",
@@ -22,7 +22,7 @@
     "model-arg-kv-quant": "--kv-cache-dtype fp8",
     "model-arg-platform": "--load-format fastsafetensors  --kv-cache-memory-bytes 10200000000 --async-scheduling",
     "model-arg-env": "VLLM_USE_V2_MODEL_RUNNER=1",
-    "reasoning_effort": "on",
+    "reasoning_effort": ["on"],
     "no-sampling": true
   },
   "Qwen3.6-35B-A3B-NVFP4": {
@@ -31,7 +31,7 @@
     "model-arg-kv-quant": "--kv-cache-dtype fp8",
     "model-arg-platform": "--attention-backend flashinfer --load-format fastsafetensors  --kv-cache-memory-bytes 6840000000 --async-scheduling",
     "model-arg-env": "VLLM_MARLIN_USE_ATOMIC_ADD=1 VLLM_USE_V2_MODEL_RUNNER=1",
-    "reasoning_effort": "on"
+    "reasoning_effort": ["on"]
   },
   "Qwen3.6-27B-NVFP4": {
     "model-arg": "vllm serve nvidia/Qwen3.6-27B-NVFP4 --enable-prefix-caching --max-num-batched-tokens 8192 --trust-remote-code --reasoning-parser qwen3 --enable-auto-tool-choice --tool-call-parser qwen3_coder",
@@ -39,32 +39,15 @@
     "model-arg-kv-quant": "--kv-cache-dtype fp8",
     "model-arg-platform": "--load-format fastsafetensors  --kv-cache-memory-bytes 21250000000 --async-scheduling",
     "model-arg-env": "",
-    "reasoning_effort": "on"
-  },
-  "Qwen3.8-27B-NVFP4-low": {
-    "model-arg": "vllm serve nvidia/Qwen3.8-27B-NVFP4 --enable-prefix-caching --enable-chunked-prefill --max-num-batched-tokens 8192 --trust-remote-code --reasoning-parser qwen3 --tool-call-parser qwen3_xml --enable-auto-tool-choice",
-    "model-arg-speculative": "--speculative-config '{\"method\":\"dflash\",\"model\":\"z-lab/Qwen3.8-27B-DFlash2\",\"num_speculative_tokens\":8}'",
-    "model-arg-kv-quant": "--kv-cache-dtype fp8",
-    "model-arg-platform": "--attention-backend flashinfer --load-format auto --kv-cache-memory-bytes 22400000000 --async-scheduling",
-    "model-arg-env": "VLLM_MARLIN_USE_ATOMIC_ADD=1 TORCH_MATMUL_PRECISION=high FLASHINFER_DISABLE_VERSION_CHECK=1 NVIDIA_FORWARD_COMPAT=1 VLLM_USE_V2_MODEL_RUNNER=1",
-    "reasoning_effort": "low"
-  },
-  "Qwen3.8-27B-NVFP4-medium": {
-    "model-arg": "vllm serve nvidia/Qwen3.8-27B-NVFP4 --enable-prefix-caching --enable-chunked-prefill --max-num-batched-tokens 8192 --trust-remote-code --reasoning-parser qwen3 --tool-call-parser qwen3_xml --enable-auto-tool-choice",
-    "model-arg-speculative": "--speculative-config '{\"method\":\"dflash\",\"model\":\"z-lab/Qwen3.8-27B-DFlash2\",\"num_speculative_tokens\":8}'",
-    "model-arg-kv-quant": "--kv-cache-dtype fp8",
-    "model-arg-platform": "--attention-backend flashinfer --load-format auto --kv-cache-memory-bytes 22400000000 --async-scheduling",
-    "model-arg-env": "VLLM_MARLIN_USE_ATOMIC_ADD=1 TORCH_MATMUL_PRECISION=high FLASHINFER_DISABLE_VERSION_CHECK=1 NVIDIA_FORWARD_COMPAT=1 VLLM_USE_V2_MODEL_RUNNER=1",
-    "reasoning_effort": "medium"
+    "reasoning_effort": ["on"]
   },
   "Qwen3.8-27B-NVFP4": {
-    "disabled": true,
     "model-arg": "vllm serve nvidia/Qwen3.8-27B-NVFP4 --enable-prefix-caching --enable-chunked-prefill --max-num-batched-tokens 8192 --trust-remote-code --reasoning-parser qwen3 --tool-call-parser qwen3_xml --enable-auto-tool-choice",
     "model-arg-speculative": "--speculative-config '{\"method\":\"dflash\",\"model\":\"z-lab/Qwen3.8-27B-DFlash2\",\"num_speculative_tokens\":8}'",
     "model-arg-kv-quant": "--kv-cache-dtype fp8",
     "model-arg-platform": "--attention-backend flashinfer --load-format auto --kv-cache-memory-bytes 22400000000 --async-scheduling",
     "model-arg-env": "VLLM_MARLIN_USE_ATOMIC_ADD=1 TORCH_MATMUL_PRECISION=high FLASHINFER_DISABLE_VERSION_CHECK=1 NVIDIA_FORWARD_COMPAT=1 VLLM_USE_V2_MODEL_RUNNER=1",
-    "reasoning_effort": "xhigh"
+    "reasoning_effort": ["low", "medium"]
   },
   "Qwen3.8-27B-FP8": {
     "disabled": true,
@@ -73,7 +56,7 @@
     "model-arg-kv-quant": "--kv-cache-dtype fp8",
     "model-arg-platform": "--attention-backend flashinfer --load-format auto --kv-cache-memory-bytes 23714000000 --async-scheduling",
     "model-arg-env": "VLLM_MARLIN_USE_ATOMIC_ADD=1 TORCH_MATMUL_PRECISION=high FLASHINFER_DISABLE_VERSION_CHECK=1 NVIDIA_FORWARD_COMPAT=1 VLLM_USE_V2_MODEL_RUNNER=1",
-    "reasoning_effort": "xhigh"
+    "reasoning_effort": ["xhigh"]
   },
   "Qwen3.8-27B-AWQ-INT4": {
     "disabled": true,
@@ -82,23 +65,7 @@
     "model-arg-kv-quant": "--kv-cache-dtype fp8",
     "model-arg-platform": "--load-format auto --kv-cache-memory-bytes 23714000000 --async-scheduling",
     "model-arg-env": "VLLM_MARLIN_USE_ATOMIC_ADD=1 TORCH_MATMUL_PRECISION=high FLASHINFER_DISABLE_VERSION_CHECK=1 NVIDIA_FORWARD_COMPAT=1 VLLM_USE_V2_MODEL_RUNNER=1",
-    "reasoning_effort": "xhigh"
-  },
-  "Qwen3.8-Flash-Next-NVFP4-QAD-low": {
-    "model-arg": "vllm serve nvidia/Qwen3.8-Flash-Next-FP4-Local --enable-prefix-caching --enable-chunked-prefill --max-num-batched-tokens 8192 --trust-remote-code --reasoning-parser qwen3 --tool-call-parser qwen3_xml --enable-auto-tool-choice --mamba-cache-mode align --dtype bfloat16 --quantization modelopt_mixed --block-size 16 --linear-backend b12x --moe-backend b12x --no-enable-flashinfer-autotune --mm-encoder-tp-mode data --compilation-config '{\"pass_config\":{\"fuse_act_quant\":true}}' --gdn-decode-kernel b12x",
-    "model-arg-speculative": "--speculative-config '{\"method\":\"mtp\",\"num_speculative_tokens\":4}'",
-    "model-arg-kv-quant": "--kv-cache-dtype fp8",
-    "model-arg-platform": "--load-format b12x --kv-cache-memory-bytes 10700000000 --async-scheduling",
-    "model-arg-env": "VLLM_PLE_TABLE_MEMORY=disk B12X_DISK_BACKEND=io_uring CUTE_DSL_ARCH=sm_121a SAFETENSORS_FAST_GPU=1 VLLM_WORKER_MULTIPROC_METHOD=spawn VLLM_SSM_CONV_STATE_LAYOUT=DS VLLM_USE_AOT_COMPILE=1 VLLM_USE_MEGA_AOT_ARTIFACT=1 VLLM_USE_V2_MODEL_RUNNER=1 B12X_POLICY_MODE=auto VLLM_MXFP8_LM_HEAD=1 VLLM_B12X_MOE_FP4_LAYER_MAX_INPUT_SCALE=w13 VLLM_B12X_MOE_FP4_FORCE_A16=1 B12X_W4A16_A4_PREFILL=1",
-    "reasoning_effort": "low"
-  },
-  "Qwen3.8-Flash-Next-NVFP4-QAD-medium": {
-    "model-arg": "vllm serve nvidia/Qwen3.8-Flash-Next-FP4-Local --enable-prefix-caching --enable-chunked-prefill --max-num-batched-tokens 8192 --trust-remote-code --reasoning-parser qwen3 --tool-call-parser qwen3_xml --enable-auto-tool-choice --mamba-cache-mode align --dtype bfloat16 --quantization modelopt_mixed --block-size 16 --linear-backend b12x --moe-backend b12x --no-enable-flashinfer-autotune --mm-encoder-tp-mode data --compilation-config '{\"pass_config\":{\"fuse_act_quant\":true}}' --gdn-decode-kernel b12x",
-    "model-arg-speculative": "--speculative-config '{\"method\":\"mtp\",\"num_speculative_tokens\":4}'",
-    "model-arg-kv-quant": "--kv-cache-dtype fp8",
-    "model-arg-platform": "--load-format b12x --kv-cache-memory-bytes 10700000000 --async-scheduling",
-    "model-arg-env": "VLLM_PLE_TABLE_MEMORY=disk B12X_DISK_BACKEND=io_uring CUTE_DSL_ARCH=sm_121a SAFETENSORS_FAST_GPU=1 VLLM_WORKER_MULTIPROC_METHOD=spawn VLLM_SSM_CONV_STATE_LAYOUT=DS VLLM_USE_AOT_COMPILE=1 VLLM_USE_MEGA_AOT_ARTIFACT=1 VLLM_USE_V2_MODEL_RUNNER=1 B12X_POLICY_MODE=auto VLLM_MXFP8_LM_HEAD=1 VLLM_B12X_MOE_FP4_LAYER_MAX_INPUT_SCALE=w13 VLLM_B12X_MOE_FP4_FORCE_A16=1 B12X_W4A16_A4_PREFILL=1",
-    "reasoning_effort": "medium"
+    "reasoning_effort": ["xhigh"]
   },
   "Qwen3.8-Flash-Next-NVFP4-QAD": {
     "model-arg": "vllm serve nvidia/Qwen3.8-Flash-Next-FP4-Local --enable-prefix-caching --enable-chunked-prefill --max-num-batched-tokens 8192 --trust-remote-code --reasoning-parser qwen3 --tool-call-parser qwen3_xml --enable-auto-tool-choice --mamba-cache-mode align --dtype bfloat16 --quantization modelopt_mixed --block-size 16 --linear-backend b12x --moe-backend b12x --no-enable-flashinfer-autotune --mm-encoder-tp-mode data --compilation-config '{\"pass_config\":{\"fuse_act_quant\":true}}' --gdn-decode-kernel b12x",
@@ -106,7 +73,7 @@
     "model-arg-kv-quant": "--kv-cache-dtype fp8",
     "model-arg-platform": "--load-format b12x --kv-cache-memory-bytes 10700000000 --async-scheduling",
     "model-arg-env": "VLLM_PLE_TABLE_MEMORY=disk B12X_DISK_BACKEND=io_uring CUTE_DSL_ARCH=sm_121a SAFETENSORS_FAST_GPU=1 VLLM_WORKER_MULTIPROC_METHOD=spawn VLLM_SSM_CONV_STATE_LAYOUT=DS VLLM_USE_AOT_COMPILE=1 VLLM_USE_MEGA_AOT_ARTIFACT=1 VLLM_USE_V2_MODEL_RUNNER=1 B12X_POLICY_MODE=auto VLLM_MXFP8_LM_HEAD=1 VLLM_B12X_MOE_FP4_LAYER_MAX_INPUT_SCALE=w13 VLLM_B12X_MOE_FP4_FORCE_A16=1 B12X_W4A16_A4_PREFILL=1",
-    "reasoning_effort": "xhigh"
+    "reasoning_effort": ["low", "medium", "xhigh"]
   },
   "Muse-Glimmer-30B-NVFP4-W4A4": {
     "model-arg": "vllm serve Inferact/Muse-Glimmer-30B-NVFP4-W4A4 --enable-prefix-caching --max-num-batched-tokens 8192 --generation-config auto --reasoning-parser muse_glimmer --enable-auto-tool-choice --tool-call-parser muse_glimmer --max-num-seqs 4",
@@ -114,7 +81,7 @@
     "model-arg-kv-quant": "--kv-cache-dtype fp8",
     "model-arg-platform": "--attention-backend flashinfer --kv-cache-memory-bytes 4300000000 --async-scheduling",
     "model-arg-env": "VLLM_KV_CACHE_LAYOUT=BLHNC TORCH_MATMUL_PRECISION=high FLASHINFER_DISABLE_VERSION_CHECK=1 NVIDIA_FORWARD_COMPAT=1 VLLM_USE_V2_MODEL_RUNNER=1",
-    "reasoning_effort": "on"
+    "reasoning_effort": ["on"]
   },
   "Nemotron-3.5-Lightning-30B-A3B-NVFP4": {
     "model-arg": "vllm serve nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4 --enable-prefix-caching --max-num-batched-tokens 8192 --moe-backend marlin --mamba-backend flashinfer --mamba-ssm-cache-dtype float16 --enable-mamba-cache-stochastic-rounding --mamba-cache-philox-rounds 5 --mamba-cache-mode align --reasoning-parser nemotron_v3 --enable-auto-tool-choice --tool-call-parser qwen3_xml",
@@ -122,7 +89,7 @@
     "model-arg-kv-quant": "--kv-cache-dtype fp8",
     "model-arg-platform": "--load-format auto --kv-cache-memory-bytes 7377400000 --async-scheduling",
     "model-arg-env": "",
-    "reasoning_effort": "on"
+    "reasoning_effort": ["on"]
   },
   "Nemotron-3-Super-120B-A12B-NVFP4": {
     "model-arg": "vllm serve nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-NVFP4 --moe-backend cutlass --trust-remote-code --enable-prefix-caching --enable-auto-tool-choice --tool-call-parser qwen3_coder --reasoning-parser nemotron_v3 --mamba-ssm-cache-dtype float16 --attention-backend TRITON_ATTN --max-num-seqs 2 --max-num-batched-tokens 8192",
@@ -130,6 +97,14 @@
     "model-arg-kv-quant": "--kv-cache-dtype fp8",
     "model-arg-platform": "--load-format auto --kv-cache-memory-bytes 3700000000 --async-scheduling",
     "model-arg-env": "VLLM_FLASHINFER_ALLREDUCE_BACKEND=trtllm VLLM_ALLOW_LONG_MAX_MODEL_LEN=1 TORCH_MATMUL_PRECISION=high FLASHINFER_DISABLE_VERSION_CHECK=1 NVIDIA_FORWARD_COMPAT=1 VLLM_USE_V2_MODEL_RUNNER=1",
-    "reasoning_effort": "on"
+    "reasoning_effort": ["on"]
+  },
+  "Inkling-2-Mini": {
+    "image": "vllm-node",
+    "model-arg": "vllm serve thinkingmachines/Inkling-2-Mini --tensor-parallel-size 1 --max-model-len 262144 --reasoning-parser inkling --enable-auto-tool-choice --tool-call-parser inkling",
+    "model-arg-speculative": "--speculative-config '{\"method\":\"dspark\",\"num_speculative_tokens\":7,\"draft_sample_method\":\"probabilistic\"}'",
+    "model-arg-platform": "--kv-cache-memory-bytes 28800000000",
+    "model-arg-env": "",
+    "reasoning_effort": ["low", "medium", "high"]
   }
 }

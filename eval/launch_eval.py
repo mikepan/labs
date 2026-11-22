@@ -25,14 +25,13 @@ if str(REPO_ROOT) not in sys.path:
 
 from eval.config import (
     API_BASE_URL,
-    MODELS_CONFIG_FILE,
     REMOTE_HOST,
 )
 from eval.common import (
     setup_logger,
     get_available_tests,
     load_harnesses_config,
-    load_json_config,
+    load_models,
     prevent_system_sleep,
     resolve_target_models,
 )
@@ -148,7 +147,7 @@ def run_model_pipeline(
 
 def main():
     prevent_system_sleep()
-    models = load_json_config(MODELS_CONFIG_FILE)
+    models = load_models()
     parser = argparse.ArgumentParser(description="Run vLLM model evaluation pipeline across models, tests, and harnesses.")
     parser.add_argument("--model", default="all", help="Model to evaluate (e.g. 'all' or specific model, default: all)")
     parser.add_argument("--harness", default="all", help="Harness to run (e.g. 'pi', 'opencode', or 'all', default: all)")

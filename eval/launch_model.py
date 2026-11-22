@@ -20,12 +20,11 @@ from typing import Any
 
 from eval.config import (
     API_BASE_URL,
-    MODELS_CONFIG_FILE,
     REMOTE_HOST,
     REMOTE_VLLM_DIR,
     REMOTE_VLLM_IMAGE,
 )
-from eval.common import setup_logger, load_json_config, run_cmd, http_json, resolve_target_models
+from eval.common import setup_logger, load_models, run_cmd, http_json, resolve_target_models
 
 logger = setup_logger("launch_model")
 
@@ -78,7 +77,12 @@ def stop_model(host: str = REMOTE_HOST) -> bool:
     return res.returncode == 0
 
 
-def launch_model(model_name: str, vllm_cmd: str, host: str = REMOTE_HOST) -> bool:
+def launch_model(
+    model_name: str,
+    vllm_cmd: str,
+    image: str = REMOTE_VLLM_IMAGE,
+    host: str = REMOTE_HOST,
+) -> bool:
     """Stop any running instance and start the model container in daemon mode."""
     stop_model(host=host)
     single_line_cmd = " ".join(vllm_cmd.split())
@@ -89,7 +93,7 @@ def launch_model(model_name: str, vllm_cmd: str, host: str = REMOTE_HOST) -> boo
     if "Nemotron-3-Super" in model_name or "Nemotron-3-Super" in single_line_cmd:
         mod_flag = "--apply-mod mods/nemotron-super"
 
-    launch_script_cmd = f"./launch-cluster.sh -d --solo -t {REMOTE_VLLM_IMAGE} {mod_flag} exec {single_line_cmd}".replace("  ", " ")
+    launch_script_cmd = f"./launch-cluster.sh -d --solo -t {image} {mod_flag} exec {single_line_cmd}".replace("  ", " ")
     res = run_remote(f"cd {REMOTE_VLLM_DIR} && {launch_script_cmd}", host=host)
     if res.stdout and res.stdout.strip():
         logger.debug("[launch_model] %s", res.stdout.strip())
@@ -231,8 +235,9 @@ def ensure_model_running(
     """
     weight_name, vllm_cmd = parse_model_config(model_config)
     reasoning_effort = model_config.get("reasoning_effort")
+    image = str(model_config.get("image", REMOTE_VLLM_IMAGE))
 
-    if not launch_model(model_name, vllm_cmd, host=host):
+    if not launch_model(model_name, vllm_cmd, image=image, host=host):
         return False, weight_name
     if not wait_for_server_ready(expected_weight=weight_name, base_url=base_url, verbose=verbose, host=host):
         return False, weight_name
@@ -250,7 +255,7 @@ def ensure_model_running(
 
 
 def main():
-    models = load_json_config(MODELS_CONFIG_FILE)
+    models = load_models()
     parser = argparse.ArgumentParser(description="Launch, manage, or test vLLM models on remote cluster.")
     parser.add_argument("--model", default="all", help="Model to launch or 'all'")
     parser.add_argument("--stop", action="store_true", help="Stop running model container")

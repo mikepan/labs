@@ -207,6 +207,22 @@ def load_harnesses_config() -> dict:
     return load_json_config(HARNESSES_CONFIG_FILE, label="harnesses config")
 
 
+def load_models() -> dict[str, dict]:
+    """Load models.json, expanding each model's reasoning-effort list into aliases.
+
+    A model with one effort keeps its base name. With several, each effort gets a
+    ``-<effort>`` suffix except ``xhigh``, which keeps the unsuffixed default name.
+    """
+    from eval.config import MODELS_CONFIG_FILE
+    models: dict[str, dict] = {}
+    for name, cfg in load_json_config(MODELS_CONFIG_FILE, label="models config").items():
+        efforts = cfg["reasoning_effort"]
+        for effort in efforts:
+            suffix = "" if len(efforts) == 1 or effort == "xhigh" else f"-{effort}"
+            models[f"{name}{suffix}"] = {**cfg, "reasoning_effort": effort}
+    return models
+
+
 def resolve_target_models(models: dict[str, Any], model_arg: str | None = "all") -> list[str]:
     """Resolve target model names by case-insensitive substring match, comma-list, or 'all'."""
     if not model_arg or model_arg == "all":

@@ -38,7 +38,7 @@ from eval.common import (
     get_harness_logger,
     setup_logger,
     load_harnesses_config,
-    load_json_config,
+    load_models,
     get_available_tests,
     NetworkConnectivityError,
     is_network_error,
@@ -51,7 +51,6 @@ from eval.config import (
     DEFAULT_MAX_STEP_TIMEOUT_MINUTES,
     DEFAULT_DIRECT_BENCHMARK_PARALLEL,
     DEFAULT_TOOL_EVAL_PARALLEL,
-    MODELS_CONFIG_FILE,
     TESTS_DIR,
 )
 from eval.drivers import HarnessDriver, get_driver
@@ -636,7 +635,7 @@ def main():
     harnesses_cfg = load_harnesses_config()
     target_harnesses = list(harnesses_cfg.keys()) if args.harness == "all" else [args.harness]
 
-    models_cfg = load_json_config(MODELS_CONFIG_FILE) if os.path.exists(MODELS_CONFIG_FILE) else {}
+    models_cfg = load_models()
     reasoning_effort = args.reasoning if args.reasoning is not None else models_cfg.get(args.model, {}).get("reasoning_effort")
     llm_base_url = args.base_url if args.base_url else API_BASE_URL
 

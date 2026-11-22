@@ -1,7 +1,7 @@
 {
   "Inkling-2-Mini": {
     "image": "vllm-node",
-    "model-arg": "vllm serve thinkingmachines/Inkling-2-Mini --tensor-parallel-size 1 --max-model-len 262144 --reasoning-parser inkling --enable-auto-tool-choice --tool-call-parser inkling",
+    "model-arg": "vllm serve thinkingmachines/Inkling-2-Mini --tensor-parallel-size 1 --max-model-len 262144 --enable-prefix-caching --reasoning-parser inkling --enable-auto-tool-choice --tool-call-parser inkling",
     "model-arg-speculative": "--speculative-config '{\"method\":\"dspark\",\"num_speculative_tokens\":7,\"draft_sample_method\":\"probabilistic\"}'",
     "model-arg-platform": "--kv-cache-dtype fp8 --kv-cache-memory-bytes 18147000000",
     "model-arg-env": "",
@@ -39,7 +39,8 @@
     "model-arg-platform": "--load-format fastsafetensors  --kv-cache-memory-bytes 10200000000 --async-scheduling",
     "model-arg-env": "VLLM_USE_V2_MODEL_RUNNER=1",
     "reasoning_effort": [
-      "on"
+      "on",
+      "off"
     ],
     "no-sampling": true
   },
@@ -50,7 +51,8 @@
     "model-arg-platform": "--attention-backend flashinfer --load-format fastsafetensors  --kv-cache-memory-bytes 6840000000 --async-scheduling",
     "model-arg-env": "VLLM_MARLIN_USE_ATOMIC_ADD=1 VLLM_USE_V2_MODEL_RUNNER=1",
     "reasoning_effort": [
-      "on"
+      "on",
+      "off"
     ]
   },
   "Qwen3.6-27B-NVFP4": {
@@ -60,7 +62,8 @@
     "model-arg-platform": "--load-format fastsafetensors  --kv-cache-memory-bytes 21250000000 --async-scheduling",
     "model-arg-env": "",
     "reasoning_effort": [
-      "on"
+      "on",
+      "off"
     ]
   },
   "Qwen3.8-27B-NVFP4": {
@@ -71,17 +74,19 @@
     "model-arg-env": "VLLM_MARLIN_USE_ATOMIC_ADD=1 TORCH_MATMUL_PRECISION=high FLASHINFER_DISABLE_VERSION_CHECK=1 NVIDIA_FORWARD_COMPAT=1 VLLM_USE_V2_MODEL_RUNNER=1",
     "reasoning_effort": [
       "low",
-      "medium"
+      "medium",
+      "xhigh"
     ]
   },
   "Qwen3.8-27B-FP8": {
-    "disabled": true,
     "model-arg": "vllm serve Qwen/Qwen3.8-27B-FP8 --enable-prefix-caching --max-num-batched-tokens 8192 --trust-remote-code --reasoning-parser qwen3 --enable-auto-tool-choice --tool-call-parser qwen3_coder",
     "model-arg-speculative": "--speculative-config '{\"method\":\"dflash\",\"model\":\"z-lab/Qwen3.8-27B-DFlash2\",\"num_speculative_tokens\":8}'",
     "model-arg-kv-quant": "",
     "model-arg-platform": "--attention-backend flashinfer --load-format auto --kv-cache-memory-bytes 47428000000 --async-scheduling",
     "model-arg-env": "VLLM_MARLIN_USE_ATOMIC_ADD=1 TORCH_MATMUL_PRECISION=high FLASHINFER_DISABLE_VERSION_CHECK=1 NVIDIA_FORWARD_COMPAT=1 VLLM_USE_V2_MODEL_RUNNER=1",
     "reasoning_effort": [
+      "low",
+      "medium",
       "xhigh"
     ]
   },
@@ -93,6 +98,8 @@
     "model-arg-platform": "--load-format auto --kv-cache-memory-bytes 23714000000 --async-scheduling",
     "model-arg-env": "VLLM_MARLIN_USE_ATOMIC_ADD=1 TORCH_MATMUL_PRECISION=high FLASHINFER_DISABLE_VERSION_CHECK=1 NVIDIA_FORWARD_COMPAT=1 VLLM_USE_V2_MODEL_RUNNER=1",
     "reasoning_effort": [
+      "low",
+      "medium",
       "xhigh"
     ]
   },
@@ -116,7 +123,9 @@
     "model-arg-platform": "--attention-backend flashinfer --kv-cache-memory-bytes 4300000000 --async-scheduling",
     "model-arg-env": "VLLM_KV_CACHE_LAYOUT=BLHNC TORCH_MATMUL_PRECISION=high FLASHINFER_DISABLE_VERSION_CHECK=1 NVIDIA_FORWARD_COMPAT=1 VLLM_USE_V2_MODEL_RUNNER=1",
     "reasoning_effort": [
-      "on"
+      "low",
+      "medium",
+      "high"
     ]
   },
   "Nemotron-3.5-Lightning-30B-A3B-NVFP4": {
@@ -126,7 +135,8 @@
     "model-arg-platform": "--load-format auto --kv-cache-memory-bytes 7377400000 --async-scheduling",
     "model-arg-env": "",
     "reasoning_effort": [
-      "on"
+      "on",
+      "off"
     ]
   },
   "Nemotron-3-Super-120B-A12B-NVFP4": {
@@ -136,7 +146,8 @@
     "model-arg-platform": "--load-format auto --kv-cache-memory-bytes 3700000000 --async-scheduling",
     "model-arg-env": "VLLM_FLASHINFER_ALLREDUCE_BACKEND=trtllm VLLM_ALLOW_LONG_MAX_MODEL_LEN=1 TORCH_MATMUL_PRECISION=high FLASHINFER_DISABLE_VERSION_CHECK=1 NVIDIA_FORWARD_COMPAT=1 VLLM_USE_V2_MODEL_RUNNER=1",
     "reasoning_effort": [
-      "on"
+      "on",
+      "off"
     ]
   }
 }

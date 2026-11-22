@@ -171,24 +171,37 @@ except Exception as e:
         reasoning_effort: str | None = None,
     ) -> None:
         """Write ~/.pi/agent/models.json, settings.json, and trust.json inside sandbox."""
-        is_reasoning = reasoning_effort not in ("off", "none")
-        # For 'xhigh', vLLM's default is already xhigh, but Pi's OpenAI adapter converts xhigh -> 'high' (which vLLM rejects with 400).
-        # Therefore, only enable supportsReasoningEffort for 'low' and 'medium'.
-        supports_effort = bool(reasoning_effort and reasoning_effort.lower() in ("low", "medium"))
+        effort = (reasoning_effort or "").strip().lower()
+        is_boolean_thinking = effort in ("on", "off")
 
         model_entry: dict[str, Any] = {
             "id": active_model,
             "name": config_alias or active_model,
-            "reasoning": is_reasoning,
+            "reasoning": True,
             "maxTokens": DEFAULT_MAX_OUTPUT_TOKENS,
             "contextWindow": max_context,
         }
-        if supports_effort:
-            model_entry["defaultReasoningEffort"] = reasoning_effort
+        if not is_boolean_thinking:
+            # Pi drops unlisted levels; xhigh must be mapped explicitly.
+            model_entry["thinkingLevelMap"] = {"xhigh": "xhigh"}
 
         launch_cfg = (load_models().get(config_alias) or {}).get("model-arg", "")
         # vLLM supports strict tool schemas; llama.cpp/ninfer backends do not.
         is_non_vllm = bool(launch_cfg) and not launch_cfg.lstrip().startswith("vllm")
+
+        compat: dict[str, Any] = {
+            "supportsDeveloperRole": False,
+            "supportsReasoningEffort": False,
+            **({"supportsStrictMode": False} if is_non_vllm else {}),
+            "thinkingFormat": "chat-template",
+        }
+        if is_boolean_thinking:
+            compat["chatTemplateKwargs"] = {"enable_thinking": "$thinking.enabled"}
+        else:
+            compat["chatTemplateKwargs"] = {
+                "reasoning_effort": "$thinking.effort",
+                "reasoning_strength": "$thinking.effort",
+            }
 
         models_list = [model_entry]
 
@@ -198,11 +211,7 @@ except Exception as e:
                     "baseUrl": llm_base_url,
                     "api": "openai-completions",
                     "apiKey": "dummy",
-                    "compat": {
-                        "supportsDeveloperRole": False,
-                        "supportsReasoningEffort": supports_effort,
-                        **({"supportsStrictMode": False} if is_non_vllm else {}),
-                    },
+                    "compat": compat,
                     "models": models_list,
                 }
             }

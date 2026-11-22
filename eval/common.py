@@ -106,6 +106,39 @@ def http_json(url: str, method: str = "GET", data: dict | None = None, timeout: 
     return None
 
 
+GRANULAR_REASONING_EFFORTS = ("low", "medium", "high", "xhigh")
+
+
+def normalize_reasoning_effort(reasoning_effort: str | None) -> str | None:
+    """Map config sentinels to a vLLM ``reasoning_effort`` value, or None to omit it.
+
+    ``"on"`` means the model's default thinking mode, so it is omitted.
+    ``"off"`` maps to the valid vLLM value ``"none"``, which turns thinking off.
+    """
+    if not reasoning_effort:
+        return None
+    effort = reasoning_effort.strip().lower()
+    if effort == "on":
+        return None
+    return "none" if effort == "off" else effort
+
+
+def reasoning_request_params(reasoning_effort: str | None) -> dict[str, Any]:
+    """Build per-request payload fields for a configured reasoning effort.
+
+    Models with a boolean thinking toggle use ``reasoning_effort`` (``none``
+    turns thinking off). Models with a reasoning-strength template (Muse
+    Glimmer) additionally need it in ``chat_template_kwargs``.
+    """
+    effort = normalize_reasoning_effort(reasoning_effort)
+    if not effort:
+        return {}
+    params: dict[str, Any] = {"reasoning_effort": effort}
+    if effort in GRANULAR_REASONING_EFFORTS:
+        params["chat_template_kwargs"] = {"reasoning_strength": effort}
+    return params
+
+
 def send_chat_completion(
     base_url: str,
     model: str,
@@ -129,8 +162,7 @@ def send_chat_completion(
         "stream": True,
         "stream_options": {"include_usage": True},
     }
-    if reasoning_effort and reasoning_effort.lower() not in ("off", "none", "on", ""):
-        payload["reasoning_effort"] = reasoning_effort.lower()
+    payload.update(reasoning_request_params(reasoning_effort))
     if temperature is not None:
         payload["temperature"] = temperature
     if top_p is not None:
@@ -210,16 +242,21 @@ def load_models() -> dict[str, dict]:
     """Load models.json, expanding each model's reasoning-effort list into aliases.
 
     A model with one effort keeps its base name. With several, each effort gets a
-    ``-<effort>`` suffix except ``xhigh``, which keeps the unsuffixed default name.
+    ``-<effort>`` suffix except ``on``, which is the default and keeps the base name.
     """
     from eval.config import MODELS_CONFIG_FILE
     models: dict[str, dict] = {}
     for name, cfg in load_json_config(MODELS_CONFIG_FILE, label="models config").items():
         efforts = cfg["reasoning_effort"]
         for effort in efforts:
-            suffix = "" if len(efforts) == 1 or effort == "xhigh" else f"-{effort}"
+            suffix = "" if len(efforts) == 1 or effort == "on" else f"-{effort}"
             models[f"{name}{suffix}"] = {**cfg, "reasoning_effort": effort}
     return models
+
+
+def model_launch_key(model_config: dict[str, Any]) -> tuple:
+    """Identify aliases that share one vLLM launch config."""
+    return tuple(sorted((key, value) for key, value in model_config.items() if key != "reasoning_effort"))
 
 
 def resolve_target_models(models: dict[str, Any], model_arg: str | None = "all") -> list[str]:

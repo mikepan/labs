@@ -17,7 +17,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from eval.common import get_harness_logger
+from eval.common import get_harness_logger, normalize_reasoning_effort, reasoning_request_params
 from eval.config import (
     API_BASE_URL,
     DEFAULT_TOOL_EVAL_MAX_POINTS,
@@ -193,11 +193,9 @@ def run_tool_eval_benchmark(
         _teb_meta._git_sha = lambda: "unknown"
         _teb_meta._git_sha_patched = True
 
-    normalized_effort = str(reasoning_effort).lower().strip() if reasoning_effort else ""
+    normalized_effort = normalize_reasoning_effort(reasoning_effort) or ""
     scenarios = list(ALL_SCENARIOS_WITH_HARDMODE) if hardmode else list(ALL_SCENARIOS)
-    extra_params: dict[str, Any] = {}
-    if normalized_effort in ("low", "medium", "xhigh"):
-        extra_params["reasoning_effort"] = normalized_effort
+    extra_params = reasoning_request_params(reasoning_effort)
 
     logger.info("=" * 70)
     logger.info("RUNNING tool-eval-bench via Python API (scenarios=%d, timeout=%ds, parallel=%d, reasoning_effort=%s) against %s",

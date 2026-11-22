@@ -32,6 +32,7 @@ from eval.common import (
     get_available_tests,
     load_harnesses_config,
     load_models,
+    model_launch_key,
     prevent_system_sleep,
     resolve_target_models,
 )
@@ -88,61 +89,63 @@ def validate_arguments(
 
 
 def run_model_pipeline(
-    model_name: str,
-    model_config: dict[str, Any],
+    model_names: list[str],
+    model_configs: dict[str, dict[str, Any]],
     host: str = REMOTE_HOST,
     base_url: str = API_BASE_URL,
     keep_alive: bool = False,
     verbose: bool = False,
     test_name: str = "all",
     harness: str = "all",
-) -> bool:
-    """Run full lifecycle: ensure model running -> execute harness -> teardown."""
-    logger.info("STARTING PIPELINE FOR: %s (harness: %s, test: %s)", model_name, harness, test_name)
+) -> list[str]:
+    """Run one model launch across all of its effort aliases, returning failed aliases."""
+    primary = model_names[0]
+    efforts = [model_configs[name]["reasoning_effort"] for name in model_names]
+    logger.info("STARTING PIPELINE FOR: %s (efforts: %s, harness: %s, test: %s)",
+                primary, efforts, harness, test_name)
 
-    success = False
+    failed: list[str] = []
     try:
-        ok, weight_name = ensure_model_running(
-            model_name=model_name,
-            model_config=model_config,
+        ok, _ = ensure_model_running(
+            model_name=primary,
+            model_config=model_configs[primary],
             host=host,
             base_url=base_url,
             verbose=verbose,
         )
         if not ok:
-            return False
+            return list(model_names)
 
         memory_gb = calculate_model_memory_gb(host=host)
-
-        logger.info("Executing Evaluation Harness for %s (test: %s, harness: %s, memory: %.1f GB)...",
-                    model_name, test_name, harness, memory_gb)
         venv_python = REPO_ROOT / ".venv" / "bin" / "python3"
-        cmd = [
-            str(venv_python),
-            "-m", "eval.run_harness",
-            "--model", model_name,
-            "--test", test_name,
-            "--harness", harness,
-        ]
-        if memory_gb > 0:
-            cmd.extend(["--memory-gb", str(memory_gb)])
-        if verbose:
-            cmd.append("--v")
-        res = subprocess.run(cmd)
-        if res.returncode != 0:
-            logger.error("Evaluation harness failed with exit code %d", res.returncode)
-            return False
 
-        success = True
+        for model_name in model_names:
+            logger.info("Executing Evaluation Harness for %s (test: %s, harness: %s, memory: %.1f GB)...",
+                        model_name, test_name, harness, memory_gb)
+            cmd = [
+                str(venv_python),
+                "-m", "eval.run_harness",
+                "--model", model_name,
+                "--test", test_name,
+                "--harness", harness,
+            ]
+            if memory_gb > 0:
+                cmd.extend(["--memory-gb", str(memory_gb)])
+            if verbose:
+                cmd.append("--v")
+            res = subprocess.run(cmd)
+            if res.returncode != 0:
+                logger.error("Evaluation harness failed with exit code %d for %s", res.returncode, model_name)
+                failed.append(model_name)
     finally:
         if not keep_alive:
             stop_model(host=host)
         else:
             logger.info("Keep-alive enabled: leaving vLLM server running.")
 
-    status_str = "SUCCESS" if success else "FAILED"
-    logger.info("FINISHED PIPELINE FOR: %s (Status: %s)", model_name, status_str)
-    return success
+    status_str = "SUCCESS" if not failed else "FAILED"
+    logger.info("FINISHED PIPELINE FOR: %s (Status: %s)", primary, status_str)
+    return failed
 
 
 def main():
@@ -175,18 +178,21 @@ def main():
                 len(target_models), target_models, valid_test, valid_harness)
 
     failed_models: list[str] = []
+    groups: dict[tuple, list[str]] = {}
     for model_name in target_models:
-        ok = run_model_pipeline(
-            model_name,
-            models[model_name],
-            keep_alive=args.keep_alive,
-            verbose=args.verbose,
-            test_name=valid_test,
-            harness=valid_harness,
+        groups.setdefault(model_launch_key(models[model_name]), []).append(model_name)
+
+    for model_names in groups.values():
+        failed_models.extend(
+            run_model_pipeline(
+                model_names,
+                models,
+                keep_alive=args.keep_alive,
+                verbose=args.verbose,
+                test_name=valid_test,
+                harness=valid_harness,
+            )
         )
-        if not ok:
-            logger.error("Pipeline failed for model: %s", model_name)
-            failed_models.append(model_name)
 
     if failed_models:
         logger.error("Evaluation finished with %d failed model(s): %s", len(failed_models), failed_models)

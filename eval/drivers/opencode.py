@@ -12,7 +12,7 @@ import time
 from datetime import datetime, timezone
 from typing import Any
 
-from eval.common import setup_logger
+from eval.common import normalize_reasoning_effort, reasoning_request_params, setup_logger
 from eval.results import resolve_model_info
 from eval.config import (
     DEFAULT_CONTEXT_WINDOW,
@@ -35,6 +35,23 @@ __all__ = ["OpenCodeDriver"]
 logger = setup_logger("driver.opencode")
 
 
+def _reasoning_parameters(reasoning_effort: str | None) -> dict[str, Any] | None:
+    """Build OpenCode reasoning parameters for a configured effort."""
+    if not reasoning_effort:
+        return None
+    request_params = reasoning_request_params(reasoning_effort)
+    if not request_params:
+        # "on": use the model's default thinking mode.
+        return {"forceReasoning": True}
+    if request_params["reasoning_effort"] == "none":
+        return {"extraBody": request_params}
+    return {
+        "extraBody": request_params,
+        "reasoningEffort": request_params["reasoning_effort"],
+        "forceReasoning": True,
+    }
+
+
 def _build_model_entry(name: str, max_context: int = DEFAULT_CONTEXT_WINDOW, reasoning_effort: str | None = None) -> dict[str, Any]:
     """Construct a model configuration entry dict for opencode."""
     entry: dict[str, Any] = {
@@ -45,14 +62,9 @@ def _build_model_entry(name: str, max_context: int = DEFAULT_CONTEXT_WINDOW, rea
             "output": DEFAULT_MAX_OUTPUT_TOKENS,
         },
     }
-    if reasoning_effort and reasoning_effort not in ("off", "none"):
-        entry["parameters"] = {
-            "extraBody": {
-                "reasoning_effort": reasoning_effort,
-            },
-            "reasoningEffort": reasoning_effort,
-            "forceReasoning": True,
-        }
+    parameters = _reasoning_parameters(reasoning_effort)
+    if parameters:
+        entry["parameters"] = parameters
     return entry
 
 
@@ -85,11 +97,12 @@ class OpenCodeDriver(HarnessDriver):
             active_model, model_name, max_context, reasoning_effort,
         )
 
-        if reasoning_effort and reasoning_effort not in ("off", "none"):
+        effort = normalize_reasoning_effort(reasoning_effort)
+        if effort and effort != "none":
             target_llm_url = start_reasoning_proxy(
                 sandbox,
                 llm_base_url=llm_base_url,
-                reasoning_effort=reasoning_effort,
+                reasoning_effort=effort,
                 proxy_port=self.proxy_port,
                 log_path=self._proxy_log_path,
             )
@@ -135,14 +148,9 @@ class OpenCodeDriver(HarnessDriver):
             "providerID": self.provider_id,
             "modelID": model_name,
         }
-        if reasoning_effort and reasoning_effort not in ("off", "none"):
-            model_payload["parameters"] = {
-                "extraBody": {
-                    "reasoning_effort": reasoning_effort,
-                },
-                "reasoningEffort": reasoning_effort,
-                "forceReasoning": True,
-            }
+        parameters = _reasoning_parameters(reasoning_effort)
+        if parameters:
+            model_payload["parameters"] = parameters
 
         payload_json = json.dumps({
             "parts": [{"type": "text", "text": prompt}],

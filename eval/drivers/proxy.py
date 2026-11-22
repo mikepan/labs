@@ -50,11 +50,10 @@ class TelemetryHandler(http.server.BaseHTTPRequestHandler):
     def do_POST(self):
         length = int(self.headers.get("content-length", 0))
         body = self.rfile.read(length)
-        if self.path.endswith("/chat/completions") and REASONING_EFFORT:
+        if self.path.endswith("/chat/completions"):
             try:
                 data = json.loads(body.decode("utf-8"))
-                if REASONING_EFFORT not in ("off", "none", "on", ""):
-                    data["reasoning_effort"] = REASONING_EFFORT
+                data["reasoning_effort"] = REASONING_EFFORT
                 body = json.dumps(data).encode("utf-8")
             except Exception:
                 pass

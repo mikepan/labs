@@ -24,7 +24,15 @@ from eval.config import (
     REMOTE_VLLM_DIR,
     REMOTE_VLLM_IMAGE,
 )
-from eval.common import setup_logger, load_models, run_cmd, http_json, resolve_target_models
+from eval.common import (
+    http_json,
+    load_models,
+    model_launch_key,
+    reasoning_request_params,
+    resolve_target_models,
+    run_cmd,
+    setup_logger,
+)
 
 logger = setup_logger("launch_model")
 
@@ -166,8 +174,7 @@ def run_sanity_test(model_id: str, base_url: str = API_BASE_URL, reasoning_effor
         "messages": [{"role": "user", "content": prompt}],
         "max_tokens": 512,
     }
-    if reasoning_effort and reasoning_effort not in ("off", "none", "on"):
-        payload["reasoning_effort"] = reasoning_effort
+    payload.update(reasoning_request_params(reasoning_effort))
 
     data = http_json(
         f"{base_url}/v1/chat/completions",
@@ -271,7 +278,12 @@ def main():
 
     target_models = resolve_target_models(models, args.model)
 
+    seen: set[tuple] = set()
     for m_name in target_models:
+        key = model_launch_key(models[m_name])
+        if key in seen:
+            continue
+        seen.add(key)
         ok, _ = ensure_model_running(m_name, models[m_name], verbose=args.verbose)
         if not ok:
             logger.error("Failed to start model: %s", m_name)

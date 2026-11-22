@@ -125,10 +125,10 @@ class TestReasoningEffortLive(unittest.TestCase):
         rows: list[dict[str, Any]] = []
         launch_errors: list[str] = []
 
+        self._print_table_header()
         for group_index, (weight, aliases) in enumerate(selected):
             self._run_group(group_index, weight, aliases, models, harness_names, rows, launch_errors)
 
-        self._print_table(rows)
         self._assert_matrix(rows)
         if launch_errors:
             self.fail("Model launch failures:\n" + "\n".join(launch_errors))
@@ -202,57 +202,75 @@ class TestReasoningEffortLive(unittest.TestCase):
                     )
                 except Exception as exc:
                     row["errors"].append(f"start: {type(exc).__name__}: {exc}")
-                    continue
+                    active_model = None
 
-                for sample in range(_CONFIG["samples"] * len(PROMPTS)):
-                    prompt = PROMPTS[sample % len(PROMPTS)]
-                    try:
-                        session_id = driver.create_session(sandbox)
-                        turn = driver.send_prompt(
-                            sandbox,
-                            session_id,
-                            prompt,
-                            active_model,
-                            timeout=int(DEFAULT_MAX_STEP_TIMEOUT_MINUTES * 60),
-                            idle_timeout=int(DEFAULT_IDLE_TIMEOUT_MINUTES * 60),
-                            reasoning_effort=effort,
+                if active_model is not None:
+                    for sample in range(_CONFIG["samples"] * len(PROMPTS)):
+                        prompt = PROMPTS[sample % len(PROMPTS)]
+                        try:
+                            session_id = driver.create_session(sandbox)
+                            turn = driver.send_prompt(
+                                sandbox,
+                                session_id,
+                                prompt,
+                                active_model,
+                                timeout=int(DEFAULT_MAX_STEP_TIMEOUT_MINUTES * 60),
+                                idle_timeout=int(DEFAULT_IDLE_TIMEOUT_MINUTES * 60),
+                                reasoning_effort=effort,
+                            )
+                        except Exception as exc:
+                            row["errors"].append(f"sample {sample + 1}: {type(exc).__name__}: {exc}")
+                            continue
+
+                        error = _turn_error(turn)
+                        if error:
+                            logger.warning(
+                                "%s/%s/%s sample %d failed: %s",
+                                alias, harness_name, effort, sample + 1, error,
+                            )
+                            row["errors"].append(f"sample {sample + 1}: {error}")
+                            continue
+
+                        length = _reasoning_chars(turn)
+                        row["lengths"].append(length)
+                        logger.debug(
+                            "%s/%s/%s sample %d: reasoning=%d chars, text=%d chars",
+                            alias, harness_name, effort, sample + 1, length,
+                            len("".join(turn.text).strip()),
                         )
-                    except Exception as exc:
-                        row["errors"].append(f"sample {sample + 1}: {type(exc).__name__}: {exc}")
-                        continue
 
-                    error = _turn_error(turn)
-                    if error:
-                        logger.warning(
-                            "%s/%s/%s sample %d failed: %s",
-                            alias, harness_name, effort, sample + 1, error,
-                        )
-                        row["errors"].append(f"sample {sample + 1}: {error}")
-                        continue
-
-                    length = _reasoning_chars(turn)
-                    row["lengths"].append(length)
-                    logger.debug(
-                        "%s/%s/%s sample %d: reasoning=%d chars, text=%d chars",
-                        alias, harness_name, effort, sample + 1, length,
-                        len("".join(turn.text).strip()),
-                    )
+                self._print_row(row)
         finally:
             sandbox.remove()
 
-    def _print_table(self, rows: list[dict[str, Any]]) -> None:
-        """Print the requested min/mean/max reasoning-length table."""
-        print("\n| model name | harness name | reasoning effort | min reasoning length | mean reasoning length | max reasoning length |")
-        print("|---|---|---|---:|---:|---:|")
-        for row in rows:
-            lengths = row["lengths"]
-            if lengths:
-                print(
-                    f"| {row['model']} | {row['harness']} | {row['effort']} | "
-                    f"{min(lengths)} | {statistics.mean(lengths):.1f} | {max(lengths)} |"
-                )
-            else:
-                print(f"| {row['model']} | {row['harness']} | {row['effort']} | n/a | n/a | n/a |")
+    def _print_table_header(self) -> None:
+        """Print the table header once, before the first model is sampled."""
+        print(
+            "\n| model name | harness name | reasoning effort | min reasoning length | "
+            "mean reasoning length | max reasoning length |",
+            flush=True,
+        )
+        print("|---|---|---|---:|---:|---:|", flush=True)
+
+    def _print_row(self, row: dict[str, Any]) -> None:
+        """Print one completed row immediately so a stopped run keeps prior results."""
+        lengths = row["lengths"]
+        if lengths:
+            print(
+                f"| {row['model']} | {row['harness']} | {row['effort']} | "
+                f"{min(lengths)} | {statistics.mean(lengths):.1f} | {max(lengths)} |",
+                flush=True,
+            )
+        else:
+            print(
+                f"| {row['model']} | {row['harness']} | {row['effort']} | n/a | n/a | n/a |",
+                flush=True,
+            )
+        if row["errors"]:
+            logger.warning(
+                "%s / %s / %s: %d request error(s)",
+                row["model"], row["harness"], row["effort"], len(row["errors"]),
+            )
 
     def _assert_matrix(self, rows: list[dict[str, Any]]) -> None:
         """Assert that effort wiring matches the configured on/off/level semantics."""

@@ -35,7 +35,7 @@ from eval.launch_model import ensure_model_running, stop_model
 from eval.results import calculate_model_memory_gb, resolve_model_info
 
 logger = setup_logger("launch_benchmark")
-DEFAULT_PROMPT_FILE = TESTS_DIR / "benchmark" / "long-prompt.kt"
+DEFAULT_PROMPT_FILE = TESTS_DIR / "test2" / "source.kt"
 NEWS_CSV_FILE = TESTS_DIR / "benchmark" / "news.csv"
 
 # Approximate words-per-token ratio for token estimation
@@ -346,7 +346,7 @@ def write_results_file(summaries: list[dict[str, Any]], filepath: Path = BENCHMA
 def main():
     parser = argparse.ArgumentParser(description="Run serving benchmark across configured LLM models.")
     parser.add_argument("--model", default=None, help="Model name, comma-separated list of models, or 'all' (default: all)")
-    parser.add_argument("--runs", type=int, default=2, help="Number of benchmark runs per model (default: 1)")
+    parser.add_argument("--runs", type=int, default=2, help="Number of benchmark runs per model (default: 2)")
     parser.add_argument("--base-url", default=API_BASE_URL, help=f"Base URL of the serving server (default: {API_BASE_URL})")
     parser.add_argument("--no-manage", action="store_true", help="Do not stop or start model, benchmark active server directly")
     parser.add_argument("--title", default="OVERALL SERVING BENCHMARK LEADERBOARD", help="Title for the benchmark leaderboard table")

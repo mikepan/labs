@@ -16,7 +16,6 @@ Supports:
 from __future__ import annotations
 
 import argparse
-import copy
 import csv
 import json
 import logging
@@ -24,8 +23,6 @@ import os
 import re
 import sys
 import time
-import urllib.error
-import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -34,7 +31,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from eval.common import get_harness_logger, load_models, setup_logger, send_chat_completion
+from eval.common import get_harness_logger, load_models, send_chat_completion
 from eval.config import (
     API_BASE_URL,
     DEFAULT_DIRECT_BENCHMARK_PARALLEL,
@@ -242,7 +239,7 @@ def run_trivia_benchmark(
         reasoning_effort: Thinking effort parameter (e.g. "low", "medium", "xhigh").
         quiz_files: List of quiz CSV filenames to evaluate. Defaults to quizzes 1, 2, 3.
         max_questions: Optional limit on number of questions (for quick validation).
-        max_points: Normalized maximum score (default: 10.0 pts).
+        max_points: Normalized maximum score (default: 20.0 pts).
         context_reset_interval: Number of questions before clearing context (default: 10).
         parallel: Number of context batches to run concurrently (default: 2).
         verbose: Enable verbose logging.
@@ -269,15 +266,8 @@ def run_trivia_benchmark(
 
     # 3. Load questions
     all_questions = load_quiz_questions(quiz_files)
-    effective_limit = max_questions
-    if effective_limit is None and os.environ.get("TRIVIA_MAX_QUESTIONS"):
-        try:
-            effective_limit = int(os.environ["TRIVIA_MAX_QUESTIONS"])
-        except ValueError:
-            pass
-
-    if effective_limit and effective_limit > 0:
-        all_questions = all_questions[:effective_limit]
+    if max_questions and max_questions > 0:
+        all_questions = all_questions[:max_questions]
         logger.info("Limited trivia questions to first %d questions", len(all_questions))
 
     if not all_questions:

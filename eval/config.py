@@ -37,7 +37,6 @@ DEFAULT_CONTEXT_WINDOW = 262144         # Fallback max context window limit
 DEFAULT_TOOL_EVAL_TIMEOUT_SECONDS = 600   # Request timeout per scenario in seconds
 DEFAULT_TOOL_EVAL_PARALLEL = 2           # Number of parallel workers
 DEFAULT_TOOL_EVAL_MAX_POINTS = 40.0      # Normalized maximum score points
-TOOL_EVAL_BENCH_BIN = "tool-eval-bench"
 
 # Direct Benchmark Defaults
 DEFAULT_DIRECT_BENCHMARK_PARALLEL = 2    # Concurrent question requests
@@ -46,7 +45,6 @@ DEFAULT_DIRECT_BENCHMARK_PARALLEL = 2    # Concurrent question requests
 MODELS_CONFIG_FILE = REPO_ROOT / "eval" / "models.json"
 HARNESSES_CONFIG_FILE = REPO_ROOT / "eval" / "harnesses.json"
 BENCHMARK_DATA_FILE = REPO_ROOT / "site" / "results" / "benchmark-data.json"
-BENCHMARK_SCHEMA_FILE = REPO_ROOT / "eval" / "benchmark-data.schema.json"
 BENCHMARK_RESULT_FILE = REPO_ROOT / "eval" / "result.txt"
 RESULTS_DIR = REPO_ROOT / "site" / "results"
 TESTS_DIR = REPO_ROOT / "eval" / "tests"

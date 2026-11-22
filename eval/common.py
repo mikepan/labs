@@ -12,6 +12,7 @@ import subprocess
 import sys
 import urllib.error
 import urllib.request
+from typing import Any
 
 class ColorFormatter(logging.Formatter):
     """Zero-dependency ANSI terminal color formatter for structured logging with harness tagging."""
@@ -30,9 +31,7 @@ class ColorFormatter(logging.Formatter):
     HARNESS_COLORS = {
         "OPENCODE": "\033[1;36m",      # Bold Cyan
         "PI": "\033[1;35m",            # Bold Magenta
-        "TOOL_EVAL": "\033[1;33m",      # Bold Yellow
-        "TOOL-EVAL": "\033[1;33m",      # Bold Yellow
-        "HARNESS": "\033[1;34m",        # Bold Blue
+        "TOOL-EVAL": "\033[1;33m",     # Bold Yellow
     }
 
     def format(self, record):
@@ -226,7 +225,7 @@ def load_models() -> dict[str, dict]:
 def resolve_target_models(models: dict[str, Any], model_arg: str | None = "all") -> list[str]:
     """Resolve target model names by case-insensitive substring match, comma-list, or 'all'."""
     if not model_arg or model_arg == "all":
-        return [m for m, cfg in models.items() if not cfg.get("disabled", False) and cfg.get("enabled", True) is not False]
+        return [m for m, cfg in models.items() if not cfg.get("disabled", False)]
 
     result: list[str] = []
     for item in (x.strip() for x in model_arg.split(",") if x.strip()):

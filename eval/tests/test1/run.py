@@ -3,7 +3,6 @@ from datetime import datetime
 import os
 from pathlib import Path
 import re
-import sys
 from collections import defaultdict
 from typing import Iterator
 
@@ -41,28 +40,6 @@ def compute_expected_top_customers(source_csv_path: str, top_n: int = 10) -> lis
 
     sorted_custs = sorted(spends.values(), key=lambda c: c["total_spend"], reverse=True)[:top_n]
     return [(c["fullname"], c["total_spend"]) for c in sorted_custs]
-
-
-def compute_expected_top_authors(source_csv_path: str, top_n: int = 10, paid_only: bool = False) -> list[tuple[str, int, float]]:
-    """Compute top authors by gross sales across both primary and secondary items (supports all-orders and paid-only)."""
-    authors = defaultdict(lambda: {"units": 0, "gross_sales": 0.0})
-    for row in _read_orders(source_csv_path):
-        if paid_only and (row.get("payment_status") or "").strip().lower() != "paid":
-            continue
-        p_auth = row.get("primary_item_author", "").strip()
-        if p_auth:
-            p_qty = int(row.get("primary_item_quantity") or 0)
-            authors[p_auth]["units"] += p_qty
-            authors[p_auth]["gross_sales"] += p_qty * float(row.get("primary_item_unit_price") or 0)
-
-        s_auth = row.get("secondary_item_author", "").strip()
-        if s_auth:
-            s_qty = int(row.get("secondary_item_quantity") or 0)
-            authors[s_auth]["units"] += s_qty
-            authors[s_auth]["gross_sales"] += s_qty * float(row.get("secondary_item_unit_price") or 0)
-
-    sorted_auths = sorted(authors.items(), key=lambda x: x[1]["gross_sales"], reverse=True)[:top_n]
-    return [(auth, data["units"], data["gross_sales"]) for auth, data in sorted_auths]
 
 
 def compute_expected_genre_returns(source_csv_path: str, merge_classics: bool = False, paid_only: bool = False) -> list[tuple[str, int, int, float, float]]:
@@ -182,7 +159,7 @@ def _validate_tabular_csv(
 
     norm_header = [_norm(h) for h in raw_rows[0]]
     indices = []
-    for col_name, keywords in col_matchers:
+    for _col_name, keywords in col_matchers:
         idx = next((i for i, h in enumerate(norm_header) if any(k in h for k in keywords)), None)
         indices.append(idx if idx is not None else len(indices))
 
@@ -237,59 +214,6 @@ def check_top_customers_csv(filepath: str = "top-cust.csv") -> CustomAssert:
     return custom_check(_validate)
 
 
-check_csv = check_top_customers_csv
-
-
-def check_top_authors_csv(filepath: str = "top-authors.csv") -> CustomAssert:
-    """Validate top-authors.csv (Author, UnitsSold, GrossSales) against ground truth (allows both all orders and paid-only)."""
-    def _validate(workspace_dir: str) -> tuple[bool, str]:
-        src = _get_source_csv(workspace_dir)
-        def _check_row(rank, exp, row, idxs):
-            auth_idx, units_idx, sales_idx = idxs
-            exp_auth, exp_units, exp_sales = exp
-            act_auth = row[auth_idx].strip()
-            try:
-                act_units = int(round(_clean_float(row[units_idx])))
-                act_sales = _clean_float(row[sales_idx])
-            except ValueError:
-                return False, f"Row {rank} contains invalid numeric data in row: {row}"
-            if exp_auth.lower() != act_auth.lower():
-                return False, (
-                    f"Row {rank} author mismatch: expected '{exp_auth}' (Units: {exp_units}, Gross: ${exp_sales:.2f}), "
-                    f"got '{act_auth}' (Units: {act_units}, Gross: ${act_sales:.2f}). "
-                    f"(Check: Did you aggregate across BOTH primary and secondary items, and sort by GrossSales descending?)"
-                )
-            if act_units != exp_units:
-                return False, (
-                    f"Row {rank} ({exp_auth}) units mismatch: expected {exp_units} units, "
-                    f"got {act_units} units (diff: {abs(act_units - exp_units)}). "
-                    f"(Check: Did you include secondary_item_quantity when secondary items are present?)"
-                )
-            if abs(act_sales - exp_sales) > 0.05:
-                return False, (
-                    f"Row {rank} ({exp_auth}) gross sales mismatch: expected ${exp_sales:.2f}, "
-                    f"got ${act_sales:.2f} (diff: ${abs(act_sales - exp_sales):.2f})."
-                )
-            return True, ""
-
-        candidates = [
-            compute_expected_top_authors(src, top_n=10, paid_only=False),
-            compute_expected_top_authors(src, top_n=10, paid_only=True),
-        ]
-        last_err = ""
-        for expected in candidates:
-            ok, msg = _validate_tabular_csv(
-                workspace_dir, filepath, expected,
-                [("Author", ["author", "name"]), ("UnitsSold", ["unit", "qty", "quantity", "count", "sold"]), ("GrossSales", ["gross", "sale", "revenue", "total", "spend"])],
-                _check_row, f"All 10 rows match top authors ground truth (Rank 1: {expected[0][0]} with {expected[0][1]} units, ${expected[0][2]:.2f})."
-            )
-            if ok:
-                return True, msg
-            last_err = msg
-        return False, last_err
-    return custom_check(_validate)
-
-
 def check_genre_returns_csv(filepath: str = "genre-returns.csv") -> CustomAssert:
     """Validate genre-returns.csv (Genre, TotalOrders, ReturnedOrders, ReturnRatePct, TotalRefund) (allows both raw genres and merged classics)."""
     def _validate(workspace_dir: str) -> tuple[bool, str]:
@@ -325,7 +249,7 @@ def check_genre_returns_csv(filepath: str = "genre-returns.csv") -> CustomAssert
             ("TotalRefund", ["refund"]),
         ]
         indices = []
-        for col_name, keywords in col_matchers:
+        for _col_name, keywords in col_matchers:
             idx = next((i for i, h in enumerate(norm_header) if any(k in h for k in keywords)), None)
             indices.append(idx if idx is not None else len(indices))
 
@@ -363,7 +287,7 @@ def check_genre_returns_csv(filepath: str = "genre-returns.csv") -> CustomAssert
                     last_err = f"Row {rank} contains unknown genre '{act_genre}'."
                     break
 
-                exp_genre, exp_tot, exp_ret, exp_pct, exp_ref = expected_map[act_genre.lower()]
+                _, exp_tot, exp_ret, exp_pct, exp_ref = expected_map[act_genre.lower()]
 
                 if act_tot != exp_tot or act_ret != exp_ret:
                     passed_all = False

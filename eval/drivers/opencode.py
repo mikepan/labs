@@ -12,7 +12,7 @@ import time
 from datetime import datetime, timezone
 from typing import Any
 
-from eval.common import setup_logger, NetworkConnectivityError, is_network_error
+from eval.common import setup_logger
 from eval.results import resolve_model_info
 from eval.config import (
     DEFAULT_CONTEXT_WINDOW,
@@ -26,7 +26,6 @@ from eval.drivers.proxy import (
     DEFAULT_PROXY_LOG_PATH,
     DEFAULT_PROXY_PORT,
     start_reasoning_proxy,
-    stop_reasoning_proxy,
 )
 from eval.sandbox import SandboxClient
 from eval.trace import ToolCallEvent, TurnData
@@ -313,7 +312,7 @@ elif 'type' in err_result:
         active_model: str,
         config_alias: str,
         llm_base_url: str,
-        max_context: int = 262144,
+        max_context: int = DEFAULT_CONTEXT_WINDOW,
         reasoning_effort: str | None = None,
     ) -> None:
         """Write opencode.json configuration inside the sandbox."""

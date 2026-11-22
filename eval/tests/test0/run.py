@@ -124,38 +124,6 @@ def check_html_metadata_standards():
     return custom_check(_validate)
 
 
-def check_rebrand():
-    """Verify that all occurrences of 'Jennifer Robins' have been replaced with 'Prof. J. Robins'."""
-
-    def _validate(workspace_dir: str) -> tuple[bool, str]:
-        unreplaced_pattern = re.compile(r'\bJennifer\s+Robins\b', re.IGNORECASE)
-        rebranded_pattern = re.compile(r'Prof\.\s*J\.\s*Robins', re.IGNORECASE)
-
-        html_files = ["index.html", "earth.html"]
-        for root, _, files in os.walk(workspace_dir):
-            if ".git" in root:
-                continue
-            for f in files:
-                if f.endswith((".html", ".md")):
-                    fpath = os.path.join(root, f)
-                    with open(fpath, "r", encoding="utf-8", errors="ignore") as file_obj:
-                        content = file_obj.read()
-                    if unreplaced_pattern.search(content):
-                        return False, f"Found unreplaced 'Jennifer Robins' in file '{f}'."
-
-        for fname in html_files:
-            fpath = os.path.join(workspace_dir, fname)
-            if os.path.exists(fpath):
-                with open(fpath, "r", encoding="utf-8", errors="ignore") as file_obj:
-                    content = file_obj.read()
-                if not rebranded_pattern.search(content):
-                    return False, f"File '{fname}' does not contain the rebranded name 'Prof. J. Robins'."
-
-        return True, "Rebranding verified: 'Jennifer Robins' successfully replaced with 'Prof. J. Robins'."
-
-    return custom_check(_validate)
-
-
 # ==============================================================================
 # Test Definition
 # ==============================================================================

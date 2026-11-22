@@ -3,14 +3,13 @@ runner.py - Execution engine for running test steps and assertions in a workspac
 """
 
 from dataclasses import dataclass, field
-import os
 import shlex
 import subprocess
 import time
 from typing import Any
 
 from .assertions import BaseAssertion, CheckResult, CustomAssert
-from .spec import Step, Test
+from .spec import Step
 from eval.config import DEFAULT_STEP_POINT
 
 __all__ = [
@@ -50,7 +49,7 @@ def commit_step_workspace(step_name: str, workspace_dir: str) -> bool:
     return res.returncode == 0
 
 
-def evaluate_step(step: Step, workspace_dir: str, auto_commit: bool = True, response: str | None = None) -> StepEvaluationResult:
+def evaluate_step(step: Step, workspace_dir: str, response: str | None = None) -> StepEvaluationResult:
     """Evaluate all assertions for a single step against the workspace state, then commit changes."""
     start_time = time.time()
     results: list[CheckResult] = []
@@ -86,8 +85,7 @@ def evaluate_step(step: Step, workspace_dir: str, auto_commit: bool = True, resp
     step_point = step.point
     earned_score = step_point if all_passed else 0
 
-    if auto_commit:
-        commit_step_workspace(step_title, workspace_dir)
+    commit_step_workspace(step_title, workspace_dir)
 
     elapsed = round(time.time() - start_time, 3)
     return StepEvaluationResult(

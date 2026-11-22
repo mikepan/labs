@@ -7,7 +7,6 @@ output regardless of which agent (OpenCode, pi.dev, etc.) ran the evaluation.
 
 from __future__ import annotations
 
-import sys
 from dataclasses import dataclass, field, asdict
 from typing import Any
 
@@ -17,10 +16,8 @@ __all__ = [
     "StepTrace",
 ]
 
-_dc_kwargs = {"slots": True} if sys.version_info >= (3, 10) else {}
 
-
-@dataclass(**_dc_kwargs)
+@dataclass(slots=True)
 class ToolCallEvent:
     """A single tool invocation within a turn."""
     tool: str
@@ -36,7 +33,7 @@ class ToolCallEvent:
         return {k: v for k, v in asdict(self).items() if v is not None}
 
 
-@dataclass(**_dc_kwargs)
+@dataclass(slots=True)
 class TurnData:
     """Normalized turn data — consistent across all harness drivers."""
     tool_calls: list[ToolCallEvent] = field(default_factory=list)
@@ -49,7 +46,7 @@ class TurnData:
     raw_messages: list[dict[str, Any]] = field(default_factory=list)
 
 
-@dataclass(**_dc_kwargs)
+@dataclass(slots=True)
 class StepTrace:
     """A single step's trace record for full_trace.json."""
     step_index: int

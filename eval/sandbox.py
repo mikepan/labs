@@ -30,7 +30,6 @@ from eval.config import (
 __all__ = [
     "SandboxClient",
     "cleanup_all_sandboxes",
-    "NetworkConnectivityError",
     "ensure_sandbox_policy_isolated",
 ]
 
@@ -105,7 +104,7 @@ def cleanup_all_sandboxes() -> None:
             pass
 
 
-def _signal_handler(signum: int, frame: Any) -> None:
+def _signal_handler(signum: int, _frame: Any) -> None:
     sig_name = signal.Signals(signum).name if hasattr(signal, "Signals") else str(signum)
     logger.warning("Received signal %s (%d): cleaning up all active sandboxes...", sig_name, signum)
     cleanup_all_sandboxes()
@@ -294,7 +293,7 @@ print("__JSON_START__" + json.dumps({{"ok": False, "error": last_err or "Backend
         except Exception as e:
             return False, str(e)
 
-    def isolate_network(self, allowed_cidrs: list[str] | None = None) -> bool:
+    def isolate_network(self) -> bool:
         """Configure container firewall (iptables) to prevent raw internet access.
 
         Permits:
@@ -302,13 +301,10 @@ print("__JSON_START__" + json.dumps({{"ok": False, "error": last_err or "Backend
         - Established & related connections
         - Container/Docker bridge subnets (172.16.0.0/12)
         - Local private networks (192.168.0.0/16, 10.0.0.0/8)
-        - Any additional allowed CIDRs/IPs
 
         Rejects all other outbound traffic to block direct/raw public internet access.
         """
         cidrs = ["127.0.0.0/8", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"]
-        if allowed_cidrs:
-            cidrs.extend(allowed_cidrs)
 
         allow_rules = "\n".join(f"iptables -A OUTPUT -d {cidr} -j ACCEPT" for cidr in sorted(set(cidrs)))
         script = f"""

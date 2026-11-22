@@ -19,7 +19,6 @@ import argparse
 import concurrent.futures
 import copy
 import importlib.util
-import json
 import logging
 import os
 import sys
@@ -171,22 +170,6 @@ print("__JSON_START__" + json.dumps(res.to_dict()) + "__JSON_END__")
         }
 
 
-def _evaluate_step_result(
-    step: Any,
-    sandbox: SandboxClient,
-    test_path: str,
-    idx: int,
-    test_ws: str,
-    response: str,
-    host_eval: bool = False,
-) -> dict[str, Any]:
-    if host_eval:
-        from eval.tests.framework.runner import evaluate_step
-        return evaluate_step(step, workspace_dir="", auto_commit=False, response=response).to_dict()
-    return evaluate_step_in_sandbox(sandbox, test_path, idx, test_ws, response=response)
-
-
-
 # =====================================================================
 # Test Suite Orchestrator
 # =====================================================================
@@ -222,7 +205,7 @@ def run_test_suite_on_agent(
         "tests": {},
     }
     # Preflight in-sandbox network connectivity check to LLM backend before running test suite
-    if not getattr(driver, "is_mock", False) and type(driver).__name__ != "MockDriver":
+    if type(driver).__name__ != "MockDriver":
         # 1. Verify that sandbox has NO general internet access
         is_isolated, leak_err = sandbox.verify_network_isolation()
         if not is_isolated:
@@ -251,7 +234,6 @@ def run_test_suite_on_agent(
 
     for test_path, test_obj in test_specs:
         test_id = test_obj.name
-        is_host_eval = getattr(test_obj, "host_eval", False)
         h_logger.info("RUNNING TEST: %s (%d steps)", test_id, len(test_obj.steps))
 
         # Setup workspace and start agent
@@ -284,23 +266,11 @@ def run_test_suite_on_agent(
         meta_dict = vllm_info.get("meta") or {} if vllm_info else {}
         max_ctx = int(vllm_info.get("max_model_len") or meta_dict.get("n_ctx") or 0) if vllm_info else 0
 
-        test_timeout_sec = getattr(test_obj, "timeout_seconds", None) or (
-            getattr(test_obj, "timeout_minutes", 0) * 60 if getattr(test_obj, "timeout_minutes", None) is not None else None
-        )
-
         for idx, step in enumerate(test_obj.steps):
             step_name = step.name or f"Step {idx + 1}"
             step_point = step.point
-            step_timeout_sec = (
-                getattr(step, "timeout_seconds", None)
-                or (step.timeout_minutes * 60 if step.timeout_minutes is not None else test_timeout_sec)
-            )
-            if step_timeout_sec is not None:
-                step_timeout_seconds = max(1, int(step_timeout_sec))
-                step_idle_seconds = min(int(DEFAULT_IDLE_TIMEOUT_MINUTES * 60), step_timeout_seconds)
-            else:
-                step_timeout_seconds = int(DEFAULT_MAX_STEP_TIMEOUT_MINUTES * 60)
-                step_idle_seconds = int(DEFAULT_IDLE_TIMEOUT_MINUTES * 60)
+            step_timeout_seconds = int(DEFAULT_MAX_STEP_TIMEOUT_MINUTES * 60)
+            step_idle_seconds = int(DEFAULT_IDLE_TIMEOUT_MINUTES * 60)
 
             h_logger.info("--- [Step %d/%d] %s (point=%s, timeout=%ss, idle_timeout=%ss) ---",
                           idx + 1, len(test_obj.steps), step_name, step_point, step_timeout_seconds, step_idle_seconds)
@@ -362,94 +332,90 @@ def run_test_suite_on_agent(
 
                 if e is not None:
                     step_elapsed = round(time.time() - step_t0, 2)
-                step_end_iso = datetime.now(timezone.utc).isoformat()
-                is_timeout = isinstance(e, TimeoutError) or "timeout" in str(e).lower() or "timed out" in str(e).lower()
-                fail_reason = "TIMEOUT" if is_timeout else "ERROR"
-                if is_timeout:
-                    err_str = str(e)
-                    if "stalled" in err_str.lower() or "idle" in err_str.lower() or "activity" in err_str.lower():
-                        friendly_msg = err_str
+                    step_end_iso = datetime.now(timezone.utc).isoformat()
+                    is_timeout = isinstance(e, TimeoutError) or "timeout" in str(e).lower() or "timed out" in str(e).lower()
+                    fail_reason = "TIMEOUT" if is_timeout else "ERROR"
+                    if is_timeout:
+                        err_str = str(e)
+                        if "stalled" in err_str.lower() or "idle" in err_str.lower() or "activity" in err_str.lower():
+                            friendly_msg = err_str
+                        else:
+                            friendly_msg = f"Step execution exceeded max ceiling of {step_timeout_seconds}s ({step_elapsed}s elapsed)"
                     else:
-                        friendly_msg = f"Step execution exceeded max ceiling of {step_timeout_seconds}s ({step_elapsed}s elapsed)"
-                else:
-                    raw_err = str(e)
-                    if "Traceback (most recent call last):" in raw_err:
-                        raw_err = raw_err.strip().splitlines()[-1]
-                    friendly_msg = f"Driver error: {raw_err}"
+                        raw_err = str(e)
+                        if "Traceback (most recent call last):" in raw_err:
+                            raw_err = raw_err.strip().splitlines()[-1]
+                        friendly_msg = f"Driver error: {raw_err}"
 
-                h_logger.warning("  ✗ Step %d %s (0/%d pts) (%.2fs): %s",
-                                 idx + 1, fail_reason, step_point, step_elapsed, friendly_msg)
+                    h_logger.warning("  ✗ Step %d %s (0/%d pts) (%.2fs): %s",
+                                     idx + 1, fail_reason, step_point, step_elapsed, friendly_msg)
 
-                # Recover partial messages from the session to capture what the agent did
-                partial_messages: list[dict] = []
-                partial_tool_calls: list[dict] = []
-                partial_events: list[dict] = []
-                partial_reasoning: list[str] = []
-                partial_text: list[str] = []
-                partial_tokens_in: int = 0
-                partial_tokens_out: int = 0
-                partial_peak_ctx: int = 0
-                try:
-                    all_msgs = driver.get_all_messages(sandbox, session_id)
-                    if all_msgs and len(all_msgs) > prev_msg_count:
-                        partial_messages = all_msgs[prev_msg_count:]
-                        # Parse partial messages using driver's _parse_turn if available
-                        if hasattr(driver, '_parse_turn'):
-                            partial_turn = driver._parse_turn(partial_messages, step_start_iso)
-                            partial_tool_calls = [tc.to_dict() for tc in partial_turn.tool_calls]
-                            partial_events = partial_turn.events
-                            partial_reasoning = partial_turn.reasoning
-                            partial_text = partial_turn.text
-                            partial_tokens_in = partial_turn.tokens_in
-                            partial_tokens_out = partial_turn.tokens_out
-                            partial_peak_ctx = partial_turn.peak_context_tokens
-                            total_tokens_in += partial_turn.tokens_in
-                            total_tokens_out += partial_turn.tokens_out
-                        n_tool_calls = len(partial_tool_calls)
-                        h_logger.warning("    Recovered %d messages (%d tool calls) from session before %s",
-                                         len(partial_messages), n_tool_calls, fail_reason.lower())
-                        # Log the tool calls so the user can see the loop
-                        for tc in partial_tool_calls:
-                            h_logger.warning("    - [Tool Call]: %s", tc.get("tool", "unknown"))
-                except Exception as recover_err:
-                    h_logger.debug("    Could not recover partial messages: %s", recover_err)
+                    # Recover partial messages from the session to capture what the agent did
+                    partial_messages: list[dict] = []
+                    partial_tool_calls: list[dict] = []
+                    partial_events: list[dict] = []
+                    partial_tokens_in: int = 0
+                    partial_tokens_out: int = 0
+                    partial_peak_ctx: int = 0
+                    try:
+                        all_msgs = driver.get_all_messages(sandbox, session_id)
+                        if all_msgs and len(all_msgs) > prev_msg_count:
+                            partial_messages = all_msgs[prev_msg_count:]
+                            # Parse partial messages using driver's _parse_turn if available
+                            if hasattr(driver, '_parse_turn'):
+                                partial_turn = driver._parse_turn(partial_messages, step_start_iso)
+                                partial_tool_calls = [tc.to_dict() for tc in partial_turn.tool_calls]
+                                partial_events = partial_turn.events
+                                partial_tokens_in = partial_turn.tokens_in
+                                partial_tokens_out = partial_turn.tokens_out
+                                partial_peak_ctx = partial_turn.peak_context_tokens
+                                total_tokens_in += partial_turn.tokens_in
+                                total_tokens_out += partial_turn.tokens_out
+                            n_tool_calls = len(partial_tool_calls)
+                            h_logger.warning("    Recovered %d messages (%d tool calls) from session before %s",
+                                             len(partial_messages), n_tool_calls, fail_reason.lower())
+                            # Log the tool calls so the user can see the loop
+                            for tc in partial_tool_calls:
+                                h_logger.warning("    - [Tool Call]: %s", tc.get("tool", "unknown"))
+                    except Exception as recover_err:
+                        h_logger.debug("    Could not recover partial messages: %s", recover_err)
 
-                # Step context usage
-                step_context_used_pct = round((partial_peak_ctx / max_ctx) * 100.0, 2) if max_ctx > 0 else 0.0
+                    # Step context usage
+                    step_context_used_pct = round((partial_peak_ctx / max_ctx) * 100.0, 2) if max_ctx > 0 else 0.0
 
-                step_traces.append(StepTrace(
-                    step_index=idx,
-                    step_name=step_name,
-                    prompt=step.prompt,
-                    point=step_point,
-                    earned_score=0,
-                    max_score=step_point,
-                    start_time=step_start_iso,
-                    end_time=step_end_iso,
-                    tokens_in=partial_tokens_in,
-                    tokens_out=partial_tokens_out,
-                    peak_context_tokens=partial_peak_ctx,
-                    context_used_pct=step_context_used_pct,
-                    used_hint=False,
-                    events=partial_events,
-                    evaluation={
-                        "passed": False,
-                        "score": 0,
-                        "point": step_point,
-                        "check_results": [{
+                    step_traces.append(StepTrace(
+                        step_index=idx,
+                        step_name=step_name,
+                        prompt=step.prompt,
+                        point=step_point,
+                        earned_score=0,
+                        max_score=step_point,
+                        start_time=step_start_iso,
+                        end_time=step_end_iso,
+                        tokens_in=partial_tokens_in,
+                        tokens_out=partial_tokens_out,
+                        peak_context_tokens=partial_peak_ctx,
+                        context_used_pct=step_context_used_pct,
+                        used_hint=False,
+                        events=partial_events,
+                        evaluation={
                             "passed": False,
-                            "message": f"Step aborted due to {fail_reason}: {friendly_msg}",
-                            "details": None,
-                        }],
-                    },
-                    duration_seconds=step_elapsed,
-                ).to_dict())
-                continue
+                            "score": 0,
+                            "point": step_point,
+                            "check_results": [{
+                                "passed": False,
+                                "message": f"Step aborted due to {fail_reason}: {friendly_msg}",
+                                "details": None,
+                            }],
+                        },
+                        duration_seconds=step_elapsed,
+                    ).to_dict())
+                    continue
 
             _log_turn(turn, log_target=h_logger)
 
             # If turn completed with zero tokens and zero tool calls, verify network didn't fail silently
-            if not getattr(driver, "is_mock", False) and type(driver).__name__ != "MockDriver":
+            if type(driver).__name__ != "MockDriver":
                 if turn.tokens_in == 0 and turn.tokens_out == 0 and not turn.tool_calls and not turn.text:
                     is_ok, net_err = sandbox.check_backend_connectivity(llm_base_url)
                     if not is_ok:
@@ -462,7 +428,7 @@ def run_test_suite_on_agent(
             total_tokens_out += turn.tokens_out
 
             turn_response = "\n".join(turn.text).strip() if turn.text else ""
-            eval_res = _evaluate_step_result(step, sandbox, test_path, idx, test_ws, response=turn_response, host_eval=is_host_eval)
+            eval_res = evaluate_step_in_sandbox(sandbox, test_path, idx, test_ws, response=turn_response)
 
             passed = eval_res.get("passed", False)
             used_hint = False
@@ -509,7 +475,7 @@ def run_test_suite_on_agent(
 
                     # Re-evaluate step assertions after hint
                     hint_response = "\n".join(hint_turn.text).strip() if hint_turn.text else ""
-                    eval_res = _evaluate_step_result(step, sandbox, test_path, idx, test_ws, response=hint_response, host_eval=is_host_eval)
+                    eval_res = evaluate_step_in_sandbox(sandbox, test_path, idx, test_ws, response=hint_response)
                     passed = eval_res.get("passed", False)
                 except Exception as e_hint:
                     h_logger.warning("  ✗ Hint attempt encountered driver error: %s", e_hint)

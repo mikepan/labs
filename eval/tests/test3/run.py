@@ -179,5 +179,3 @@ TEST = Test(
         ),
     ],
 )
-
-test = TEST

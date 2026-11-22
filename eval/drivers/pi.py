@@ -14,7 +14,7 @@ import time
 from datetime import datetime, timezone
 from typing import Any
 
-from eval.common import setup_logger, NetworkConnectivityError, is_network_error, load_models
+from eval.common import setup_logger, load_models
 from eval.results import resolve_model_info
 from eval.config import (
     DEFAULT_CONTEXT_WINDOW,
@@ -99,10 +99,8 @@ class PiDriver(HarnessDriver):
         step_start_iso = datetime.now(timezone.utc).isoformat()
         payload_json = json.dumps({
             "prompt": prompt,
-            "model": model_name,
             "timeout": timeout,
             "idle_timeout": idle_timeout,
-            "reasoning_effort": reasoning_effort,
         })
         script = f"""import urllib.request, urllib.error, socket, json, sys
 payload = sys.stdin.read().encode('utf-8')
@@ -188,7 +186,6 @@ except Exception as e:
         if supports_effort:
             model_entry["defaultReasoningEffort"] = reasoning_effort
 
-        launch_cfg = ""
         launch_cfg = (load_models().get(config_alias) or {}).get("model-arg", "")
         # vLLM supports strict tool schemas; llama.cpp/ninfer backends do not.
         is_non_vllm = bool(launch_cfg) and not launch_cfg.lstrip().startswith("vllm")
@@ -335,7 +332,7 @@ class PiSession:
             if line_str:
                 sys.stderr.write(f"[pi_rpc_drain] {{line_str[:200]}}\\n")
 
-    def send_prompt(self, prompt, timeout=7200, idle_timeout=360, reasoning_effort=None):
+    def send_prompt(self, prompt, timeout=7200, idle_timeout=360):
         with self.lock:
             if not self.proc or self.proc.poll() is not None:
                 sys.stderr.write(f"[pi_server] Respawning died pi process\\n")
@@ -722,10 +719,8 @@ class RequestHandler(http.server.BaseHTTPRequestHandler):
             timeout = int(data.get("timeout", 7200))
             idle_timeout = int(data.get("idle_timeout", 360))
 
-            reasoning_effort = data.get("reasoning_effort")
-
             try:
-                turn = session.send_prompt(prompt, timeout=timeout, idle_timeout=idle_timeout, reasoning_effort=reasoning_effort)
+                turn = session.send_prompt(prompt, timeout=timeout, idle_timeout=idle_timeout)
                 self._send_json({{"status": "ok", "turn": turn}})
             except TimeoutError as te:
                 self.send_error(504, str(te))

@@ -16,6 +16,7 @@ from eval.common import setup_logger, run_cmd, http_json, load_models
 from eval.config import (
     API_BASE_URL,
     BENCHMARK_DATA_FILE,
+    DEFAULT_CONTEXT_WINDOW,
     REMOTE_HOST,
     RESULTS_DIR,
 )
@@ -43,7 +44,7 @@ def resolve_model_info(base_url: str, fallback_name: str = "") -> tuple[str, int
     """Query /v1/models on LLM server and resolve active model ID and max context length."""
     model_info = get_vllm_model_info(base_url)
     active_model = (model_info.get("id") if model_info else None) or fallback_name
-    max_context = int(model_info.get("max_model_len", 262144)) if model_info else 262144
+    max_context = int(model_info.get("max_model_len", DEFAULT_CONTEXT_WINDOW)) if model_info else DEFAULT_CONTEXT_WINDOW
     return active_model, max_context
 
 
@@ -93,25 +94,25 @@ def get_model_metadata(model_name: str, base_url: str, memory_gb: float | None =
 
     models = load_models()
     if model_name in models:
-            cfg = models[model_name]
-            spec_arg = cfg.get("model-arg-speculative", "")
-            kv_arg = cfg.get("model-arg-kv-quant", "")
-            launch_cfg = cfg.get("model-arg", "")
-            if not reasoning_effort:
-                effort = cfg.get("reasoning_effort", "off")
+        cfg = models[model_name]
+        spec_arg = cfg.get("model-arg-speculative", "")
+        kv_arg = cfg.get("model-arg-kv-quant", "")
+        launch_cfg = cfg.get("model-arg", "")
+        if not reasoning_effort:
+            effort = cfg.get("reasoning_effort", "off")
 
-            m_serve = re.search(r"vllm\s+serve\s+([^\s]+)", launch_cfg)
-            if m_serve:
-                full_path = m_serve.group(1)
-                company, _, base_model = full_path.rpartition("/") if "/" in full_path else ("Community", "", full_path)
+        m_serve = re.search(r"vllm\s+serve\s+([^\s]+)", launch_cfg)
+        if m_serve:
+            full_path = m_serve.group(1)
+            company, _, base_model = full_path.rpartition("/") if "/" in full_path else ("Community", "", full_path)
 
-            if spec_arg:
-                m = re.search(r'"method":\s*"([^"]+)"', spec_arg)
-                spec_type = m.group(1) if m else "on"
+        if spec_arg:
+            m = re.search(r'"method":\s*"([^"]+)"', spec_arg)
+            spec_type = m.group(1) if m else "on"
 
-            if kv_arg:
-                m = re.search(r"--kv-cache-dtype\s+(\S+)", kv_arg)
-                kv_type = m.group(1).upper() if m else kv_arg
+        if kv_arg:
+            m = re.search(r"--kv-cache-dtype\s+(\S+)", kv_arg)
+            kv_type = m.group(1).upper() if m else kv_arg
 
     # Single API call for both model ID and context length
     vllm_info = get_vllm_model_info(base_url=base_url)

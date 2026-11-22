@@ -60,7 +60,7 @@ def validate_arguments(
         sys.exit(1)
 
 
-    # 2. Validate Test
+    # 1. Validate Test
     available_tests = get_available_tests() + list(DIRECT_BENCHMARKS)
     if test_arg != "all" and test_arg not in available_tests:
         matched_tests = [t for t in available_tests if test_arg.lower() in t.lower()]
@@ -73,7 +73,7 @@ def validate_arguments(
             logger.error("Unknown test '%s'. Available tests: %s (or 'all')", test_arg, avail_str)
             sys.exit(1)
 
-    # 3. Validate Harness
+    # 2. Validate Harness
     available_harnesses = list(load_harnesses_config().keys())
     if harness_arg != "all":
         matched = [h for h in available_harnesses if harness_arg.lower() in h.lower() or h.lower() in harness_arg.lower()]

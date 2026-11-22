@@ -8,7 +8,6 @@ formats results for benchmark-data.json and trace visualization.
 
 from __future__ import annotations
 
-import re
 import sys
 import time
 from pathlib import Path
@@ -18,7 +17,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from eval.common import get_harness_logger, setup_logger
+from eval.common import get_harness_logger
 from eval.config import (
     API_BASE_URL,
     DEFAULT_TOOL_EVAL_MAX_POINTS,
@@ -32,14 +31,14 @@ TOOL_EVAL_TEST_KEY = "tool-eval-bench"
 
 
 def parse_tool_eval_output(
-    data: dict[str, Any] | str,
+    data: dict[str, Any],
     wall_time_sec: float,
     max_normalized_points: float = DEFAULT_TOOL_EVAL_MAX_POINTS,
 ) -> dict[str, Any]:
     """Parse tool-eval-bench JSON result and normalize scores to max_normalized_points (default 40pts).
 
     Args:
-        data: Parsed JSON dict or JSON string from tool-eval-bench.
+        data: Parsed JSON dict from tool-eval-bench.
         wall_time_sec: Total wall-clock execution time in seconds.
         max_normalized_points: Normalized maximum score (default: 40.0).
 
@@ -47,16 +46,10 @@ def parse_tool_eval_output(
         Dictionary containing:
           - 'summary': dict matching benchmark-data schema for test_results['tool-eval-bench']
           - 'trace': dict matching suite_trace['tests']['tool-eval-bench']
-          - 'raw_scores': raw scores dict from tool-eval-bench
           - 'earned_points': raw points earned (e.g. 156)
           - 'max_benchmark_points': raw benchmark total points (e.g. 176)
           - 'normalized_earned_score': score scaled to max_normalized_points
     """
-    if isinstance(data, str):
-        trimmed = data.strip()
-        m = re.search(r"(\{.*\})", trimmed, re.DOTALL)
-        data = json.loads(m.group(1) if m else trimmed)
-
     scores = data.get("scores", {})
     scenario_results = scores.get("scenario_results", [])
     max_benchmark_points = len(scenario_results) * 2 if scenario_results else 176
@@ -152,7 +145,6 @@ def parse_tool_eval_output(
     return {
         "summary": summary_record,
         "trace": trace_record,
-        "raw_scores": scores,
         "earned_points": earned_points,
         "max_benchmark_points": max_benchmark_points,
         "normalized_earned_score": normalized_earned_score,

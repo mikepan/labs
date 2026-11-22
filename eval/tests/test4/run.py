@@ -8,7 +8,7 @@ import re
 import subprocess
 import sys
 
-from eval.tests.framework import Step, Test, custom_check, git_changes
+from eval.tests.framework import Step, Test, custom_check
 
 # ==============================================================================
 # Hidden fixtures

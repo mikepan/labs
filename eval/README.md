@@ -99,7 +99,19 @@ uv run simplebench --limit 3
 uv run benchmark --model Qwen3.8-27B-NVFP4-xhigh --runs 2
 ```
 
-### 5. Results & Web Dashboard
+### 5. Live Reasoning Matrix
+```bash
+# Fast suite: normal invocation never runs the live model matrix
+uv run test
+
+# Verify thinking effort on the currently served model (2 prompts x 5 samples each)
+uv run test full
+
+# Launch every enabled model and verify it across both harnesses
+uv run test full --models all --samples 5
+```
+
+### 6. Results & Web Dashboard
 ```bash
 # Spot failure patterns across runs
 uv run test-analyzer

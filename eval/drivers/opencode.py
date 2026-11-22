@@ -98,7 +98,7 @@ class OpenCodeDriver(HarnessDriver):
         )
 
         effort = normalize_reasoning_effort(reasoning_effort)
-        if effort and effort != "none":
+        if effort:
             target_llm_url = start_reasoning_proxy(
                 sandbox,
                 llm_base_url=llm_base_url,

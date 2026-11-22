@@ -196,11 +196,11 @@ except Exception as e:
             "thinkingFormat": "chat-template",
         }
         if is_boolean_thinking:
-            compat["chatTemplateKwargs"] = {"enable_thinking": "$thinking.enabled"}
+            compat["chatTemplateKwargs"] = {"enable_thinking": {"$var": "thinking.enabled"}}
         else:
             compat["chatTemplateKwargs"] = {
-                "reasoning_effort": "$thinking.effort",
-                "reasoning_strength": "$thinking.effort",
+                "reasoning_effort": {"$var": "thinking.effort"},
+                "reasoning_strength": {"$var": "thinking.effort"},
             }
 
         models_list = [model_entry]

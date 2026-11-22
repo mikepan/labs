@@ -3,7 +3,6 @@
 *.pyc
 __pycache__/
 *.egg-info/
-unittests/
 
 
 # Results: track benchmark-data.json and each run's full_trace.json, ignore other result artifacts/logs

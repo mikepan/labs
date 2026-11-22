@@ -16,6 +16,7 @@ create-harness   = "eval.create_harness:main"
 trivia           = "eval.trivia_eval:main"
 simplebench      = "eval.simplebench_eval:main"
 test-analyzer    = "eval.test_analyzer:main"
+test             = "eval.unittests.run:main"
 
 [tool.setuptools.packages.find]
 include = ["eval*"]

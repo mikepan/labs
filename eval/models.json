@@ -1,4 +1,12 @@
 {
+  "Inkling-2-Mini": {
+    "image": "vllm-node",
+    "model-arg": "vllm serve thinkingmachines/Inkling-2-Mini --tensor-parallel-size 1 --max-model-len 262144 --reasoning-parser inkling --enable-auto-tool-choice --tool-call-parser inkling",
+    "model-arg-speculative": "--speculative-config '{\"method\":\"dspark\",\"num_speculative_tokens\":7,\"draft_sample_method\":\"probabilistic\"}'",
+    "model-arg-platform": "--kv-cache-dtype fp8 --kv-cache-memory-bytes 18147000000",
+    "model-arg-env": "",
+    "reasoning_effort": ["low", "medium", "high"]
+  },
   "qwen38_27b_a8_mtpq4q5": {
     "disabled": true,
     "model-arg": "ninfer serve Qwen/Qwen3.8-27B",
@@ -98,13 +106,5 @@
     "model-arg-platform": "--load-format auto --kv-cache-memory-bytes 3700000000 --async-scheduling",
     "model-arg-env": "VLLM_FLASHINFER_ALLREDUCE_BACKEND=trtllm VLLM_ALLOW_LONG_MAX_MODEL_LEN=1 TORCH_MATMUL_PRECISION=high FLASHINFER_DISABLE_VERSION_CHECK=1 NVIDIA_FORWARD_COMPAT=1 VLLM_USE_V2_MODEL_RUNNER=1",
     "reasoning_effort": ["on"]
-  },
-  "Inkling-2-Mini": {
-    "image": "vllm-node",
-    "model-arg": "vllm serve thinkingmachines/Inkling-2-Mini --tensor-parallel-size 1 --max-model-len 262144 --reasoning-parser inkling --enable-auto-tool-choice --tool-call-parser inkling",
-    "model-arg-speculative": "--speculative-config '{\"method\":\"dspark\",\"num_speculative_tokens\":7,\"draft_sample_method\":\"probabilistic\"}'",
-    "model-arg-platform": "--kv-cache-memory-bytes 28800000000",
-    "model-arg-env": "",
-    "reasoning_effort": ["low", "medium", "high"]
   }
 }

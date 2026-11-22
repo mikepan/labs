@@ -49,6 +49,7 @@ from eval.config import (
     DEFAULT_HINT_SCORE_FACTOR,
     DEFAULT_IDLE_TIMEOUT_MINUTES,
     DEFAULT_MAX_STEP_TIMEOUT_MINUTES,
+    DEFAULT_DIRECT_BENCHMARK_PARALLEL,
     DEFAULT_TOOL_EVAL_PARALLEL,
     MODELS_CONFIG_FILE,
     TESTS_DIR,
@@ -645,6 +646,7 @@ def main():
             base_url=llm_base_url,
             model=args.model,
             reasoning_effort=reasoning_effort,
+            parallel=1 if args.sequential else DEFAULT_DIRECT_BENCHMARK_PARALLEL,
             verbose=args.verbose,
         ),
         TOOL_EVAL_TEST_KEY: lambda: run_tool_eval_benchmark(
@@ -658,6 +660,7 @@ def main():
             base_url=llm_base_url,
             model=args.model,
             reasoning_effort=reasoning_effort,
+            parallel=1 if args.sequential else DEFAULT_DIRECT_BENCHMARK_PARALLEL,
             verbose=args.verbose,
         ),
     }

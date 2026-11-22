@@ -231,6 +231,7 @@ def run_trivia_benchmark(
     max_questions: int | None = None,
     max_points: float = DEFAULT_TRIVIA_MAX_POINTS,
     context_reset_interval: int = CONTEXT_RESET_INTERVAL,
+    parallel: int = 1,
     verbose: bool = False,
 ) -> dict[str, Any]:
     """Execute trivia benchmark against OpenAPI chat completion endpoint directly.
@@ -243,6 +244,7 @@ def run_trivia_benchmark(
         max_questions: Optional limit on number of questions (for quick validation).
         max_points: Normalized maximum score (default: 10.0 pts).
         context_reset_interval: Number of questions before clearing context (default: 10).
+        parallel: Number of context batches to run concurrently (default: 1).
         verbose: Enable verbose logging.
 
     Returns:
@@ -286,135 +288,149 @@ def run_trivia_benchmark(
     total_questions = len(all_questions)
     point_per_q = round(max_points / total_questions, 4) if total_questions > 0 else 0.0
 
-    step_traces = []
-    earned_raw_points = 0
-    passed_steps = 0
-    total_tokens_in = 0
-    total_tokens_out = 0
-    peak_context_tokens = 0
-
     t_bench_start = time.perf_counter()
 
-    # Session message history
-    messages: list[dict[str, str]] = []
+    def run_batch(batch_idx: int, batch_start: int, batch_questions: list[dict[str, Any]]) -> dict[str, Any]:
+        steps: list[dict[str, Any]] = []
+        passed = 0
+        tokens_in = 0
+        tokens_out = 0
+        peak = 0
 
-    for idx, q in enumerate(all_questions):
-        # Context Reset Check: Every context_reset_interval questions, clear and re-inject initial prompt
-        if idx % context_reset_interval == 0:
-            logger.info("--- [Context Reset: Session batch %d - Q%d..Q%d] ---",
-                        (idx // context_reset_interval) + 1, idx + 1, min(idx + context_reset_interval, total_questions))
-            messages = [{"role": "user", "content": INITIAL_PROMPT}]
-            try:
-                ready_content, ready_reasoning, ready_usage = send_chat_completion(
-                    base_url=base_url,
-                    model=server_model_id,
-                    messages=messages,
-                    reasoning_effort=reasoning_effort,
-                )
-                messages.append({"role": "assistant", "content": ready_content})
-                total_tokens_in += ready_usage.get("prompt_tokens", 0)
-                total_tokens_out += ready_usage.get("completion_tokens", 0)
-                peak_context_tokens = max(peak_context_tokens, ready_usage.get("prompt_tokens", 0))
-            except Exception as e:
-                logger.warning("Error initializing trivia session turn: %s", e)
-
-        # Build question prompt
-        q_type = q["type"]
-        if q_type == "multiple":
-            q_prompt, correct_letter, opt_dict = format_multiple_choice_question(
-                q["question"], q["correct_answer"], q["incorrect_answers"]
-            )
-        else:
-            q_prompt = f"True or False: {q['question']}"
-            correct_letter = ""
-            opt_dict = {}
-
-        messages.append({"role": "user", "content": q_prompt})
-
-        step_t0 = time.perf_counter()
-        step_start_iso = datetime.now(timezone.utc).isoformat()
-
+        logger.info("--- [Context Reset: Session batch %d - Q%d..Q%d] ---",
+                    batch_idx + 1, batch_start + 1, batch_start + len(batch_questions))
+        messages = [{"role": "user", "content": INITIAL_PROMPT}]
         try:
-            resp_content, resp_reasoning, usage = send_chat_completion(
+            ready_content, _, ready_usage = send_chat_completion(
                 base_url=base_url,
                 model=server_model_id,
                 messages=messages,
                 reasoning_effort=reasoning_effort,
             )
-            step_tokens_in = usage.get("prompt_tokens", 0)
-            step_tokens_out = usage.get("completion_tokens", 0)
-            total_tokens_in += step_tokens_in
-            total_tokens_out += step_tokens_out
-            peak_context_tokens = max(peak_context_tokens, step_tokens_in)
-            messages.append({"role": "assistant", "content": resp_content})
+            messages.append({"role": "assistant", "content": ready_content})
+            tokens_in += ready_usage.get("prompt_tokens", 0)
+            tokens_out += ready_usage.get("completion_tokens", 0)
+            peak = max(peak, ready_usage.get("prompt_tokens", 0))
         except Exception as e:
-            logger.error("Request failed at Q%d: %s", idx + 1, e)
-            resp_content = ""
-            resp_reasoning = ""
-            step_tokens_in = 0
-            step_tokens_out = 0
+            logger.warning("Error initializing trivia session turn: %s", e)
 
-        step_dur = round(time.perf_counter() - step_t0, 2)
-        step_end_iso = datetime.now(timezone.utc).isoformat()
+        for offset, q in enumerate(batch_questions):
+            idx = batch_start + offset
+            q_type = q["type"]
+            if q_type == "multiple":
+                q_prompt, correct_letter, opt_dict = format_multiple_choice_question(
+                    q["question"], q["correct_answer"], q["incorrect_answers"]
+                )
+            else:
+                q_prompt = f"True or False: {q['question']}"
+                correct_letter = ""
+                opt_dict = {}
 
-        # Validate answer
-        if q_type == "multiple":
-            is_passed, check_msg = validate_trivia_multiple_choice_answer(
-                resp_content, correct_letter, q["correct_answer"], opt_dict
-            )
-        else:
-            is_passed, check_msg = validate_trivia_boolean_answer(
-                resp_content, q["correct_answer"]
-            )
+            messages.append({"role": "user", "content": q_prompt})
 
-        step_score = point_per_q if is_passed else 0.0
-        if is_passed:
-            earned_raw_points += 1
-            passed_steps += 1
+            step_t0 = time.perf_counter()
+            step_start_iso = datetime.now(timezone.utc).isoformat()
 
-        status_symbol = "✓" if is_passed else "✗"
-        logger.info("----------------------------------------------------------------------")
-        logger.info("[%s] [Step %d/%d] Q%d (%s, %s, %.2fs)", status_symbol, idx + 1, total_questions, idx + 1, q["category"], q_type, step_dur)
-        logger.info("  Question:   %s", q["question"])
-        if q_type == "multiple" and opt_dict:
-            opts_str = " | ".join(f"{k}) {v}" for k, v in opt_dict.items())
-            logger.info("  Options:    %s", opts_str)
+            try:
+                resp_content, _, usage = send_chat_completion(
+                    base_url=base_url,
+                    model=server_model_id,
+                    messages=messages,
+                    reasoning_effort=reasoning_effort,
+                )
+                step_tokens_in = usage.get("prompt_tokens", 0)
+                step_tokens_out = usage.get("completion_tokens", 0)
+                tokens_in += step_tokens_in
+                tokens_out += step_tokens_out
+                peak = max(peak, step_tokens_in)
+                messages.append({"role": "assistant", "content": resp_content})
+            except Exception as e:
+                logger.error("Request failed at Q%d: %s", idx + 1, e)
+                resp_content = ""
+                usage = {}
+                step_tokens_in = 0
+                step_tokens_out = 0
 
-        reasoning_tokens = usage.get("reasoning_tokens", 0)
-        logger.info("  Reasoning:  %s tokens", reasoning_tokens)
+            step_dur = round(time.perf_counter() - step_t0, 2)
+            step_end_iso = datetime.now(timezone.utc).isoformat()
 
-        disp_resp = " ".join(resp_content.strip().split()) if resp_content else "<empty>"
-        if len(disp_resp) > 300:
-            disp_resp = disp_resp[:300] + f"... [total {len(disp_resp)} chars]"
-        logger.info("  Response:   %s", disp_resp)
-        logger.info("  Validation: %s %s", status_symbol, check_msg)
+            if q_type == "multiple":
+                is_passed, check_msg = validate_trivia_multiple_choice_answer(
+                    resp_content, correct_letter, q["correct_answer"], opt_dict
+                )
+            else:
+                is_passed, check_msg = validate_trivia_boolean_answer(
+                    resp_content, q["correct_answer"]
+                )
 
-        step_traces.append({
-            "step_index": idx,
-            "step_name": f"Q{idx + 1} ({q['category']})",
-            "prompt": q_prompt,
-            "point": point_per_q,
-            "earned_score": step_score,
-            "max_score": point_per_q,
-            "start_time": step_start_iso,
-            "end_time": step_end_iso,
-            "tokens_in": step_tokens_in,
-            "tokens_out": step_tokens_out,
-            "peak_context_tokens": step_tokens_in,
-            "context_used_pct": 0.0,
-            "used_hint": False,
-            "events": [],
-            "evaluation": {
-                "passed": is_passed,
-                "score": step_score,
-                "check_results": [{
+            step_score = point_per_q if is_passed else 0.0
+            if is_passed:
+                passed += 1
+
+            status_symbol = "✓" if is_passed else "✗"
+            logger.info("----------------------------------------------------------------------")
+            logger.info("[%s] [Step %d/%d] Q%d (%s, %s, %.2fs)", status_symbol, idx + 1, total_questions, idx + 1, q["category"], q_type, step_dur)
+            logger.info("  Question:   %s", q["question"])
+            if q_type == "multiple" and opt_dict:
+                opts_str = " | ".join(f"{k}) {v}" for k, v in opt_dict.items())
+                logger.info("  Options:    %s", opts_str)
+
+            reasoning_tokens = usage.get("reasoning_tokens", 0)
+            logger.info("  Reasoning:  %s tokens", reasoning_tokens)
+
+            disp_resp = " ".join(resp_content.strip().split()) if resp_content else "<empty>"
+            if len(disp_resp) > 300:
+                disp_resp = disp_resp[:300] + f"... [total {len(disp_resp)} chars]"
+            logger.info("  Response:   %s", disp_resp)
+            logger.info("  Validation: %s %s", status_symbol, check_msg)
+
+            steps.append({
+                "step_index": idx,
+                "step_name": f"Q{idx + 1} ({q['category']})",
+                "prompt": q_prompt,
+                "point": point_per_q,
+                "earned_score": step_score,
+                "max_score": point_per_q,
+                "start_time": step_start_iso,
+                "end_time": step_end_iso,
+                "tokens_in": step_tokens_in,
+                "tokens_out": step_tokens_out,
+                "peak_context_tokens": step_tokens_in,
+                "context_used_pct": 0.0,
+                "used_hint": False,
+                "events": [],
+                "evaluation": {
                     "passed": is_passed,
-                    "message": check_msg,
-                    "details": resp_content.strip()[:200],
-                }],
-            },
-            "duration_seconds": step_dur,
-        })
+                    "score": step_score,
+                    "check_results": [{
+                        "passed": is_passed,
+                        "message": check_msg,
+                        "details": resp_content.strip()[:200],
+                    }],
+                },
+                "duration_seconds": step_dur,
+            })
+
+        return {"steps": steps, "passed": passed, "tokens_in": tokens_in, "tokens_out": tokens_out, "peak": peak}
+
+    batches = [
+        (i, start, all_questions[start:start + context_reset_interval])
+        for i, start in enumerate(range(0, total_questions, context_reset_interval))
+    ]
+    parallel = max(1, min(parallel, len(batches)))
+    if parallel > 1:
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=parallel) as pool:
+            futures = [pool.submit(run_batch, i, start, batch) for i, start, batch in batches]
+            results = [future.result() for future in futures]
+    else:
+        results = [run_batch(i, start, batch) for i, start, batch in batches]
+
+    step_traces = [step for result in results for step in result["steps"]]
+    passed_steps = sum(result["passed"] for result in results)
+    total_tokens_in = sum(result["tokens_in"] for result in results)
+    total_tokens_out = sum(result["tokens_out"] for result in results)
+    peak_context_tokens = max((result["peak"] for result in results), default=0)
 
     wall_time_sec = round(time.perf_counter() - t_bench_start, 2)
 
@@ -475,6 +491,7 @@ def main():
     parser.add_argument("--limit", type=int, default=None, help="Limit number of questions to test")
     parser.add_argument("--quiz", default=None, help="Comma-separated list of quiz numbers (e.g. 1,2 or all)")
     parser.add_argument("--reset-interval", type=int, default=CONTEXT_RESET_INTERVAL, help="Context reset interval")
+    parser.add_argument("--parallel", type=int, default=1, help="Number of concurrent context batches")
     parser.add_argument("--v", action="store_true", help="Verbose logging")
     args = parser.parse_args()
 
@@ -490,6 +507,7 @@ def main():
         quiz_files=quiz_files,
         max_questions=args.limit,
         context_reset_interval=args.reset_interval,
+        parallel=args.parallel,
         verbose=args.v,
     )
     if res:

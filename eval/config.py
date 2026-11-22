@@ -39,6 +39,9 @@ DEFAULT_TOOL_EVAL_PARALLEL = 2           # Number of parallel workers
 DEFAULT_TOOL_EVAL_MAX_POINTS = 40.0      # Normalized maximum score points
 TOOL_EVAL_BENCH_BIN = "tool-eval-bench"
 
+# Direct Benchmark Defaults
+DEFAULT_DIRECT_BENCHMARK_PARALLEL = 2    # Concurrent question requests
+
 # Data & Config Paths (Path objects)
 MODELS_CONFIG_FILE = REPO_ROOT / "eval" / "models.json"
 HARNESSES_CONFIG_FILE = REPO_ROOT / "eval" / "harnesses.json"

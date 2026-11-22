@@ -72,6 +72,7 @@ def run_simplebench_benchmark(
     max_questions: int | None = None,
     max_points: float = DEFAULT_SIMPLEBENCH_MAX_POINTS,
     timeout: int = DEFAULT_SIMPLEBENCH_TIMEOUT_SECONDS,
+    parallel: int = 1,
     verbose: bool = False,
 ) -> dict[str, Any]:
     """Execute SimpleBench against an OpenAI-compatible chat completions endpoint.
@@ -85,6 +86,7 @@ def run_simplebench_benchmark(
         max_questions: Optional limit on number of questions (for quick validation).
         max_points: Normalized maximum score (default: 20.0 pts).
         timeout: Request timeout per question in seconds.
+        parallel: Number of concurrent question requests (default: 1).
         verbose: Enable verbose logging.
 
     Returns:
@@ -104,9 +106,9 @@ def run_simplebench_benchmark(
     supports_sampling = not model_cfg.get("no-sampling", False)
 
     logger.info("=" * 70)
-    logger.info("RUNNING simplebench (model=%s [server_id=%s], reasoning_effort=%s, sampling=%s) against %s",
+    logger.info("RUNNING simplebench (model=%s [server_id=%s], reasoning_effort=%s, sampling=%s, parallel=%d) against %s",
                 bench_model_key, server_model_id, reasoning_effort or "default",
-                "on" if supports_sampling else "off", base_url)
+                "on" if supports_sampling else "off", parallel, base_url)
     logger.info("=" * 70)
 
     system_prompt = load_system_prompt(system_prompt_path)
@@ -121,6 +123,7 @@ def run_simplebench_benchmark(
 
     total_questions = len(questions)
     point_per_q = round(max_points / total_questions, 4)
+    parallel = max(1, min(parallel, total_questions))
 
     step_traces = []
     passed_steps = 0
@@ -130,9 +133,8 @@ def run_simplebench_benchmark(
 
     t_bench_start = time.perf_counter()
 
-    for idx, q in enumerate(questions):
+    def fetch_question(idx: int, q: dict[str, Any]) -> dict[str, Any]:
         question_id = q.get("question_id", idx + 1)
-        expected = str(q["answer"]).strip().upper()
         # Fresh single-turn context per question: the system prompt is sent as a
         # regular user prompt, with no history carried over between questions.
         messages = [{
@@ -166,14 +168,36 @@ def run_simplebench_benchmark(
         if request_error is not None:
             raise RuntimeError(f"SimpleBench request failed for Q{question_id}: {request_error}") from request_error
 
+        return {
+            "content": resp_content,
+            "usage": usage,
+            "start_time": step_start_iso,
+            "end_time": datetime.now(timezone.utc).isoformat(),
+            "duration": round(time.perf_counter() - step_t0, 2),
+        }
+
+    if parallel > 1:
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=parallel) as pool:
+            futures = [pool.submit(fetch_question, idx, q) for idx, q in enumerate(questions)]
+            fetched = [future.result() for future in futures]
+    else:
+        fetched = [fetch_question(idx, q) for idx, q in enumerate(questions)]
+
+    for idx, (q, result) in enumerate(zip(questions, fetched)):
+        question_id = q.get("question_id", idx + 1)
+        expected = str(q["answer"]).strip().upper()
+        resp_content = result["content"]
+        usage = result["usage"]
+        step_start_iso = result["start_time"]
+        step_end_iso = result["end_time"]
+        step_dur = result["duration"]
+
         step_tokens_in = usage.get("prompt_tokens", 0)
         step_tokens_out = usage.get("completion_tokens", 0)
         total_tokens_in += step_tokens_in
         total_tokens_out += step_tokens_out
         peak_context_tokens = max(peak_context_tokens, step_tokens_in)
-
-        step_dur = round(time.perf_counter() - step_t0, 2)
-        step_end_iso = datetime.now(timezone.utc).isoformat()
 
         model_answer = extract_final_answer(resp_content)
         if model_answer is None:
@@ -285,6 +309,7 @@ def main():
     parser.add_argument("--reasoning", default=None, help="Reasoning effort (low, medium, xhigh)")
     parser.add_argument("--limit", type=int, default=None, help="Limit number of questions to test")
     parser.add_argument("--timeout", type=int, default=DEFAULT_SIMPLEBENCH_TIMEOUT_SECONDS, help="Request timeout in seconds")
+    parser.add_argument("--parallel", type=int, default=1, help="Number of concurrent question requests")
     parser.add_argument("--v", action="store_true", help="Verbose logging")
     args = parser.parse_args()
 
@@ -294,6 +319,7 @@ def main():
         reasoning_effort=args.reasoning,
         max_questions=args.limit,
         timeout=args.timeout,
+        parallel=args.parallel,
         verbose=args.v,
     )
     if res:

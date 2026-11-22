@@ -37,6 +37,7 @@ if str(REPO_ROOT) not in sys.path:
 from eval.common import get_harness_logger, load_models, setup_logger, send_chat_completion
 from eval.config import (
     API_BASE_URL,
+    DEFAULT_DIRECT_BENCHMARK_PARALLEL,
     TESTS_DIR,
 )
 
@@ -230,7 +231,7 @@ def run_trivia_benchmark(
     max_questions: int | None = None,
     max_points: float = DEFAULT_TRIVIA_MAX_POINTS,
     context_reset_interval: int = CONTEXT_RESET_INTERVAL,
-    parallel: int = 1,
+    parallel: int = DEFAULT_DIRECT_BENCHMARK_PARALLEL,
     verbose: bool = False,
 ) -> dict[str, Any]:
     """Execute trivia benchmark against OpenAPI chat completion endpoint directly.
@@ -243,7 +244,7 @@ def run_trivia_benchmark(
         max_questions: Optional limit on number of questions (for quick validation).
         max_points: Normalized maximum score (default: 10.0 pts).
         context_reset_interval: Number of questions before clearing context (default: 10).
-        parallel: Number of context batches to run concurrently (default: 1).
+        parallel: Number of context batches to run concurrently (default: 2).
         verbose: Enable verbose logging.
 
     Returns:
@@ -489,7 +490,7 @@ def main():
     parser.add_argument("--limit", type=int, default=None, help="Limit number of questions to test")
     parser.add_argument("--quiz", default=None, help="Comma-separated list of quiz numbers (e.g. 1,2 or all)")
     parser.add_argument("--reset-interval", type=int, default=CONTEXT_RESET_INTERVAL, help="Context reset interval")
-    parser.add_argument("--parallel", type=int, default=1, help="Number of concurrent context batches")
+    parser.add_argument("--parallel", type=int, default=DEFAULT_DIRECT_BENCHMARK_PARALLEL, help="Number of concurrent context batches")
     parser.add_argument("--v", action="store_true", help="Verbose logging")
     args = parser.parse_args()
 

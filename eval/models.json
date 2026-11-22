@@ -76,6 +76,7 @@
     "reasoning_effort": ["xhigh"]
   },
   "Qwen3.8-Flash-Next-NVFP4-QAD": {
+    "image": "vllm-node-b12x",
     "model-arg": "vllm serve nvidia/Qwen3.8-Flash-Next-FP4-Local --enable-prefix-caching --enable-chunked-prefill --max-num-batched-tokens 8192 --trust-remote-code --reasoning-parser qwen3 --tool-call-parser qwen3_xml --enable-auto-tool-choice --mamba-cache-mode align --dtype bfloat16 --quantization modelopt_mixed --block-size 16 --linear-backend b12x --moe-backend b12x --no-enable-flashinfer-autotune --mm-encoder-tp-mode data --compilation-config '{\"pass_config\":{\"fuse_act_quant\":true}}' --gdn-decode-kernel b12x",
     "model-arg-speculative": "--speculative-config '{\"method\":\"mtp\",\"num_speculative_tokens\":4}'",
     "model-arg-kv-quant": "--kv-cache-dtype fp8",
@@ -92,7 +93,7 @@
     "reasoning_effort": ["on"]
   },
   "Nemotron-3.5-Lightning-30B-A3B-NVFP4": {
-    "model-arg": "vllm serve nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4 --enable-prefix-caching --max-num-batched-tokens 8192 --moe-backend marlin --mamba-backend flashinfer --mamba-ssm-cache-dtype float16 --enable-mamba-cache-stochastic-rounding --mamba-cache-philox-rounds 5 --mamba-cache-mode align --reasoning-parser nemotron_v3 --enable-auto-tool-choice --tool-call-parser qwen3_xml",
+    "model-arg": "vllm serve nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4 --enable-prefix-caching --max-num-batched-tokens 8192 --moe-backend marlin --mamba-backend flashinfer --mamba-ssm-cache-dtype float16 --enable-mamba-cache-stochastic-rounding --mamba-cache-philox-rounds 5 --reasoning-parser nemotron_v3 --enable-auto-tool-choice --tool-call-parser qwen3_xml",
     "model-arg-speculative": "--speculative-config '{\"method\":\"dspark\",\"model\":\"nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4-DSpark\",\"num_speculative_tokens\":7}'",
     "model-arg-kv-quant": "--kv-cache-dtype fp8",
     "model-arg-platform": "--load-format auto --kv-cache-memory-bytes 7377400000 --async-scheduling",

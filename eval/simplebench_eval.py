@@ -25,7 +25,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from eval.common import get_harness_logger, load_models, send_chat_completion
-from eval.config import API_BASE_URL, TESTS_DIR
+from eval.config import API_BASE_URL, DEFAULT_DIRECT_BENCHMARK_PARALLEL, TESTS_DIR
 
 logger = get_harness_logger("simplebench")
 
@@ -71,7 +71,7 @@ def run_simplebench_benchmark(
     max_questions: int | None = None,
     max_points: float = DEFAULT_SIMPLEBENCH_MAX_POINTS,
     timeout: int = DEFAULT_SIMPLEBENCH_TIMEOUT_SECONDS,
-    parallel: int = 1,
+    parallel: int = DEFAULT_DIRECT_BENCHMARK_PARALLEL,
     verbose: bool = False,
 ) -> dict[str, Any]:
     """Execute SimpleBench against an OpenAI-compatible chat completions endpoint.
@@ -85,7 +85,7 @@ def run_simplebench_benchmark(
         max_questions: Optional limit on number of questions (for quick validation).
         max_points: Normalized maximum score (default: 20.0 pts).
         timeout: Request timeout per question in seconds.
-        parallel: Number of concurrent question requests (default: 1).
+        parallel: Number of concurrent question requests (default: 2).
         verbose: Enable verbose logging.
 
     Returns:
@@ -308,7 +308,7 @@ def main():
     parser.add_argument("--reasoning", default=None, help="Reasoning effort (low, medium, xhigh)")
     parser.add_argument("--limit", type=int, default=None, help="Limit number of questions to test")
     parser.add_argument("--timeout", type=int, default=DEFAULT_SIMPLEBENCH_TIMEOUT_SECONDS, help="Request timeout in seconds")
-    parser.add_argument("--parallel", type=int, default=1, help="Number of concurrent question requests")
+    parser.add_argument("--parallel", type=int, default=DEFAULT_DIRECT_BENCHMARK_PARALLEL, help="Number of concurrent question requests")
     parser.add_argument("--v", action="store_true", help="Verbose logging")
     args = parser.parse_args()
 

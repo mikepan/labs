@@ -10,7 +10,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 # Cluster & Remote Host Configuration
 REMOTE_HOST = "mike@spark"
 REMOTE_VLLM_DIR = "~/apps/spark-vllm-docker"
-REMOTE_VLLM_IMAGE = "vllm-node-b12x"
+REMOTE_VLLM_IMAGE = "vllm-node"
 API_BASE_URL = "http://spark:8000"
 
 # Docker Sandbox & Harness Defaults

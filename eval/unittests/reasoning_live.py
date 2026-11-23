@@ -18,6 +18,7 @@ from __future__ import annotations
 import statistics
 import unittest
 from typing import Any
+from unittest.mock import patch
 
 from eval.common import (
     load_harnesses_config,
@@ -53,14 +54,21 @@ _CONFIG: dict[str, Any] = {
     "models": "served",
     "samples": 5,
     "keep_alive": False,
+    "max_tokens": 4096,
 }
 
 
-def configure(*, models: str = "served", samples: int = 5, keep_alive: bool = False) -> None:
+def configure(
+    *, models: str = "served", samples: int = 5, keep_alive: bool = False, max_tokens: int = 4096
+) -> None:
     """Set live matrix options; called by the ``full`` test runner mode."""
     if samples < 1:
         raise ValueError("samples must be at least 1")
-    _CONFIG.update(models=models.strip(), samples=samples, keep_alive=keep_alive)
+    if max_tokens < 1:
+        raise ValueError("max_tokens must be at least 1")
+    _CONFIG.update(
+        models=models.strip(), samples=samples, keep_alive=keep_alive, max_tokens=max_tokens
+    )
 
 
 def _model_matches(served_id: str, weight: str) -> bool:
@@ -197,9 +205,13 @@ class TestReasoningEffortLive(unittest.TestCase):
                 logger.info("Sampling %s on %s (effort=%s)...", alias, harness_name, effort)
 
                 try:
-                    active_model = driver.start(
-                        sandbox, workspace, alias, API_BASE_URL, reasoning_effort=effort
-                    )
+                    with (
+                        patch("eval.drivers.pi.DEFAULT_MAX_OUTPUT_TOKENS", _CONFIG["max_tokens"]),
+                        patch("eval.drivers.opencode.DEFAULT_MAX_OUTPUT_TOKENS", _CONFIG["max_tokens"]),
+                    ):
+                        active_model = driver.start(
+                            sandbox, workspace, alias, API_BASE_URL, reasoning_effort=effort
+                        )
                 except Exception as exc:
                     row["errors"].append(f"start: {type(exc).__name__}: {exc}")
                     active_model = None

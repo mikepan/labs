@@ -35,6 +35,21 @@ def ensure_sbx_policy() -> None:
         logger.debug("[sbx policy] %s", res.stdout.strip())
 
 
+def allow_builder_network(sandbox_name: str) -> None:
+    """Allow the ephemeral builder sandbox to reach package registries."""
+    res = run_cmd("sbx", "policy", "allow", "network", "--sandbox", sandbox_name, "**")
+    if res.returncode != 0:
+        logger.warning("Could not allow builder network access: %s", res.stderr.strip() or res.stdout.strip())
+
+
+def remove_builder_network(sandbox_name: str) -> None:
+    """Remove the builder's temporary network rule."""
+    run_cmd(
+        "sbx", "policy", "rm", "network", "--sandbox", sandbox_name,
+        "--resource", "**", "--force",
+    )
+
+
 def save_harness_config(config: dict[str, Any], config_path: str = HARNESSES_CONFIG_FILE) -> None:
     """Write updated configuration back to JSON file."""
     with open(config_path, "w", encoding="utf-8") as f:
@@ -58,11 +73,8 @@ def install_harness(
 
     if not install_cmd:
         if "pi" in norm_name:
-            install_cmd = (
-                "curl -fsSL https://pi.dev/install.sh | bash && "
-                "mkdir -p ~/.local/bin && ln -sf ~/.pi/bin/pi ~/.local/bin/pi"
-            )
-            version_cmd = "export PATH=$HOME/.pi/bin:$HOME/.local/bin:/usr/local/bin:$PATH; pi --version"
+            install_cmd = "curl -fsSL https://pi.dev/install.sh | bash"
+            version_cmd = "export PATH=$HOME/.local/bin:$HOME/.pi/agent/bin:/usr/local/bin:$PATH; pi --version"
         elif "opencode" in norm_name:
             install_cmd = (
                 "curl -fsSL https://opencode.ai/install | bash && "
@@ -74,7 +86,7 @@ def install_harness(
             return None
 
     if not version_cmd:
-        version_cmd = f"export PATH=$HOME/.pi/bin:$HOME/.opencode/bin:$HOME/.local/bin:/usr/local/bin:$PATH; {norm_name} --version"
+        version_cmd = f"export PATH=$HOME/.pi/agent/bin:$HOME/.pi/bin:$HOME/.opencode/bin:$HOME/.local/bin:/usr/local/bin:$PATH; {norm_name} --version"
 
     logger.debug("Executing install command: %s", install_cmd)
     code, stdout, stderr = sandbox.exec(install_cmd)
@@ -122,7 +134,19 @@ def install_evaluation_dependencies(sandbox: SandboxClient) -> None:
     setup_script = """
     set -e
     export DEBIAN_FRONTEND=noninteractive
-    sudo apt-get update -qq && sudo apt-get install -y -qq git python3 python3-venv curl jq nodejs npm openjdk-21-jre-headless
+    sudo apt-get update -qq && sudo apt-get install -y -qq git python3 python3-venv curl jq openjdk-21-jre-headless
+
+    # Pi requires Node.js >= 22.19.0; Debian's nodejs package is too old.
+    case "$(uname -m)" in
+        aarch64) node_arch=linux-arm64 ;;
+        x86_64)  node_arch=linux-x64 ;;
+        *) echo "Unsupported architecture: $(uname -m)" >&2; exit 1 ;;
+    esac
+    node_version=v22.23.5
+    curl -fsSL "https://nodejs.org/dist/${node_version}/node-${node_version}-${node_arch}.tar.gz" -o /tmp/node.tar.gz
+    sudo tar -xzf /tmp/node.tar.gz -C /usr/local --strip-components=1
+    rm -f /tmp/node.tar.gz
+    node --version && npm --version
 
     # Install ktlint
     if ! command -v ktlint > /dev/null 2>&1; then
@@ -178,6 +202,7 @@ def main():
         shutil.rmtree(tmp_ws, ignore_errors=True)
         sys.exit(1)
     logger.info("✓ Sandbox '%s' created.", sandbox.name)
+    allow_builder_network(sandbox.name)
 
     try:
         # 1. Install base evaluation dependencies
@@ -199,6 +224,7 @@ def main():
             save_harness_config(harnesses)
     finally:
         # Always cleanup builder container and temp workspace
+        remove_builder_network(sandbox.name)
         sandbox.remove()
         shutil.rmtree(tmp_ws, ignore_errors=True)
 

@@ -222,8 +222,9 @@ except Exception as e:
             "quiet": False,
         }
 
+        # Pi's trust store maps project paths to true/false decisions.
         trust_data = {
-            "trusted": ["/"]
+            "/": True
         }
 
         models_json = json.dumps(models_data, indent=2)
@@ -293,6 +294,7 @@ class PiSession:
         extra_paths = [
             "/usr/local/share/npm-global/bin",
             f"{{home}}/.npm-global/bin",
+            f"{{home}}/.pi/agent/bin",
             f"{{home}}/.pi/bin",
             f"{{home}}/.local/bin",
             "/usr/local/bin",

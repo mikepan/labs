@@ -88,10 +88,10 @@ def get_driver(harness_name: str) -> HarnessDriver:
 
     Triggers lazy import of driver modules to populate the registry.
     """
-    # Lazy-import known driver modules so they self-register
-    if not _DRIVERS:
-        import eval.drivers.opencode  # noqa: F401
-        import eval.drivers.pi  # noqa: F401
+    # Import known driver modules so they self-register. Do this unconditionally:
+    # importing only one driver elsewhere must not hide the others from the registry.
+    import eval.drivers.opencode  # noqa: F401
+    import eval.drivers.pi  # noqa: F401
 
     key = harness_name.lower().strip()
     # Fuzzy match: 'opencode cli' -> 'opencode'

@@ -159,23 +159,21 @@ def install_evaluation_dependencies(sandbox: SandboxClient) -> None:
         curl -LsSf https://astral.sh/uv/install.sh | sh
         export PATH="$HOME/.local/bin:$PATH"
     fi
-    uv pip install --system --quiet langdetect html5lib beautifulsoup4 pillow numpy
+    sudo env "PATH=$PATH" uv pip install --system --break-system-packages --quiet langdetect html5lib beautifulsoup4 pillow numpy
     """
 
     code, stdout, stderr = sandbox.exec(setup_script)
     if code != 0:
-        logger.warning("Issue installing base eval packages (code %d):\n%s\n%s", code, stderr, stdout)
-    else:
-        logger.info("✓ System evaluation tools, OpenJDK, ktlint, and Python packages installed.")
+        raise RuntimeError(f"Base evaluation dependency install failed (code {code}):\n{stderr}\n{stdout}")
+    logger.info("✓ System evaluation tools, OpenJDK, ktlint, and Python packages installed.")
 
     # Validation
     val_cmd = 'git --version && python3 --version && java -version && ktlint --version && python3 -c "import langdetect, html5lib, PIL, numpy; print(\'✓ Evaluation Python modules validated (langdetect, html5lib, pillow, numpy).\')"'
     code, v_out, _ = sandbox.exec(val_cmd)
-    if code == 0 and v_out:
-        for line in v_out.splitlines():
-            logger.debug("Validation: %s", line)
-    else:
-        logger.debug("Validation output: %s", v_out)
+    if code != 0:
+        raise RuntimeError(f"Base evaluation dependencies failed validation:\n{v_out}")
+    for line in v_out.splitlines():
+        logger.debug("Validation: %s", line)
 
 
 def main():

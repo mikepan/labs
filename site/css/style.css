@@ -179,8 +179,7 @@ header {
 }
 
 .nav-links,
-.nav-left,
-.nav-right {
+.nav-left {
   display: flex;
   align-items: center;
   gap: 1.5rem;
@@ -516,8 +515,6 @@ header {
 .toggle-btn,
 .filter-pill,
 .test-tab-btn,
-.file-upload-btn,
-.secondary-btn,
 .primary-btn {
   display: inline-flex;
   align-items: center;
@@ -581,20 +578,6 @@ header {
 
 .primary-btn:hover {
   background: var(--accent-amber);
-}
-
-.file-upload-btn,
-.secondary-btn {
-  padding: 0.45rem 0.9rem;
-  border: 1px solid var(--border-color);
-  background: #ffffff;
-  color: var(--text-main);
-}
-
-.file-upload-btn:hover,
-.secondary-btn:hover {
-  background: #f1f5f9;
-  border-color: rgba(0, 0, 0, 0.2);
 }
 
 /* ---------------------------------------------------------------------
@@ -779,8 +762,7 @@ td.sort-active strong,
   border-top: 1px dashed rgba(0, 0, 0, 0.06);
 }
 
-.accordion-content code,
-.tool-simple-text code {
+.accordion-content code {
   font-family: var(--font-mono);
   font-size: 0.825rem;
   padding: 0.15rem 0.45rem;
@@ -975,12 +957,6 @@ footer a:hover {
   color: var(--text-muted);
   border: 1px solid rgba(148, 163, 184, 0.18);
   white-space: nowrap;
-}
-
-.badge-brand {
-  background: rgba(249, 115, 22, 0.08);
-  color: var(--accent-orange);
-  border-color: rgba(249, 115, 22, 0.22);
 }
 
 .badge-success {
@@ -1391,16 +1367,6 @@ footer a:hover {
   color: #2563eb;
 }
 
-.pill-valid-pass {
-  color: #16a34a;
-  font-weight: 700;
-}
-
-.pill-valid-fail {
-  color: #dc2626;
-  font-weight: 700;
-}
-
 .col-content {
   min-width: 0;
   width: 100%;
@@ -1409,11 +1375,8 @@ footer a:hover {
 /* Consolidated Scrollable Text Containers */
 .user-prompt-text,
 .reasoning-stream,
-.reasoning-simple-text,
 .response-text,
-.validation-summary,
-.tool-code-preview,
-.assertions-container {
+.tool-code-preview {
   max-height: 300px;
   overflow-y: auto;
   white-space: pre-wrap;
@@ -1437,17 +1400,6 @@ footer a:hover {
   border: 1px solid rgba(139, 92, 246, 0.2);
   border-radius: var(--radius-sm);
   padding: 0.75rem 1rem;
-}
-
-.reasoning-simple-text {
-  font-size: 0.85rem;
-  font-style: italic;
-  color: #9333ea;
-  background: rgba(168, 85, 247, 0.05);
-  border: 1px dashed rgba(168, 85, 247, 0.2);
-  border-radius: var(--radius-sm);
-  padding: 0.4rem 0.85rem;
-  display: inline-block;
 }
 
 /* Chevron Ribbon in Simple Mode */
@@ -1507,44 +1459,7 @@ footer a:hover {
   background: #eef2f6;
 }
 
-.tool-simple-text {
-  font-size: 0.775rem;
-  color: #64748b;
-  background: rgba(100, 116, 139, 0.05);
-  border: 1px solid rgba(100, 116, 139, 0.15);
-  border-radius: var(--radius-sm);
-  padding: 0.25rem 0.6rem;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-}
-
-.tool-simple-text .tool-label {
-  font-weight: 600;
-  color: #64748b;
-}
-
-.tool-simple-text code {
-  font-weight: 600;
-  color: #475569;
-  background: rgba(100, 116, 139, 0.08);
-}
-
-.reasoning-wrapper,
-.tool-code-wrapper {
-  position: relative;
-  border-radius: var(--radius-sm);
-}
-
 /* Vertical Execution Stack (Full View) */
-.vertical-execution-stack {
-  display: flex;
-  flex-direction: column;
-  border-radius: var(--radius-sm);
-  overflow: hidden;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
-}
-
 .stack-block {
   position: relative;
 }
@@ -1553,18 +1468,6 @@ footer a:hover {
 .stack-block .tool-code-preview {
   border-radius: 0;
   margin: 0;
-}
-
-.stack-block.is-first .reasoning-stream,
-.stack-block.is-first .tool-code-preview {
-  border-top-left-radius: var(--radius-sm);
-  border-top-right-radius: var(--radius-sm);
-}
-
-.stack-block.is-last .reasoning-stream,
-.stack-block.is-last .tool-code-preview {
-  border-bottom-left-radius: var(--radius-sm);
-  border-bottom-right-radius: var(--radius-sm);
 }
 
 .stack-block.is-only .reasoning-stream,
@@ -1634,18 +1537,6 @@ footer a:hover {
   color: #64748b;
 }
 
-.validation-summary,
-.assertions-container {
-  background: #f8fafc;
-  border: 1px solid rgba(0, 0, 0, 0.06);
-  border-radius: var(--radius-sm);
-  padding: 0.75rem 1rem;
-}
-
-.validation-summary {
-  font-size: 0.825rem;
-}
-
 .validation-items {
   margin-top: 0.5rem;
   display: flex;
@@ -1712,11 +1603,7 @@ footer a:hover {
 
   .user-prompt-text,
   .reasoning-stream,
-  .reasoning-simple-text,
-  .tool-code-wrapper,
-  .response-text,
-  .validation-summary,
-  .assertions-container {
+  .response-text {
     max-width: 100%;
     width: 100%;
   }

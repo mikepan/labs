@@ -1,0 +1,2631 @@
+{
+  "$schema": "../../eval/benchmark-data.schema.json",
+  "evaluations": [
+    {
+      "eval_id": "4181c712-b1b1-46be-be02-21d4d1bee74e",
+      "name": "Qwen3.8-27B-FP8-low",
+      "company": "Qwen",
+      "base_model": "Qwen3.8-27B-FP8",
+      "kv_quant": "FP16",
+      "context_length": 262144,
+      "memory_gb": 89.1,
+      "benchmark_date": "2026-11-24",
+      "llm_server": "vLLM",
+      "speculative_decoding": "dflash",
+      "harness": "pi",
+      "harness_version": "1.6.0",
+      "reasoning": "low",
+      "launch_config": "vllm serve Qwen/Qwen3.8-27B-FP8 --enable-prefix-caching --max-num-batched-tokens 8192 --trust-remote-code --reasoning-parser qwen3 --enable-auto-tool-choice --tool-call-parser qwen3_coder",
+      "intelligence": 69.5,
+      "task_speed": 1.9,
+      "intelligence_density": 0.78,
+      "test_results": {
+        "multilingual_science_presentation": {
+          "name": "multilingual_science_presentation",
+          "earned_score": 8,
+          "max_score": 8,
+          "run_time_sec": 636.96,
+          "tokens_in": 239274,
+          "tokens_out": 15798,
+          "peak_context_tokens": 20376,
+          "context_used_pct": 7.77
+        },
+        "data_analytics": {
+          "name": "data_analytics",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 453.57,
+          "tokens_in": 281660,
+          "tokens_out": 11232,
+          "peak_context_tokens": 20255,
+          "context_used_pct": 7.73
+        },
+        "kotlin_code": {
+          "name": "kotlin_code",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 1009.45,
+          "tokens_in": 858602,
+          "tokens_out": 23104,
+          "peak_context_tokens": 48887,
+          "context_used_pct": 18.65
+        },
+        "normal_map_classification": {
+          "name": "normal_map_classification",
+          "earned_score": 0,
+          "max_score": 10,
+          "run_time_sec": 5453.66,
+          "tokens_in": 1784144,
+          "tokens_out": 90110,
+          "peak_context_tokens": 114013,
+          "context_used_pct": 43.49
+        },
+        "chess_movegen": {
+          "name": "chess_movegen",
+          "earned_score": 2,
+          "max_score": 10,
+          "run_time_sec": 4908.28,
+          "tokens_in": 2289647,
+          "tokens_out": 86278,
+          "peak_context_tokens": 97318,
+          "context_used_pct": 37.12
+        },
+        "trivia": {
+          "name": "trivia",
+          "earned_score": 16.71,
+          "max_score": 20.0,
+          "run_time_sec": 1050.12,
+          "tokens_in": 123877,
+          "tokens_out": 41677,
+          "peak_context_tokens": 1706,
+          "context_used_pct": 0.0
+        },
+        "tool-eval-bench": {
+          "name": "tool-eval-bench",
+          "earned_score": 37,
+          "max_score": 40,
+          "run_time_sec": 973.31,
+          "tokens_in": 498738,
+          "tokens_out": 46114,
+          "peak_context_tokens": 0,
+          "context_used_pct": 0.0
+        },
+        "simplebench": {
+          "name": "simplebench",
+          "earned_score": 12.0,
+          "max_score": 20.0,
+          "run_time_sec": 313.43,
+          "tokens_in": 2588,
+          "tokens_out": 13271,
+          "peak_context_tokens": 353,
+          "context_used_pct": 0.0
+        }
+      }
+    },
+    {
+      "eval_id": "73187523-cbb4-48cc-a8d8-bb1ca43c844c",
+      "name": "Qwen3.8-27B-FP8-low",
+      "company": "Qwen",
+      "base_model": "Qwen3.8-27B-FP8",
+      "kv_quant": "FP16",
+      "context_length": 262144,
+      "memory_gb": 89.1,
+      "benchmark_date": "2026-11-24",
+      "llm_server": "vLLM",
+      "speculative_decoding": "dflash",
+      "harness": "opencode cli",
+      "harness_version": "1.19.6",
+      "reasoning": "low",
+      "launch_config": "vllm serve Qwen/Qwen3.8-27B-FP8 --enable-prefix-caching --max-num-batched-tokens 8192 --trust-remote-code --reasoning-parser qwen3 --enable-auto-tool-choice --tool-call-parser qwen3_coder",
+      "intelligence": 89.5,
+      "task_speed": 2.2,
+      "intelligence_density": 1.004,
+      "test_results": {
+        "multilingual_science_presentation": {
+          "name": "multilingual_science_presentation",
+          "earned_score": 8,
+          "max_score": 8,
+          "run_time_sec": 890.93,
+          "tokens_in": 411829,
+          "tokens_out": 19274,
+          "peak_context_tokens": 29366,
+          "context_used_pct": 11.2
+        },
+        "data_analytics": {
+          "name": "data_analytics",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 314.74,
+          "tokens_in": 596066,
+          "tokens_out": 7742,
+          "peak_context_tokens": 30185,
+          "context_used_pct": 11.51
+        },
+        "kotlin_code": {
+          "name": "kotlin_code",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 2612.73,
+          "tokens_in": 1174667,
+          "tokens_out": 47364,
+          "peak_context_tokens": 88916,
+          "context_used_pct": 33.92
+        },
+        "normal_map_classification": {
+          "name": "normal_map_classification",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 724.11,
+          "tokens_in": 104756,
+          "tokens_out": 12028,
+          "peak_context_tokens": 23930,
+          "context_used_pct": 9.13
+        },
+        "chess_movegen": {
+          "name": "chess_movegen",
+          "earned_score": 8,
+          "max_score": 10,
+          "run_time_sec": 6044.64,
+          "tokens_in": 2417195,
+          "tokens_out": 103360,
+          "peak_context_tokens": 121260,
+          "context_used_pct": 46.26
+        },
+        "trivia": {
+          "name": "trivia",
+          "earned_score": 16.71,
+          "max_score": 20.0,
+          "run_time_sec": 1050.12,
+          "tokens_in": 123877,
+          "tokens_out": 41677,
+          "peak_context_tokens": 1706,
+          "context_used_pct": 0.0
+        },
+        "tool-eval-bench": {
+          "name": "tool-eval-bench",
+          "earned_score": 37,
+          "max_score": 40,
+          "run_time_sec": 973.31,
+          "tokens_in": 498738,
+          "tokens_out": 46114,
+          "peak_context_tokens": 0,
+          "context_used_pct": 0.0
+        },
+        "simplebench": {
+          "name": "simplebench",
+          "earned_score": 12.0,
+          "max_score": 20.0,
+          "run_time_sec": 313.43,
+          "tokens_in": 2588,
+          "tokens_out": 13271,
+          "peak_context_tokens": 353,
+          "context_used_pct": 0.0
+        }
+      }
+    },
+    {
+      "eval_id": "a95821b1-fa54-4a1b-bafa-1d3e16ef27e5",
+      "name": "Qwen3.8-27B-NVFP4-xhigh",
+      "company": "nvidia",
+      "base_model": "Qwen3.8-27B-NVFP4",
+      "kv_quant": "FP8",
+      "context_length": 262144,
+      "memory_gb": 61.8,
+      "benchmark_date": "2026-11-24",
+      "llm_server": "vLLM",
+      "speculative_decoding": "dflash",
+      "harness": "pi",
+      "harness_version": "1.6.0",
+      "reasoning": "xhigh",
+      "launch_config": "vllm serve nvidia/Qwen3.8-27B-NVFP4 --enable-prefix-caching --enable-chunked-prefill --max-num-batched-tokens 8192 --trust-remote-code --reasoning-parser qwen3 --tool-call-parser qwen3_xml --enable-auto-tool-choice",
+      "intelligence": 78.8,
+      "task_speed": 1.4,
+      "intelligence_density": 1.275,
+      "test_results": {
+        "multilingual_science_presentation": {
+          "name": "multilingual_science_presentation",
+          "earned_score": 7,
+          "max_score": 8,
+          "run_time_sec": 6158.04,
+          "tokens_in": 6345239,
+          "tokens_out": 143881,
+          "peak_context_tokens": 156940,
+          "context_used_pct": 59.87
+        },
+        "data_analytics": {
+          "name": "data_analytics",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 466.89,
+          "tokens_in": 647824,
+          "tokens_out": 15121,
+          "peak_context_tokens": 32404,
+          "context_used_pct": 12.36
+        },
+        "kotlin_code": {
+          "name": "kotlin_code",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 2756.85,
+          "tokens_in": 1027462,
+          "tokens_out": 71418,
+          "peak_context_tokens": 97611,
+          "context_used_pct": 37.24
+        },
+        "normal_map_classification": {
+          "name": "normal_map_classification",
+          "earned_score": 0,
+          "max_score": 10,
+          "run_time_sec": 3600.77,
+          "tokens_in": 1745040,
+          "tokens_out": 70562,
+          "peak_context_tokens": 133594,
+          "context_used_pct": 50.96
+        },
+        "chess_movegen": {
+          "name": "chess_movegen",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 4208.06,
+          "tokens_in": 3242281,
+          "tokens_out": 118763,
+          "peak_context_tokens": 132203,
+          "context_used_pct": 50.43
+        },
+        "trivia": {
+          "name": "trivia",
+          "earned_score": 16.51,
+          "max_score": 20.0,
+          "run_time_sec": 1352.08,
+          "tokens_in": 193008,
+          "tokens_out": 76497,
+          "peak_context_tokens": 2612,
+          "context_used_pct": 0.0
+        },
+        "tool-eval-bench": {
+          "name": "tool-eval-bench",
+          "earned_score": 36,
+          "max_score": 40,
+          "run_time_sec": 1127.72,
+          "tokens_in": 587090,
+          "tokens_out": 63682,
+          "peak_context_tokens": 0,
+          "context_used_pct": 0.0
+        },
+        "simplebench": {
+          "name": "simplebench",
+          "earned_score": 14.0,
+          "max_score": 20.0,
+          "run_time_sec": 1534.66,
+          "tokens_in": 2708,
+          "tokens_out": 76519,
+          "peak_context_tokens": 365,
+          "context_used_pct": 0.0
+        }
+      }
+    },
+    {
+      "eval_id": "6936af25-3d23-403b-b76b-2895bc9990e7",
+      "name": "Qwen3.8-27B-NVFP4-xhigh",
+      "company": "nvidia",
+      "base_model": "Qwen3.8-27B-NVFP4",
+      "kv_quant": "FP8",
+      "context_length": 262144,
+      "memory_gb": 61.8,
+      "benchmark_date": "2026-11-24",
+      "llm_server": "vLLM",
+      "speculative_decoding": "dflash",
+      "harness": "opencode cli",
+      "harness_version": "1.19.6",
+      "reasoning": "xhigh",
+      "launch_config": "vllm serve nvidia/Qwen3.8-27B-NVFP4 --enable-prefix-caching --enable-chunked-prefill --max-num-batched-tokens 8192 --trust-remote-code --reasoning-parser qwen3 --tool-call-parser qwen3_xml --enable-auto-tool-choice",
+      "intelligence": 77.8,
+      "task_speed": 1.6,
+      "intelligence_density": 1.259,
+      "test_results": {
+        "multilingual_science_presentation": {
+          "name": "multilingual_science_presentation",
+          "earned_score": 8,
+          "max_score": 8,
+          "run_time_sec": 3094.44,
+          "tokens_in": 1983142,
+          "tokens_out": 87743,
+          "peak_context_tokens": 100123,
+          "context_used_pct": 38.19
+        },
+        "data_analytics": {
+          "name": "data_analytics",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 258.42,
+          "tokens_in": 431156,
+          "tokens_out": 7113,
+          "peak_context_tokens": 21308,
+          "context_used_pct": 8.13
+        },
+        "kotlin_code": {
+          "name": "kotlin_code",
+          "earned_score": 8,
+          "max_score": 10,
+          "run_time_sec": 2033.83,
+          "tokens_in": 852984,
+          "tokens_out": 46637,
+          "peak_context_tokens": 90455,
+          "context_used_pct": 34.51
+        },
+        "normal_map_classification": {
+          "name": "normal_map_classification",
+          "earned_score": 0,
+          "max_score": 10,
+          "run_time_sec": 3601.17,
+          "tokens_in": 1481562,
+          "tokens_out": 60494,
+          "peak_context_tokens": 103878,
+          "context_used_pct": 39.63
+        },
+        "chess_movegen": {
+          "name": "chess_movegen",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 4777.57,
+          "tokens_in": 5846469,
+          "tokens_out": 124117,
+          "peak_context_tokens": 144791,
+          "context_used_pct": 55.23
+        },
+        "trivia": {
+          "name": "trivia",
+          "earned_score": 16.51,
+          "max_score": 20.0,
+          "run_time_sec": 1352.08,
+          "tokens_in": 193008,
+          "tokens_out": 76497,
+          "peak_context_tokens": 2612,
+          "context_used_pct": 0.0
+        },
+        "tool-eval-bench": {
+          "name": "tool-eval-bench",
+          "earned_score": 36,
+          "max_score": 40,
+          "run_time_sec": 1127.72,
+          "tokens_in": 587090,
+          "tokens_out": 63682,
+          "peak_context_tokens": 0,
+          "context_used_pct": 0.0
+        },
+        "simplebench": {
+          "name": "simplebench",
+          "earned_score": 14.0,
+          "max_score": 20.0,
+          "run_time_sec": 1534.66,
+          "tokens_in": 2708,
+          "tokens_out": 76519,
+          "peak_context_tokens": 365,
+          "context_used_pct": 0.0
+        }
+      }
+    },
+    {
+      "eval_id": "c64224a2-9afc-484d-af09-a829f579cf26",
+      "name": "Qwen3.8-27B-NVFP4-medium",
+      "company": "nvidia",
+      "base_model": "Qwen3.8-27B-NVFP4",
+      "kv_quant": "FP8",
+      "context_length": 262144,
+      "memory_gb": 61.8,
+      "benchmark_date": "2026-11-24",
+      "llm_server": "vLLM",
+      "speculative_decoding": "dflash",
+      "harness": "opencode cli",
+      "harness_version": "1.19.6",
+      "reasoning": "medium",
+      "launch_config": "vllm serve nvidia/Qwen3.8-27B-NVFP4 --enable-prefix-caching --enable-chunked-prefill --max-num-batched-tokens 8192 --trust-remote-code --reasoning-parser qwen3 --tool-call-parser qwen3_xml --enable-auto-tool-choice",
+      "intelligence": 88.2,
+      "task_speed": 2.3,
+      "intelligence_density": 1.427,
+      "test_results": {
+        "multilingual_science_presentation": {
+          "name": "multilingual_science_presentation",
+          "earned_score": 8,
+          "max_score": 8,
+          "run_time_sec": 1498.47,
+          "tokens_in": 1053848,
+          "tokens_out": 45079,
+          "peak_context_tokens": 56355,
+          "context_used_pct": 21.5
+        },
+        "data_analytics": {
+          "name": "data_analytics",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 145.57,
+          "tokens_in": 198328,
+          "tokens_out": 4589,
+          "peak_context_tokens": 16663,
+          "context_used_pct": 6.36
+        },
+        "kotlin_code": {
+          "name": "kotlin_code",
+          "earned_score": 8,
+          "max_score": 10,
+          "run_time_sec": 1602.47,
+          "tokens_in": 775992,
+          "tokens_out": 44234,
+          "peak_context_tokens": 84337,
+          "context_used_pct": 32.17
+        },
+        "normal_map_classification": {
+          "name": "normal_map_classification",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 657.51,
+          "tokens_in": 391533,
+          "tokens_out": 14518,
+          "peak_context_tokens": 62635,
+          "context_used_pct": 23.89
+        },
+        "chess_movegen": {
+          "name": "chess_movegen",
+          "earned_score": 8,
+          "max_score": 10,
+          "run_time_sec": 6569.05,
+          "tokens_in": 5936419,
+          "tokens_out": 165437,
+          "peak_context_tokens": 184891,
+          "context_used_pct": 70.53
+        },
+        "trivia": {
+          "name": "trivia",
+          "earned_score": 16.64,
+          "max_score": 20.0,
+          "run_time_sec": 984.93,
+          "tokens_in": 141092,
+          "tokens_out": 59509,
+          "peak_context_tokens": 2176,
+          "context_used_pct": 0.0
+        },
+        "tool-eval-bench": {
+          "name": "tool-eval-bench",
+          "earned_score": 37,
+          "max_score": 40,
+          "run_time_sec": 833.99,
+          "tokens_in": 542436,
+          "tokens_out": 52424,
+          "peak_context_tokens": 0,
+          "context_used_pct": 0.0
+        },
+        "simplebench": {
+          "name": "simplebench",
+          "earned_score": 14.0,
+          "max_score": 20.0,
+          "run_time_sec": 256.58,
+          "tokens_in": 2288,
+          "tokens_out": 16903,
+          "peak_context_tokens": 323,
+          "context_used_pct": 0.0
+        }
+      }
+    },
+    {
+      "eval_id": "44b8b577-81e0-4981-b68c-858da09434cf",
+      "name": "Qwen3.8-27B-NVFP4-medium",
+      "company": "nvidia",
+      "base_model": "Qwen3.8-27B-NVFP4",
+      "kv_quant": "FP8",
+      "context_length": 262144,
+      "memory_gb": 61.8,
+      "benchmark_date": "2026-11-24",
+      "llm_server": "vLLM",
+      "speculative_decoding": "dflash",
+      "harness": "pi",
+      "harness_version": "1.6.0",
+      "reasoning": "medium",
+      "launch_config": "vllm serve nvidia/Qwen3.8-27B-NVFP4 --enable-prefix-caching --enable-chunked-prefill --max-num-batched-tokens 8192 --trust-remote-code --reasoning-parser qwen3 --tool-call-parser qwen3_xml --enable-auto-tool-choice",
+      "intelligence": 88.2,
+      "task_speed": 2.9,
+      "intelligence_density": 1.427,
+      "test_results": {
+        "multilingual_science_presentation": {
+          "name": "multilingual_science_presentation",
+          "earned_score": 8,
+          "max_score": 8,
+          "run_time_sec": 500.01,
+          "tokens_in": 302612,
+          "tokens_out": 14489,
+          "peak_context_tokens": 17530,
+          "context_used_pct": 6.69
+        },
+        "data_analytics": {
+          "name": "data_analytics",
+          "earned_score": 8,
+          "max_score": 10,
+          "run_time_sec": 420.85,
+          "tokens_in": 71195,
+          "tokens_out": 4148,
+          "peak_context_tokens": 7916,
+          "context_used_pct": 3.02
+        },
+        "kotlin_code": {
+          "name": "kotlin_code",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 1030.11,
+          "tokens_in": 487049,
+          "tokens_out": 27675,
+          "peak_context_tokens": 52751,
+          "context_used_pct": 20.12
+        },
+        "normal_map_classification": {
+          "name": "normal_map_classification",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 206.65,
+          "tokens_in": 33334,
+          "tokens_out": 4457,
+          "peak_context_tokens": 8930,
+          "context_used_pct": 3.41
+        },
+        "chess_movegen": {
+          "name": "chess_movegen",
+          "earned_score": 8,
+          "max_score": 10,
+          "run_time_sec": 5710.37,
+          "tokens_in": 4117056,
+          "tokens_out": 124794,
+          "peak_context_tokens": 146733,
+          "context_used_pct": 55.97
+        },
+        "trivia": {
+          "name": "trivia",
+          "earned_score": 16.64,
+          "max_score": 20.0,
+          "run_time_sec": 984.93,
+          "tokens_in": 141092,
+          "tokens_out": 59509,
+          "peak_context_tokens": 2176,
+          "context_used_pct": 0.0
+        },
+        "tool-eval-bench": {
+          "name": "tool-eval-bench",
+          "earned_score": 37,
+          "max_score": 40,
+          "run_time_sec": 833.99,
+          "tokens_in": 542436,
+          "tokens_out": 52424,
+          "peak_context_tokens": 0,
+          "context_used_pct": 0.0
+        },
+        "simplebench": {
+          "name": "simplebench",
+          "earned_score": 14.0,
+          "max_score": 20.0,
+          "run_time_sec": 256.58,
+          "tokens_in": 2288,
+          "tokens_out": 16903,
+          "peak_context_tokens": 323,
+          "context_used_pct": 0.0
+        }
+      }
+    },
+    {
+      "eval_id": "3d14b4cf-c7c9-40a3-bcab-344aa86d1982",
+      "name": "Qwen3.8-27B-NVFP4-low",
+      "company": "nvidia",
+      "base_model": "Qwen3.8-27B-NVFP4",
+      "kv_quant": "FP8",
+      "context_length": 262144,
+      "memory_gb": 61.8,
+      "benchmark_date": "2026-11-23",
+      "llm_server": "vLLM",
+      "speculative_decoding": "dflash",
+      "harness": "opencode cli",
+      "harness_version": "1.19.6",
+      "reasoning": "low",
+      "launch_config": "vllm serve nvidia/Qwen3.8-27B-NVFP4 --enable-prefix-caching --enable-chunked-prefill --max-num-batched-tokens 8192 --trust-remote-code --reasoning-parser qwen3 --tool-call-parser qwen3_xml --enable-auto-tool-choice",
+      "intelligence": 87.5,
+      "task_speed": 1.5,
+      "intelligence_density": 1.416,
+      "test_results": {
+        "multilingual_science_presentation": {
+          "name": "multilingual_science_presentation",
+          "earned_score": 8,
+          "max_score": 8,
+          "run_time_sec": 782.94,
+          "tokens_in": 547002,
+          "tokens_out": 22352,
+          "peak_context_tokens": 33101,
+          "context_used_pct": 12.63
+        },
+        "data_analytics": {
+          "name": "data_analytics",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 216.03,
+          "tokens_in": 506628,
+          "tokens_out": 7107,
+          "peak_context_tokens": 25982,
+          "context_used_pct": 9.91
+        },
+        "kotlin_code": {
+          "name": "kotlin_code",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 2023.06,
+          "tokens_in": 4701511,
+          "tokens_out": 51091,
+          "peak_context_tokens": 114517,
+          "context_used_pct": 43.68
+        },
+        "normal_map_classification": {
+          "name": "normal_map_classification",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 2175.81,
+          "tokens_in": 926864,
+          "tokens_out": 50399,
+          "peak_context_tokens": 76800,
+          "context_used_pct": 29.3
+        },
+        "chess_movegen": {
+          "name": "chess_movegen",
+          "earned_score": 6,
+          "max_score": 10,
+          "run_time_sec": 11847.8,
+          "tokens_in": 8650910,
+          "tokens_out": 232941,
+          "peak_context_tokens": 234420,
+          "context_used_pct": 89.42
+        },
+        "trivia": {
+          "name": "trivia",
+          "earned_score": 16.98,
+          "max_score": 20.0,
+          "run_time_sec": 753.87,
+          "tokens_in": 119610,
+          "tokens_out": 43630,
+          "peak_context_tokens": 1796,
+          "context_used_pct": 0.0
+        },
+        "tool-eval-bench": {
+          "name": "tool-eval-bench",
+          "earned_score": 38,
+          "max_score": 40,
+          "run_time_sec": 750.27,
+          "tokens_in": 534772,
+          "tokens_out": 47505,
+          "peak_context_tokens": 0,
+          "context_used_pct": 0.0
+        },
+        "simplebench": {
+          "name": "simplebench",
+          "earned_score": 12.0,
+          "max_score": 20.0,
+          "run_time_sec": 153.8,
+          "tokens_in": 2588,
+          "tokens_out": 10812,
+          "peak_context_tokens": 353,
+          "context_used_pct": 0.0
+        }
+      }
+    },
+    {
+      "eval_id": "21fa7681-3bc2-4961-9012-1b7fbb83fcef",
+      "name": "Qwen3.8-27B-NVFP4-low",
+      "company": "nvidia",
+      "base_model": "Qwen3.8-27B-NVFP4",
+      "kv_quant": "FP8",
+      "context_length": 262144,
+      "memory_gb": 61.8,
+      "benchmark_date": "2026-11-23",
+      "llm_server": "vLLM",
+      "speculative_decoding": "dflash",
+      "harness": "pi",
+      "harness_version": "1.6.0",
+      "reasoning": "low",
+      "launch_config": "vllm serve nvidia/Qwen3.8-27B-NVFP4 --enable-prefix-caching --enable-chunked-prefill --max-num-batched-tokens 8192 --trust-remote-code --reasoning-parser qwen3 --tool-call-parser qwen3_xml --enable-auto-tool-choice",
+      "intelligence": 92.5,
+      "task_speed": 2.2,
+      "intelligence_density": 1.497,
+      "test_results": {
+        "multilingual_science_presentation": {
+          "name": "multilingual_science_presentation",
+          "earned_score": 8,
+          "max_score": 8,
+          "run_time_sec": 1290.07,
+          "tokens_in": 669181,
+          "tokens_out": 38436,
+          "peak_context_tokens": 44296,
+          "context_used_pct": 16.9
+        },
+        "data_analytics": {
+          "name": "data_analytics",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 173.93,
+          "tokens_in": 125096,
+          "tokens_out": 6025,
+          "peak_context_tokens": 12386,
+          "context_used_pct": 4.72
+        },
+        "kotlin_code": {
+          "name": "kotlin_code",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 2203.4,
+          "tokens_in": 1719835,
+          "tokens_out": 56423,
+          "peak_context_tokens": 91977,
+          "context_used_pct": 35.09
+        },
+        "normal_map_classification": {
+          "name": "normal_map_classification",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 1569.94,
+          "tokens_in": 965454,
+          "tokens_out": 33255,
+          "peak_context_tokens": 71779,
+          "context_used_pct": 27.38
+        },
+        "chess_movegen": {
+          "name": "chess_movegen",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 6377.28,
+          "tokens_in": 7286926,
+          "tokens_out": 156353,
+          "peak_context_tokens": 172496,
+          "context_used_pct": 65.8
+        },
+        "trivia": {
+          "name": "trivia",
+          "earned_score": 16.98,
+          "max_score": 20.0,
+          "run_time_sec": 753.87,
+          "tokens_in": 119610,
+          "tokens_out": 43630,
+          "peak_context_tokens": 1796,
+          "context_used_pct": 0.0
+        },
+        "tool-eval-bench": {
+          "name": "tool-eval-bench",
+          "earned_score": 38,
+          "max_score": 40,
+          "run_time_sec": 750.27,
+          "tokens_in": 534772,
+          "tokens_out": 47505,
+          "peak_context_tokens": 0,
+          "context_used_pct": 0.0
+        },
+        "simplebench": {
+          "name": "simplebench",
+          "earned_score": 12.0,
+          "max_score": 20.0,
+          "run_time_sec": 153.8,
+          "tokens_in": 2588,
+          "tokens_out": 10812,
+          "peak_context_tokens": 353,
+          "context_used_pct": 0.0
+        }
+      }
+    },
+    {
+      "eval_id": "27257697-a2e4-44af-b593-eeff28699572",
+      "name": "Qwen3.6-27B-NVFP4-off",
+      "company": "nvidia",
+      "base_model": "Qwen3.6-27B-NVFP4",
+      "kv_quant": "FP8",
+      "context_length": 262144,
+      "memory_gb": 51.8,
+      "benchmark_date": "2026-11-23",
+      "llm_server": "vLLM",
+      "speculative_decoding": "mtp",
+      "harness": "pi",
+      "harness_version": "1.6.0",
+      "reasoning": "off",
+      "launch_config": "vllm serve nvidia/Qwen3.6-27B-NVFP4 --enable-prefix-caching --max-num-batched-tokens 8192 --trust-remote-code --reasoning-parser qwen3 --enable-auto-tool-choice --tool-call-parser qwen3_coder",
+      "intelligence": 79.6,
+      "task_speed": 3.3,
+      "intelligence_density": 1.537,
+      "test_results": {
+        "multilingual_science_presentation": {
+          "name": "multilingual_science_presentation",
+          "earned_score": 8,
+          "max_score": 8,
+          "run_time_sec": 477.94,
+          "tokens_in": 178483,
+          "tokens_out": 12606,
+          "peak_context_tokens": 17528,
+          "context_used_pct": 6.69
+        },
+        "data_analytics": {
+          "name": "data_analytics",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 316.32,
+          "tokens_in": 758543,
+          "tokens_out": 4849,
+          "peak_context_tokens": 37335,
+          "context_used_pct": 14.24
+        },
+        "kotlin_code": {
+          "name": "kotlin_code",
+          "earned_score": 8,
+          "max_score": 10,
+          "run_time_sec": 555.75,
+          "tokens_in": 457748,
+          "tokens_out": 2774,
+          "peak_context_tokens": 37024,
+          "context_used_pct": 14.12
+        },
+        "normal_map_classification": {
+          "name": "normal_map_classification",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 377.07,
+          "tokens_in": 77805,
+          "tokens_out": 7369,
+          "peak_context_tokens": 13769,
+          "context_used_pct": 5.25
+        },
+        "chess_movegen": {
+          "name": "chess_movegen",
+          "earned_score": 4,
+          "max_score": 10,
+          "run_time_sec": 5977.75,
+          "tokens_in": 20796891,
+          "tokens_out": 134870,
+          "peak_context_tokens": 186734,
+          "context_used_pct": 71.23
+        },
+        "trivia": {
+          "name": "trivia",
+          "earned_score": 15.91,
+          "max_score": 20.0,
+          "run_time_sec": 135.42,
+          "tokens_in": 97764,
+          "tokens_out": 656,
+          "peak_context_tokens": 705,
+          "context_used_pct": 0.0
+        },
+        "tool-eval-bench": {
+          "name": "tool-eval-bench",
+          "earned_score": 35,
+          "max_score": 40,
+          "run_time_sec": 597.33,
+          "tokens_in": 490685,
+          "tokens_out": 22056,
+          "peak_context_tokens": 0,
+          "context_used_pct": 0.0
+        },
+        "simplebench": {
+          "name": "simplebench",
+          "earned_score": 10.0,
+          "max_score": 20.0,
+          "run_time_sec": 302.79,
+          "tokens_in": 2308,
+          "tokens_out": 14307,
+          "peak_context_tokens": 325,
+          "context_used_pct": 0.0
+        }
+      }
+    },
+    {
+      "eval_id": "c7627fcc-fc8d-4669-95e3-7f2ad4ca2e64",
+      "name": "Qwen3.6-27B-NVFP4-off",
+      "company": "nvidia",
+      "base_model": "Qwen3.6-27B-NVFP4",
+      "kv_quant": "FP8",
+      "context_length": 262144,
+      "memory_gb": 51.8,
+      "benchmark_date": "2026-11-23",
+      "llm_server": "vLLM",
+      "speculative_decoding": "mtp",
+      "harness": "opencode cli",
+      "harness_version": "1.19.6",
+      "reasoning": "off",
+      "launch_config": "vllm serve nvidia/Qwen3.6-27B-NVFP4 --enable-prefix-caching --max-num-batched-tokens 8192 --trust-remote-code --reasoning-parser qwen3 --enable-auto-tool-choice --tool-call-parser qwen3_coder",
+      "intelligence": 79.6,
+      "task_speed": 4.4,
+      "intelligence_density": 1.537,
+      "test_results": {
+        "multilingual_science_presentation": {
+          "name": "multilingual_science_presentation",
+          "earned_score": 8,
+          "max_score": 8,
+          "run_time_sec": 397.27,
+          "tokens_in": 322218,
+          "tokens_out": 10657,
+          "peak_context_tokens": 29352,
+          "context_used_pct": 11.2
+        },
+        "data_analytics": {
+          "name": "data_analytics",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 301.23,
+          "tokens_in": 920050,
+          "tokens_out": 4218,
+          "peak_context_tokens": 43472,
+          "context_used_pct": 16.58
+        },
+        "kotlin_code": {
+          "name": "kotlin_code",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 901.3,
+          "tokens_in": 2300933,
+          "tokens_out": 8282,
+          "peak_context_tokens": 78453,
+          "context_used_pct": 29.93
+        },
+        "normal_map_classification": {
+          "name": "normal_map_classification",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 575.35,
+          "tokens_in": 216370,
+          "tokens_out": 10339,
+          "peak_context_tokens": 26406,
+          "context_used_pct": 10.07
+        },
+        "chess_movegen": {
+          "name": "chess_movegen",
+          "earned_score": 2,
+          "max_score": 10,
+          "run_time_sec": 3299.97,
+          "tokens_in": 8215386,
+          "tokens_out": 75718,
+          "peak_context_tokens": 117581,
+          "context_used_pct": 44.85
+        },
+        "trivia": {
+          "name": "trivia",
+          "earned_score": 15.91,
+          "max_score": 20.0,
+          "run_time_sec": 135.42,
+          "tokens_in": 97764,
+          "tokens_out": 656,
+          "peak_context_tokens": 705,
+          "context_used_pct": 0.0
+        },
+        "tool-eval-bench": {
+          "name": "tool-eval-bench",
+          "earned_score": 35,
+          "max_score": 40,
+          "run_time_sec": 597.33,
+          "tokens_in": 490685,
+          "tokens_out": 22056,
+          "peak_context_tokens": 0,
+          "context_used_pct": 0.0
+        },
+        "simplebench": {
+          "name": "simplebench",
+          "earned_score": 10.0,
+          "max_score": 20.0,
+          "run_time_sec": 302.79,
+          "tokens_in": 2308,
+          "tokens_out": 14307,
+          "peak_context_tokens": 325,
+          "context_used_pct": 0.0
+        }
+      }
+    },
+    {
+      "eval_id": "4fa06893-523a-4a6c-90f6-822e1b5a4e46",
+      "name": "Qwen3.6-27B-NVFP4",
+      "company": "nvidia",
+      "base_model": "Qwen3.6-27B-NVFP4",
+      "kv_quant": "FP8",
+      "context_length": 262144,
+      "memory_gb": 51.8,
+      "benchmark_date": "2026-11-23",
+      "llm_server": "vLLM",
+      "speculative_decoding": "mtp",
+      "harness": "opencode cli",
+      "harness_version": "1.19.6",
+      "reasoning": "on",
+      "launch_config": "vllm serve nvidia/Qwen3.6-27B-NVFP4 --enable-prefix-caching --max-num-batched-tokens 8192 --trust-remote-code --reasoning-parser qwen3 --enable-auto-tool-choice --tool-call-parser qwen3_coder",
+      "intelligence": 71.0,
+      "task_speed": 1.9,
+      "intelligence_density": 1.371,
+      "test_results": {
+        "multilingual_science_presentation": {
+          "name": "multilingual_science_presentation",
+          "earned_score": 8,
+          "max_score": 8,
+          "run_time_sec": 727.76,
+          "tokens_in": 517895,
+          "tokens_out": 20615,
+          "peak_context_tokens": 46428,
+          "context_used_pct": 17.71
+        },
+        "data_analytics": {
+          "name": "data_analytics",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 334.43,
+          "tokens_in": 478389,
+          "tokens_out": 6991,
+          "peak_context_tokens": 26632,
+          "context_used_pct": 10.16
+        },
+        "kotlin_code": {
+          "name": "kotlin_code",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 898.16,
+          "tokens_in": 1415272,
+          "tokens_out": 9138,
+          "peak_context_tokens": 59315,
+          "context_used_pct": 22.63
+        },
+        "normal_map_classification": {
+          "name": "normal_map_classification",
+          "earned_score": 0,
+          "max_score": 10,
+          "run_time_sec": 1743.38,
+          "tokens_in": 530409,
+          "tokens_out": 33921,
+          "peak_context_tokens": 52639,
+          "context_used_pct": 20.08
+        },
+        "chess_movegen": {
+          "name": "chess_movegen",
+          "earned_score": 4,
+          "max_score": 10,
+          "run_time_sec": 6470.15,
+          "tokens_in": 9314391,
+          "tokens_out": 139902,
+          "peak_context_tokens": 148992,
+          "context_used_pct": 56.84
+        },
+        "trivia": {
+          "name": "trivia",
+          "earned_score": 17.52,
+          "max_score": 20.0,
+          "run_time_sec": 2511.27,
+          "tokens_in": 171770,
+          "tokens_out": 141584,
+          "peak_context_tokens": 2574,
+          "context_used_pct": 0.0
+        },
+        "tool-eval-bench": {
+          "name": "tool-eval-bench",
+          "earned_score": 36,
+          "max_score": 40,
+          "run_time_sec": 1479.33,
+          "tokens_in": 541338,
+          "tokens_out": 68953,
+          "peak_context_tokens": 0,
+          "context_used_pct": 0.0
+        },
+        "simplebench": {
+          "name": "simplebench",
+          "earned_score": 10.0,
+          "max_score": 20.0,
+          "run_time_sec": 1167.38,
+          "tokens_in": 2288,
+          "tokens_out": 49035,
+          "peak_context_tokens": 323,
+          "context_used_pct": 0.0
+        }
+      }
+    },
+    {
+      "eval_id": "419aef4d-55b1-4e02-83d0-7e871832b463",
+      "name": "Qwen3.6-27B-NVFP4",
+      "company": "nvidia",
+      "base_model": "Qwen3.6-27B-NVFP4",
+      "kv_quant": "FP8",
+      "context_length": 262144,
+      "memory_gb": 51.8,
+      "benchmark_date": "2026-11-23",
+      "llm_server": "vLLM",
+      "speculative_decoding": "mtp",
+      "harness": "pi",
+      "harness_version": "1.6.0",
+      "reasoning": "on",
+      "launch_config": "vllm serve nvidia/Qwen3.6-27B-NVFP4 --enable-prefix-caching --max-num-batched-tokens 8192 --trust-remote-code --reasoning-parser qwen3 --enable-auto-tool-choice --tool-call-parser qwen3_coder",
+      "intelligence": 79.7,
+      "task_speed": 2.0,
+      "intelligence_density": 1.539,
+      "test_results": {
+        "multilingual_science_presentation": {
+          "name": "multilingual_science_presentation",
+          "earned_score": 8,
+          "max_score": 8,
+          "run_time_sec": 652.82,
+          "tokens_in": 324396,
+          "tokens_out": 17841,
+          "peak_context_tokens": 25386,
+          "context_used_pct": 9.68
+        },
+        "data_analytics": {
+          "name": "data_analytics",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 359.17,
+          "tokens_in": 415984,
+          "tokens_out": 7644,
+          "peak_context_tokens": 23770,
+          "context_used_pct": 9.07
+        },
+        "kotlin_code": {
+          "name": "kotlin_code",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 1322.02,
+          "tokens_in": 7808829,
+          "tokens_out": 27343,
+          "peak_context_tokens": 65984,
+          "context_used_pct": 25.17
+        },
+        "normal_map_classification": {
+          "name": "normal_map_classification",
+          "earned_score": 5.0,
+          "max_score": 10,
+          "run_time_sec": 1185.65,
+          "tokens_in": 335179,
+          "tokens_out": 26736,
+          "peak_context_tokens": 35042,
+          "context_used_pct": 13.37
+        },
+        "chess_movegen": {
+          "name": "chess_movegen",
+          "earned_score": 6,
+          "max_score": 10,
+          "run_time_sec": 6033.86,
+          "tokens_in": 4938119,
+          "tokens_out": 159195,
+          "peak_context_tokens": 1008810,
+          "context_used_pct": 384.83
+        },
+        "trivia": {
+          "name": "trivia",
+          "earned_score": 17.52,
+          "max_score": 20.0,
+          "run_time_sec": 2511.27,
+          "tokens_in": 171770,
+          "tokens_out": 141584,
+          "peak_context_tokens": 2574,
+          "context_used_pct": 0.0
+        },
+        "tool-eval-bench": {
+          "name": "tool-eval-bench",
+          "earned_score": 36,
+          "max_score": 40,
+          "run_time_sec": 1479.33,
+          "tokens_in": 541338,
+          "tokens_out": 68953,
+          "peak_context_tokens": 0,
+          "context_used_pct": 0.0
+        },
+        "simplebench": {
+          "name": "simplebench",
+          "earned_score": 10.0,
+          "max_score": 20.0,
+          "run_time_sec": 1167.38,
+          "tokens_in": 2288,
+          "tokens_out": 49035,
+          "peak_context_tokens": 323,
+          "context_used_pct": 0.0
+        }
+      }
+    },
+    {
+      "eval_id": "9b2d7b39-9d5b-4015-bdd9-e4a1a5c92791",
+      "name": "Qwen3.6-35B-A3B-NVFP4-off",
+      "company": "nvidia",
+      "base_model": "Qwen3.6-35B-A3B-NVFP4",
+      "kv_quant": "FP8",
+      "context_length": 262144,
+      "memory_gb": 38.8,
+      "benchmark_date": "2026-11-23",
+      "llm_server": "vLLM",
+      "speculative_decoding": "mtp",
+      "harness": "opencode cli",
+      "harness_version": "1.19.6",
+      "reasoning": "off",
+      "launch_config": "vllm serve nvidia/Qwen3.6-35B-A3B-NVFP4 --enable-prefix-caching --max-num-batched-tokens 8192 --trust-remote-code --moe-backend marlin --reasoning-parser qwen3 --enable-auto-tool-choice --tool-call-parser qwen3_coder --generation-config auto",
+      "intelligence": 72.9,
+      "task_speed": 4.2,
+      "intelligence_density": 1.879,
+      "test_results": {
+        "multilingual_science_presentation": {
+          "name": "multilingual_science_presentation",
+          "earned_score": 8,
+          "max_score": 8,
+          "run_time_sec": 186.35,
+          "tokens_in": 405146,
+          "tokens_out": 15638,
+          "peak_context_tokens": 32247,
+          "context_used_pct": 12.3
+        },
+        "data_analytics": {
+          "name": "data_analytics",
+          "earned_score": 8,
+          "max_score": 10,
+          "run_time_sec": 67.15,
+          "tokens_in": 360275,
+          "tokens_out": 4505,
+          "peak_context_tokens": 24505,
+          "context_used_pct": 9.35
+        },
+        "kotlin_code": {
+          "name": "kotlin_code",
+          "earned_score": 8,
+          "max_score": 10,
+          "run_time_sec": 3791.26,
+          "tokens_in": 7494419,
+          "tokens_out": 38328,
+          "peak_context_tokens": 126994,
+          "context_used_pct": 48.44
+        },
+        "normal_map_classification": {
+          "name": "normal_map_classification",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 241.3,
+          "tokens_in": 1135366,
+          "tokens_out": 17444,
+          "peak_context_tokens": 61941,
+          "context_used_pct": 23.63
+        },
+        "chess_movegen": {
+          "name": "chess_movegen",
+          "earned_score": 0,
+          "max_score": 10,
+          "run_time_sec": 2239.92,
+          "tokens_in": 36200285,
+          "tokens_out": 169684,
+          "peak_context_tokens": 230216,
+          "context_used_pct": 87.82
+        },
+        "trivia": {
+          "name": "trivia",
+          "earned_score": 15.7,
+          "max_score": 20.0,
+          "run_time_sec": 42.3,
+          "tokens_in": 97764,
+          "tokens_out": 656,
+          "peak_context_tokens": 705,
+          "context_used_pct": 0.0
+        },
+        "tool-eval-bench": {
+          "name": "tool-eval-bench",
+          "earned_score": 34,
+          "max_score": 40,
+          "run_time_sec": 179.05,
+          "tokens_in": 519844,
+          "tokens_out": 21992,
+          "peak_context_tokens": 0,
+          "context_used_pct": 0.0
+        },
+        "simplebench": {
+          "name": "simplebench",
+          "earned_score": 12.0,
+          "max_score": 20.0,
+          "run_time_sec": 127.14,
+          "tokens_in": 2308,
+          "tokens_out": 21481,
+          "peak_context_tokens": 325,
+          "context_used_pct": 0.0
+        }
+      }
+    },
+    {
+      "eval_id": "b5106607-69ad-4c94-a6d0-0c4ac831f7bd",
+      "name": "Qwen3.6-35B-A3B-NVFP4-off",
+      "company": "nvidia",
+      "base_model": "Qwen3.6-35B-A3B-NVFP4",
+      "kv_quant": "FP8",
+      "context_length": 262144,
+      "memory_gb": 38.8,
+      "benchmark_date": "2026-11-23",
+      "llm_server": "vLLM",
+      "speculative_decoding": "mtp",
+      "harness": "pi",
+      "harness_version": "1.6.0",
+      "reasoning": "off",
+      "launch_config": "vllm serve nvidia/Qwen3.6-35B-A3B-NVFP4 --enable-prefix-caching --max-num-batched-tokens 8192 --trust-remote-code --moe-backend marlin --reasoning-parser qwen3 --enable-auto-tool-choice --tool-call-parser qwen3_coder --generation-config auto",
+      "intelligence": 85.4,
+      "task_speed": 8.7,
+      "intelligence_density": 2.201,
+      "test_results": {
+        "multilingual_science_presentation": {
+          "name": "multilingual_science_presentation",
+          "earned_score": 8,
+          "max_score": 8,
+          "run_time_sec": 219.13,
+          "tokens_in": 381076,
+          "tokens_out": 18473,
+          "peak_context_tokens": 25997,
+          "context_used_pct": 9.92
+        },
+        "data_analytics": {
+          "name": "data_analytics",
+          "earned_score": 8,
+          "max_score": 10,
+          "run_time_sec": 69.74,
+          "tokens_in": 368604,
+          "tokens_out": 4463,
+          "peak_context_tokens": 16951,
+          "context_used_pct": 6.47
+        },
+        "kotlin_code": {
+          "name": "kotlin_code",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 449.51,
+          "tokens_in": 2473440,
+          "tokens_out": 31076,
+          "peak_context_tokens": 71389,
+          "context_used_pct": 27.23
+        },
+        "normal_map_classification": {
+          "name": "normal_map_classification",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 288.7,
+          "tokens_in": 221133,
+          "tokens_out": 16776,
+          "peak_context_tokens": 31420,
+          "context_used_pct": 11.99
+        },
+        "chess_movegen": {
+          "name": "chess_movegen",
+          "earned_score": 8,
+          "max_score": 10,
+          "run_time_sec": 1952.98,
+          "tokens_in": 31858479,
+          "tokens_out": 158992,
+          "peak_context_tokens": 221540,
+          "context_used_pct": 84.51
+        },
+        "trivia": {
+          "name": "trivia",
+          "earned_score": 15.7,
+          "max_score": 20.0,
+          "run_time_sec": 42.3,
+          "tokens_in": 97764,
+          "tokens_out": 656,
+          "peak_context_tokens": 705,
+          "context_used_pct": 0.0
+        },
+        "tool-eval-bench": {
+          "name": "tool-eval-bench",
+          "earned_score": 34,
+          "max_score": 40,
+          "run_time_sec": 179.05,
+          "tokens_in": 519844,
+          "tokens_out": 21992,
+          "peak_context_tokens": 0,
+          "context_used_pct": 0.0
+        },
+        "simplebench": {
+          "name": "simplebench",
+          "earned_score": 12.0,
+          "max_score": 20.0,
+          "run_time_sec": 127.14,
+          "tokens_in": 2308,
+          "tokens_out": 21481,
+          "peak_context_tokens": 325,
+          "context_used_pct": 0.0
+        }
+      }
+    },
+    {
+      "eval_id": "8f248bea-2bfb-4430-9e0e-38cc1fb82f0a",
+      "name": "Qwen3.6-35B-A3B-NVFP4",
+      "company": "nvidia",
+      "base_model": "Qwen3.6-35B-A3B-NVFP4",
+      "kv_quant": "FP8",
+      "context_length": 262144,
+      "memory_gb": 38.8,
+      "benchmark_date": "2026-11-23",
+      "llm_server": "vLLM",
+      "speculative_decoding": "mtp",
+      "harness": "opencode cli",
+      "harness_version": "1.19.6",
+      "reasoning": "on",
+      "launch_config": "vllm serve nvidia/Qwen3.6-35B-A3B-NVFP4 --enable-prefix-caching --max-num-batched-tokens 8192 --trust-remote-code --moe-backend marlin --reasoning-parser qwen3 --enable-auto-tool-choice --tool-call-parser qwen3_coder --generation-config auto",
+      "intelligence": 77.4,
+      "task_speed": 3.9,
+      "intelligence_density": 1.995,
+      "test_results": {
+        "multilingual_science_presentation": {
+          "name": "multilingual_science_presentation",
+          "earned_score": 8,
+          "max_score": 8,
+          "run_time_sec": 210.15,
+          "tokens_in": 486427,
+          "tokens_out": 17557,
+          "peak_context_tokens": 30748,
+          "context_used_pct": 11.73
+        },
+        "data_analytics": {
+          "name": "data_analytics",
+          "earned_score": 8,
+          "max_score": 10,
+          "run_time_sec": 81.62,
+          "tokens_in": 672746,
+          "tokens_out": 4177,
+          "peak_context_tokens": 41541,
+          "context_used_pct": 15.85
+        },
+        "kotlin_code": {
+          "name": "kotlin_code",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 486.86,
+          "tokens_in": 6515367,
+          "tokens_out": 30741,
+          "peak_context_tokens": 103403,
+          "context_used_pct": 39.45
+        },
+        "normal_map_classification": {
+          "name": "normal_map_classification",
+          "earned_score": 5.0,
+          "max_score": 10,
+          "run_time_sec": 1473.66,
+          "tokens_in": 1809677,
+          "tokens_out": 73003,
+          "peak_context_tokens": 129197,
+          "context_used_pct": 49.28
+        },
+        "chess_movegen": {
+          "name": "chess_movegen",
+          "earned_score": 8,
+          "max_score": 10,
+          "run_time_sec": 3574.33,
+          "tokens_in": 12196627,
+          "tokens_out": 232779,
+          "peak_context_tokens": 169347,
+          "context_used_pct": 64.6
+        },
+        "trivia": {
+          "name": "trivia",
+          "earned_score": 15.91,
+          "max_score": 20.0,
+          "run_time_sec": 917.87,
+          "tokens_in": 276119,
+          "tokens_out": 161582,
+          "peak_context_tokens": 3590,
+          "context_used_pct": 0.0
+        },
+        "tool-eval-bench": {
+          "name": "tool-eval-bench",
+          "earned_score": 36,
+          "max_score": 40,
+          "run_time_sec": 503.71,
+          "tokens_in": 545392,
+          "tokens_out": 77481,
+          "peak_context_tokens": 0,
+          "context_used_pct": 0.0
+        },
+        "simplebench": {
+          "name": "simplebench",
+          "earned_score": 8.0,
+          "max_score": 20.0,
+          "run_time_sec": 159.1,
+          "tokens_in": 2288,
+          "tokens_out": 27461,
+          "peak_context_tokens": 323,
+          "context_used_pct": 0.0
+        }
+      }
+    },
+    {
+      "eval_id": "b8fe5869-7b49-4016-8ee4-0ade2a846d2c",
+      "name": "Qwen3.6-35B-A3B-NVFP4",
+      "company": "nvidia",
+      "base_model": "Qwen3.6-35B-A3B-NVFP4",
+      "kv_quant": "FP8",
+      "context_length": 262144,
+      "memory_gb": 38.8,
+      "benchmark_date": "2026-11-23",
+      "llm_server": "vLLM",
+      "speculative_decoding": "mtp",
+      "harness": "pi",
+      "harness_version": "1.6.0",
+      "reasoning": "on",
+      "launch_config": "vllm serve nvidia/Qwen3.6-35B-A3B-NVFP4 --enable-prefix-caching --max-num-batched-tokens 8192 --trust-remote-code --moe-backend marlin --reasoning-parser qwen3 --enable-auto-tool-choice --tool-call-parser qwen3_coder --generation-config auto",
+      "intelligence": 86.2,
+      "task_speed": 3.9,
+      "intelligence_density": 2.222,
+      "test_results": {
+        "multilingual_science_presentation": {
+          "name": "multilingual_science_presentation",
+          "earned_score": 8,
+          "max_score": 8,
+          "run_time_sec": 285.52,
+          "tokens_in": 394938,
+          "tokens_out": 21660,
+          "peak_context_tokens": 25200,
+          "context_used_pct": 9.61
+        },
+        "data_analytics": {
+          "name": "data_analytics",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 100.55,
+          "tokens_in": 262023,
+          "tokens_out": 7120,
+          "peak_context_tokens": 13380,
+          "context_used_pct": 5.1
+        },
+        "kotlin_code": {
+          "name": "kotlin_code",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 1158.04,
+          "tokens_in": 3216049,
+          "tokens_out": 95576,
+          "peak_context_tokens": 133391,
+          "context_used_pct": 50.88
+        },
+        "normal_map_classification": {
+          "name": "normal_map_classification",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 850.66,
+          "tokens_in": 785637,
+          "tokens_out": 57105,
+          "peak_context_tokens": 82108,
+          "context_used_pct": 31.32
+        },
+        "chess_movegen": {
+          "name": "chess_movegen",
+          "earned_score": 8,
+          "max_score": 10,
+          "run_time_sec": 3358.92,
+          "tokens_in": 8193947,
+          "tokens_out": 228486,
+          "peak_context_tokens": 143509,
+          "context_used_pct": 54.74
+        },
+        "trivia": {
+          "name": "trivia",
+          "earned_score": 15.91,
+          "max_score": 20.0,
+          "run_time_sec": 917.87,
+          "tokens_in": 276119,
+          "tokens_out": 161582,
+          "peak_context_tokens": 3590,
+          "context_used_pct": 0.0
+        },
+        "tool-eval-bench": {
+          "name": "tool-eval-bench",
+          "earned_score": 36,
+          "max_score": 40,
+          "run_time_sec": 503.71,
+          "tokens_in": 545392,
+          "tokens_out": 77481,
+          "peak_context_tokens": 0,
+          "context_used_pct": 0.0
+        },
+        "simplebench": {
+          "name": "simplebench",
+          "earned_score": 8.0,
+          "max_score": 20.0,
+          "run_time_sec": 159.1,
+          "tokens_in": 2288,
+          "tokens_out": 27461,
+          "peak_context_tokens": 323,
+          "context_used_pct": 0.0
+        }
+      }
+    },
+    {
+      "eval_id": "3b5a2c69-86d4-44c3-abab-76138d4ed721",
+      "name": "diffusiongemma-26B-A4B-IT-NVFP4-off",
+      "company": "nvidia",
+      "base_model": "diffusiongemma-26B-A4B-IT-NVFP4",
+      "kv_quant": "FP8",
+      "context_length": 262144,
+      "memory_gb": 29.3,
+      "benchmark_date": "2026-11-23",
+      "llm_server": "vLLM",
+      "speculative_decoding": "on",
+      "harness": "opencode cli",
+      "harness_version": "1.19.6",
+      "reasoning": "off",
+      "launch_config": "vllm serve nvidia/diffusiongemma-26B-A4B-IT-NVFP4 --enable-prefix-caching --max-num-batched-tokens 8192 --trust-remote-code --attention-backend TRITON_ATTN --enable-auto-tool-choice --tool-call-parser gemma4 --reasoning-parser gemma4 --override-generation-config '{\"max_new_tokens\": null}' --default-chat-template-kwargs '{\"enable_thinking\":true}'",
+      "intelligence": 52.1,
+      "task_speed": 24.3,
+      "intelligence_density": 1.778,
+      "test_results": {
+        "multilingual_science_presentation": {
+          "name": "multilingual_science_presentation",
+          "earned_score": 8,
+          "max_score": 8,
+          "run_time_sec": 57.22,
+          "tokens_in": 209196,
+          "tokens_out": 4025,
+          "peak_context_tokens": 14747,
+          "context_used_pct": 5.63
+        },
+        "data_analytics": {
+          "name": "data_analytics",
+          "earned_score": 8,
+          "max_score": 10,
+          "run_time_sec": 49.47,
+          "tokens_in": 317279,
+          "tokens_out": 3446,
+          "peak_context_tokens": 20324,
+          "context_used_pct": 7.75
+        },
+        "kotlin_code": {
+          "name": "kotlin_code",
+          "earned_score": 2,
+          "max_score": 10,
+          "run_time_sec": 105.36,
+          "tokens_in": 294026,
+          "tokens_out": 3052,
+          "peak_context_tokens": 27278,
+          "context_used_pct": 10.41
+        },
+        "normal_map_classification": {
+          "name": "normal_map_classification",
+          "earned_score": 0,
+          "max_score": 10,
+          "run_time_sec": 37.26,
+          "tokens_in": 69857,
+          "tokens_out": 1912,
+          "peak_context_tokens": 11388,
+          "context_used_pct": 4.34
+        },
+        "chess_movegen": {
+          "name": "chess_movegen",
+          "earned_score": 0,
+          "max_score": 10,
+          "run_time_sec": 674.37,
+          "tokens_in": 313881,
+          "tokens_out": 43247,
+          "peak_context_tokens": 52193,
+          "context_used_pct": 19.91
+        },
+        "trivia": {
+          "name": "trivia",
+          "earned_score": 15.44,
+          "max_score": 20.0,
+          "run_time_sec": 104.13,
+          "tokens_in": 96326,
+          "tokens_out": 2020,
+          "peak_context_tokens": 701,
+          "context_used_pct": 0.0
+        },
+        "tool-eval-bench": {
+          "name": "tool-eval-bench",
+          "earned_score": 32,
+          "max_score": 40,
+          "run_time_sec": 134.55,
+          "tokens_in": 369189,
+          "tokens_out": 13383,
+          "peak_context_tokens": 0,
+          "context_used_pct": 0.0
+        },
+        "simplebench": {
+          "name": "simplebench",
+          "earned_score": 12.0,
+          "max_score": 20.0,
+          "run_time_sec": 24.35,
+          "tokens_in": 2278,
+          "tokens_out": 4269,
+          "peak_context_tokens": 321,
+          "context_used_pct": 0.0
+        }
+      }
+    },
+    {
+      "eval_id": "4855a8a5-fe3a-4ee1-9119-5e83dae35416",
+      "name": "diffusiongemma-26B-A4B-IT-NVFP4-off",
+      "company": "nvidia",
+      "base_model": "diffusiongemma-26B-A4B-IT-NVFP4",
+      "kv_quant": "FP8",
+      "context_length": 262144,
+      "memory_gb": 29.3,
+      "benchmark_date": "2026-11-23",
+      "llm_server": "vLLM",
+      "speculative_decoding": "on",
+      "harness": "pi",
+      "harness_version": "1.6.0",
+      "reasoning": "off",
+      "launch_config": "vllm serve nvidia/diffusiongemma-26B-A4B-IT-NVFP4 --enable-prefix-caching --max-num-batched-tokens 8192 --trust-remote-code --attention-backend TRITON_ATTN --enable-auto-tool-choice --tool-call-parser gemma4 --reasoning-parser gemma4 --override-generation-config '{\"max_new_tokens\": null}' --default-chat-template-kwargs '{\"enable_thinking\":true}'",
+      "intelligence": 53.1,
+      "task_speed": 34.7,
+      "intelligence_density": 1.812,
+      "test_results": {
+        "multilingual_science_presentation": {
+          "name": "multilingual_science_presentation",
+          "earned_score": 7,
+          "max_score": 8,
+          "run_time_sec": 70.29,
+          "tokens_in": 103758,
+          "tokens_out": 6727,
+          "peak_context_tokens": 13359,
+          "context_used_pct": 5.1
+        },
+        "data_analytics": {
+          "name": "data_analytics",
+          "earned_score": 8,
+          "max_score": 10,
+          "run_time_sec": 112.69,
+          "tokens_in": 483838,
+          "tokens_out": 9732,
+          "peak_context_tokens": 26270,
+          "context_used_pct": 10.02
+        },
+        "kotlin_code": {
+          "name": "kotlin_code",
+          "earned_score": 4,
+          "max_score": 10,
+          "run_time_sec": 56.28,
+          "tokens_in": 231949,
+          "tokens_out": 2363,
+          "peak_context_tokens": 26041,
+          "context_used_pct": 9.93
+        },
+        "normal_map_classification": {
+          "name": "normal_map_classification",
+          "earned_score": 0,
+          "max_score": 10,
+          "run_time_sec": 53.37,
+          "tokens_in": 37886,
+          "tokens_out": 3926,
+          "peak_context_tokens": 6360,
+          "context_used_pct": 2.43
+        },
+        "chess_movegen": {
+          "name": "chess_movegen",
+          "earned_score": 0,
+          "max_score": 10,
+          "run_time_sec": 273.56,
+          "tokens_in": 159262,
+          "tokens_out": 26767,
+          "peak_context_tokens": 28883,
+          "context_used_pct": 11.02
+        },
+        "trivia": {
+          "name": "trivia",
+          "earned_score": 15.44,
+          "max_score": 20.0,
+          "run_time_sec": 104.13,
+          "tokens_in": 96326,
+          "tokens_out": 2020,
+          "peak_context_tokens": 701,
+          "context_used_pct": 0.0
+        },
+        "tool-eval-bench": {
+          "name": "tool-eval-bench",
+          "earned_score": 32,
+          "max_score": 40,
+          "run_time_sec": 134.55,
+          "tokens_in": 369189,
+          "tokens_out": 13383,
+          "peak_context_tokens": 0,
+          "context_used_pct": 0.0
+        },
+        "simplebench": {
+          "name": "simplebench",
+          "earned_score": 12.0,
+          "max_score": 20.0,
+          "run_time_sec": 24.35,
+          "tokens_in": 2278,
+          "tokens_out": 4269,
+          "peak_context_tokens": 321,
+          "context_used_pct": 0.0
+        }
+      }
+    },
+    {
+      "eval_id": "58e57666-f5b1-448f-ad0e-17492e313551",
+      "name": "diffusiongemma-26B-A4B-IT-NVFP4",
+      "company": "nvidia",
+      "base_model": "diffusiongemma-26B-A4B-IT-NVFP4",
+      "kv_quant": "FP8",
+      "context_length": 262144,
+      "memory_gb": 29.3,
+      "benchmark_date": "2026-11-23",
+      "llm_server": "vLLM",
+      "speculative_decoding": "on",
+      "harness": "pi",
+      "harness_version": "1.6.0",
+      "reasoning": "on",
+      "launch_config": "vllm serve nvidia/diffusiongemma-26B-A4B-IT-NVFP4 --enable-prefix-caching --max-num-batched-tokens 8192 --trust-remote-code --attention-backend TRITON_ATTN --enable-auto-tool-choice --tool-call-parser gemma4 --reasoning-parser gemma4 --override-generation-config '{\"max_new_tokens\": null}' --default-chat-template-kwargs '{\"enable_thinking\":true}'",
+      "intelligence": 62.0,
+      "task_speed": 6.5,
+      "intelligence_density": 2.116,
+      "test_results": {
+        "multilingual_science_presentation": {
+          "name": "multilingual_science_presentation",
+          "earned_score": 8,
+          "max_score": 8,
+          "run_time_sec": 89.2,
+          "tokens_in": 152795,
+          "tokens_out": 7075,
+          "peak_context_tokens": 14638,
+          "context_used_pct": 5.58
+        },
+        "data_analytics": {
+          "name": "data_analytics",
+          "earned_score": 8,
+          "max_score": 10,
+          "run_time_sec": 124.15,
+          "tokens_in": 834940,
+          "tokens_out": 6664,
+          "peak_context_tokens": 36755,
+          "context_used_pct": 14.02
+        },
+        "kotlin_code": {
+          "name": "kotlin_code",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 3150.79,
+          "tokens_in": 632104,
+          "tokens_out": 84280,
+          "peak_context_tokens": 120878,
+          "context_used_pct": 46.11
+        },
+        "normal_map_classification": {
+          "name": "normal_map_classification",
+          "earned_score": 0,
+          "max_score": 10,
+          "run_time_sec": 73.79,
+          "tokens_in": 63536,
+          "tokens_out": 5152,
+          "peak_context_tokens": 8463,
+          "context_used_pct": 3.23
+        },
+        "chess_movegen": {
+          "name": "chess_movegen",
+          "earned_score": 0,
+          "max_score": 10,
+          "run_time_sec": 203.26,
+          "tokens_in": 104757,
+          "tokens_out": 33335,
+          "peak_context_tokens": 28468,
+          "context_used_pct": 10.86
+        },
+        "trivia": {
+          "name": "trivia",
+          "earned_score": 16.17,
+          "max_score": 20.0,
+          "run_time_sec": 375.33,
+          "tokens_in": 165053,
+          "tokens_out": 51156,
+          "peak_context_tokens": 2550,
+          "context_used_pct": 0.0
+        },
+        "tool-eval-bench": {
+          "name": "tool-eval-bench",
+          "earned_score": 34,
+          "max_score": 40,
+          "run_time_sec": 253.14,
+          "tokens_in": 460153,
+          "tokens_out": 38957,
+          "peak_context_tokens": 0,
+          "context_used_pct": 0.0
+        },
+        "simplebench": {
+          "name": "simplebench",
+          "earned_score": 10.0,
+          "max_score": 20.0,
+          "run_time_sec": 136.69,
+          "tokens_in": 2348,
+          "tokens_out": 26911,
+          "peak_context_tokens": 328,
+          "context_used_pct": 0.0
+        }
+      }
+    },
+    {
+      "eval_id": "df8aedab-02c1-48e0-81e0-9d4e8fbae51a",
+      "name": "diffusiongemma-26B-A4B-IT-NVFP4",
+      "company": "nvidia",
+      "base_model": "diffusiongemma-26B-A4B-IT-NVFP4",
+      "kv_quant": "FP8",
+      "context_length": 262144,
+      "memory_gb": 29.3,
+      "benchmark_date": "2026-11-23",
+      "llm_server": "vLLM",
+      "speculative_decoding": "on",
+      "harness": "opencode cli",
+      "harness_version": "1.19.6",
+      "reasoning": "on",
+      "launch_config": "vllm serve nvidia/diffusiongemma-26B-A4B-IT-NVFP4 --enable-prefix-caching --max-num-batched-tokens 8192 --trust-remote-code --attention-backend TRITON_ATTN --enable-auto-tool-choice --tool-call-parser gemma4 --reasoning-parser gemma4 --override-generation-config '{\"max_new_tokens\": null}' --default-chat-template-kwargs '{\"enable_thinking\":true}'",
+      "intelligence": 59.5,
+      "task_speed": 7.7,
+      "intelligence_density": 2.031,
+      "test_results": {
+        "multilingual_science_presentation": {
+          "name": "multilingual_science_presentation",
+          "earned_score": 8,
+          "max_score": 8,
+          "run_time_sec": 95.52,
+          "tokens_in": 300176,
+          "tokens_out": 7172,
+          "peak_context_tokens": 19028,
+          "context_used_pct": 7.26
+        },
+        "data_analytics": {
+          "name": "data_analytics",
+          "earned_score": 8,
+          "max_score": 10,
+          "run_time_sec": 129.31,
+          "tokens_in": 785004,
+          "tokens_out": 7050,
+          "peak_context_tokens": 53777,
+          "context_used_pct": 20.51
+        },
+        "kotlin_code": {
+          "name": "kotlin_code",
+          "earned_score": 8,
+          "max_score": 10,
+          "run_time_sec": 834.99,
+          "tokens_in": 649174,
+          "tokens_out": 26775,
+          "peak_context_tokens": 92378,
+          "context_used_pct": 35.24
+        },
+        "normal_map_classification": {
+          "name": "normal_map_classification",
+          "earned_score": 0,
+          "max_score": 10,
+          "run_time_sec": 142.62,
+          "tokens_in": 98752,
+          "tokens_out": 5683,
+          "peak_context_tokens": 16266,
+          "context_used_pct": 6.2
+        },
+        "chess_movegen": {
+          "name": "chess_movegen",
+          "earned_score": 0,
+          "max_score": 10,
+          "run_time_sec": 1773.75,
+          "tokens_in": 836521,
+          "tokens_out": 69820,
+          "peak_context_tokens": 62289,
+          "context_used_pct": 23.76
+        },
+        "trivia": {
+          "name": "trivia",
+          "earned_score": 16.17,
+          "max_score": 20.0,
+          "run_time_sec": 375.33,
+          "tokens_in": 165053,
+          "tokens_out": 51156,
+          "peak_context_tokens": 2550,
+          "context_used_pct": 0.0
+        },
+        "tool-eval-bench": {
+          "name": "tool-eval-bench",
+          "earned_score": 34,
+          "max_score": 40,
+          "run_time_sec": 253.14,
+          "tokens_in": 460153,
+          "tokens_out": 38957,
+          "peak_context_tokens": 0,
+          "context_used_pct": 0.0
+        },
+        "simplebench": {
+          "name": "simplebench",
+          "earned_score": 10.0,
+          "max_score": 20.0,
+          "run_time_sec": 136.69,
+          "tokens_in": 2348,
+          "tokens_out": 26911,
+          "peak_context_tokens": 328,
+          "context_used_pct": 0.0
+        }
+      }
+    },
+    {
+      "eval_id": "d69ede9c-ffc2-490a-a91b-4d971fb6be5b",
+      "name": "Inkling-2-Mini-high",
+      "company": "thinkingmachines",
+      "base_model": "Inkling-2-Mini",
+      "kv_quant": "FP16",
+      "context_length": 262144,
+      "memory_gb": 61.3,
+      "benchmark_date": "2026-11-23",
+      "llm_server": "vLLM",
+      "speculative_decoding": "dspark",
+      "harness": "pi",
+      "harness_version": "1.6.0",
+      "reasoning": "high",
+      "launch_config": "vllm serve thinkingmachines/Inkling-2-Mini --tensor-parallel-size 1 --max-model-len 262144 --enable-prefix-caching --reasoning-parser inkling --enable-auto-tool-choice --tool-call-parser inkling",
+      "intelligence": 90.1,
+      "task_speed": 2.7,
+      "intelligence_density": 1.47,
+      "test_results": {
+        "multilingual_science_presentation": {
+          "name": "multilingual_science_presentation",
+          "earned_score": 8,
+          "max_score": 8,
+          "run_time_sec": 1466.87,
+          "tokens_in": 1614034,
+          "tokens_out": 49774,
+          "peak_context_tokens": 71203,
+          "context_used_pct": 27.16
+        },
+        "data_analytics": {
+          "name": "data_analytics",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 216.97,
+          "tokens_in": 238657,
+          "tokens_out": 9930,
+          "peak_context_tokens": 17997,
+          "context_used_pct": 6.87
+        },
+        "kotlin_code": {
+          "name": "kotlin_code",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 2748.44,
+          "tokens_in": 14195302,
+          "tokens_out": 110594,
+          "peak_context_tokens": 191865,
+          "context_used_pct": 73.19
+        },
+        "normal_map_classification": {
+          "name": "normal_map_classification",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 597.82,
+          "tokens_in": 420321,
+          "tokens_out": 29709,
+          "peak_context_tokens": 44993,
+          "context_used_pct": 17.16
+        },
+        "chess_movegen": {
+          "name": "chess_movegen",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 1838.01,
+          "tokens_in": 1653949,
+          "tokens_out": 98013,
+          "peak_context_tokens": 107908,
+          "context_used_pct": 41.16
+        },
+        "trivia": {
+          "name": "trivia",
+          "earned_score": 15.1,
+          "max_score": 20.0,
+          "run_time_sec": 1747.66,
+          "tokens_in": 271850,
+          "tokens_out": 113656,
+          "peak_context_tokens": 4553,
+          "context_used_pct": 0.0
+        },
+        "tool-eval-bench": {
+          "name": "tool-eval-bench",
+          "earned_score": 34,
+          "max_score": 40,
+          "run_time_sec": 1080.84,
+          "tokens_in": 831725,
+          "tokens_out": 80198,
+          "peak_context_tokens": 0,
+          "context_used_pct": 0.0
+        },
+        "simplebench": {
+          "name": "simplebench",
+          "earned_score": 12.0,
+          "max_score": 20.0,
+          "run_time_sec": 859.17,
+          "tokens_in": 2457,
+          "tokens_out": 67321,
+          "peak_context_tokens": 347,
+          "context_used_pct": 0.0
+        }
+      }
+    },
+    {
+      "eval_id": "8d62210a-3f94-48ad-9f71-27a3a8bd70d6",
+      "name": "Inkling-2-Mini-high",
+      "company": "thinkingmachines",
+      "base_model": "Inkling-2-Mini",
+      "kv_quant": "FP16",
+      "context_length": 262144,
+      "memory_gb": 61.3,
+      "benchmark_date": "2026-11-23",
+      "llm_server": "vLLM",
+      "speculative_decoding": "dspark",
+      "harness": "opencode cli",
+      "harness_version": "1.19.6",
+      "reasoning": "high",
+      "launch_config": "vllm serve thinkingmachines/Inkling-2-Mini --tensor-parallel-size 1 --max-model-len 262144 --enable-prefix-caching --reasoning-parser inkling --enable-auto-tool-choice --tool-call-parser inkling",
+      "intelligence": 87.6,
+      "task_speed": 3.5,
+      "intelligence_density": 1.429,
+      "test_results": {
+        "multilingual_science_presentation": {
+          "name": "multilingual_science_presentation",
+          "earned_score": 8,
+          "max_score": 8,
+          "run_time_sec": 323.94,
+          "tokens_in": 418107,
+          "tokens_out": 12922,
+          "peak_context_tokens": 26870,
+          "context_used_pct": 10.25
+        },
+        "data_analytics": {
+          "name": "data_analytics",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 149.0,
+          "tokens_in": 348917,
+          "tokens_out": 7223,
+          "peak_context_tokens": 21358,
+          "context_used_pct": 8.15
+        },
+        "kotlin_code": {
+          "name": "kotlin_code",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 1027.75,
+          "tokens_in": 4593354,
+          "tokens_out": 41214,
+          "peak_context_tokens": 102909,
+          "context_used_pct": 39.26
+        },
+        "normal_map_classification": {
+          "name": "normal_map_classification",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 851.73,
+          "tokens_in": 1342621,
+          "tokens_out": 29075,
+          "peak_context_tokens": 98703,
+          "context_used_pct": 37.65
+        },
+        "chess_movegen": {
+          "name": "chess_movegen",
+          "earned_score": 8,
+          "max_score": 10,
+          "run_time_sec": 2085.82,
+          "tokens_in": 2042936,
+          "tokens_out": 66903,
+          "peak_context_tokens": 90327,
+          "context_used_pct": 34.46
+        },
+        "trivia": {
+          "name": "trivia",
+          "earned_score": 15.1,
+          "max_score": 20.0,
+          "run_time_sec": 1747.66,
+          "tokens_in": 271850,
+          "tokens_out": 113656,
+          "peak_context_tokens": 4553,
+          "context_used_pct": 0.0
+        },
+        "tool-eval-bench": {
+          "name": "tool-eval-bench",
+          "earned_score": 34,
+          "max_score": 40,
+          "run_time_sec": 1080.84,
+          "tokens_in": 831725,
+          "tokens_out": 80198,
+          "peak_context_tokens": 0,
+          "context_used_pct": 0.0
+        },
+        "simplebench": {
+          "name": "simplebench",
+          "earned_score": 12.0,
+          "max_score": 20.0,
+          "run_time_sec": 859.17,
+          "tokens_in": 2457,
+          "tokens_out": 67321,
+          "peak_context_tokens": 347,
+          "context_used_pct": 0.0
+        }
+      }
+    },
+    {
+      "eval_id": "a5f9561a-f7a8-4cae-bba1-4360a4725a05",
+      "name": "Inkling-2-Mini-medium",
+      "company": "thinkingmachines",
+      "base_model": "Inkling-2-Mini",
+      "kv_quant": "FP16",
+      "context_length": 262144,
+      "memory_gb": 61.3,
+      "benchmark_date": "2026-11-23",
+      "llm_server": "vLLM",
+      "speculative_decoding": "dspark",
+      "harness": "opencode cli",
+      "harness_version": "1.19.6",
+      "reasoning": "medium",
+      "launch_config": "vllm serve thinkingmachines/Inkling-2-Mini --tensor-parallel-size 1 --max-model-len 262144 --enable-prefix-caching --reasoning-parser inkling --enable-auto-tool-choice --tool-call-parser inkling",
+      "intelligence": 75.8,
+      "task_speed": 3.1,
+      "intelligence_density": 1.237,
+      "test_results": {
+        "multilingual_science_presentation": {
+          "name": "multilingual_science_presentation",
+          "earned_score": 8,
+          "max_score": 8,
+          "run_time_sec": 434.37,
+          "tokens_in": 759784,
+          "tokens_out": 18334,
+          "peak_context_tokens": 32647,
+          "context_used_pct": 12.45
+        },
+        "data_analytics": {
+          "name": "data_analytics",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 84.93,
+          "tokens_in": 249938,
+          "tokens_out": 3954,
+          "peak_context_tokens": 20992,
+          "context_used_pct": 8.01
+        },
+        "kotlin_code": {
+          "name": "kotlin_code",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 1155.58,
+          "tokens_in": 8684242,
+          "tokens_out": 45836,
+          "peak_context_tokens": 130611,
+          "context_used_pct": 49.82
+        },
+        "normal_map_classification": {
+          "name": "normal_map_classification",
+          "earned_score": 0,
+          "max_score": 10,
+          "run_time_sec": 3600.93,
+          "tokens_in": 2840493,
+          "tokens_out": 37112,
+          "peak_context_tokens": 125487,
+          "context_used_pct": 47.87
+        },
+        "chess_movegen": {
+          "name": "chess_movegen",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 1421.48,
+          "tokens_in": 1985019,
+          "tokens_out": 75279,
+          "peak_context_tokens": 96831,
+          "context_used_pct": 36.94
+        },
+        "trivia": {
+          "name": "trivia",
+          "earned_score": 15.77,
+          "max_score": 20.0,
+          "run_time_sec": 1386.62,
+          "tokens_in": 196290,
+          "tokens_out": 88837,
+          "peak_context_tokens": 3586,
+          "context_used_pct": 0.0
+        },
+        "tool-eval-bench": {
+          "name": "tool-eval-bench",
+          "earned_score": 35,
+          "max_score": 40,
+          "run_time_sec": 779.68,
+          "tokens_in": 711141,
+          "tokens_out": 57172,
+          "peak_context_tokens": 0,
+          "context_used_pct": 0.0
+        },
+        "simplebench": {
+          "name": "simplebench",
+          "earned_score": 8.0,
+          "max_score": 20.0,
+          "run_time_sec": 574.48,
+          "tokens_in": 2457,
+          "tokens_out": 42365,
+          "peak_context_tokens": 347,
+          "context_used_pct": 0.0
+        }
+      }
+    },
+    {
+      "eval_id": "bb2faf22-6e05-40c3-b1c8-16a67dfc29f0",
+      "name": "Inkling-2-Mini-medium",
+      "company": "thinkingmachines",
+      "base_model": "Inkling-2-Mini",
+      "kv_quant": "FP16",
+      "context_length": 262144,
+      "memory_gb": 61.3,
+      "benchmark_date": "2026-11-23",
+      "llm_server": "vLLM",
+      "speculative_decoding": "dspark",
+      "harness": "pi",
+      "harness_version": "1.6.0",
+      "reasoning": "medium",
+      "launch_config": "vllm serve thinkingmachines/Inkling-2-Mini --tensor-parallel-size 1 --max-model-len 262144 --enable-prefix-caching --reasoning-parser inkling --enable-auto-tool-choice --tool-call-parser inkling",
+      "intelligence": 75.8,
+      "task_speed": 4.4,
+      "intelligence_density": 1.237,
+      "test_results": {
+        "multilingual_science_presentation": {
+          "name": "multilingual_science_presentation",
+          "earned_score": 8,
+          "max_score": 8,
+          "run_time_sec": 801.26,
+          "tokens_in": 638894,
+          "tokens_out": 31573,
+          "peak_context_tokens": 39283,
+          "context_used_pct": 14.99
+        },
+        "data_analytics": {
+          "name": "data_analytics",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 130.09,
+          "tokens_in": 146898,
+          "tokens_out": 6511,
+          "peak_context_tokens": 13892,
+          "context_used_pct": 5.3
+        },
+        "kotlin_code": {
+          "name": "kotlin_code",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 673.5,
+          "tokens_in": 2297731,
+          "tokens_out": 26002,
+          "peak_context_tokens": 68554,
+          "context_used_pct": 26.15
+        },
+        "normal_map_classification": {
+          "name": "normal_map_classification",
+          "earned_score": 0,
+          "max_score": 10,
+          "run_time_sec": 952.73,
+          "tokens_in": 583090,
+          "tokens_out": 35060,
+          "peak_context_tokens": 309075,
+          "context_used_pct": 117.9
+        },
+        "chess_movegen": {
+          "name": "chess_movegen",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 1191.52,
+          "tokens_in": 2195822,
+          "tokens_out": 59849,
+          "peak_context_tokens": 83572,
+          "context_used_pct": 31.88
+        },
+        "trivia": {
+          "name": "trivia",
+          "earned_score": 15.77,
+          "max_score": 20.0,
+          "run_time_sec": 1386.62,
+          "tokens_in": 196290,
+          "tokens_out": 88837,
+          "peak_context_tokens": 3586,
+          "context_used_pct": 0.0
+        },
+        "tool-eval-bench": {
+          "name": "tool-eval-bench",
+          "earned_score": 35,
+          "max_score": 40,
+          "run_time_sec": 779.68,
+          "tokens_in": 711141,
+          "tokens_out": 57172,
+          "peak_context_tokens": 0,
+          "context_used_pct": 0.0
+        },
+        "simplebench": {
+          "name": "simplebench",
+          "earned_score": 8.0,
+          "max_score": 20.0,
+          "run_time_sec": 574.48,
+          "tokens_in": 2457,
+          "tokens_out": 42365,
+          "peak_context_tokens": 347,
+          "context_used_pct": 0.0
+        }
+      }
+    },
+    {
+      "eval_id": "aca3bca9-c9b4-4656-9628-e003a8352083",
+      "name": "Inkling-2-Mini-low",
+      "company": "thinkingmachines",
+      "base_model": "Inkling-2-Mini",
+      "kv_quant": "FP16",
+      "context_length": 262144,
+      "memory_gb": 61.3,
+      "benchmark_date": "2026-11-23",
+      "llm_server": "vLLM",
+      "speculative_decoding": "dspark",
+      "harness": "pi",
+      "harness_version": "1.6.0",
+      "reasoning": "low",
+      "launch_config": "vllm serve thinkingmachines/Inkling-2-Mini --tensor-parallel-size 1 --max-model-len 262144 --enable-prefix-caching --reasoning-parser inkling --enable-auto-tool-choice --tool-call-parser inkling",
+      "intelligence": 84.2,
+      "task_speed": 7.4,
+      "intelligence_density": 1.374,
+      "test_results": {
+        "multilingual_science_presentation": {
+          "name": "multilingual_science_presentation",
+          "earned_score": 8,
+          "max_score": 8,
+          "run_time_sec": 325.97,
+          "tokens_in": 211548,
+          "tokens_out": 12793,
+          "peak_context_tokens": 16955,
+          "context_used_pct": 6.47
+        },
+        "data_analytics": {
+          "name": "data_analytics",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 81.47,
+          "tokens_in": 122662,
+          "tokens_out": 4195,
+          "peak_context_tokens": 13935,
+          "context_used_pct": 5.32
+        },
+        "kotlin_code": {
+          "name": "kotlin_code",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 275.93,
+          "tokens_in": 1218826,
+          "tokens_out": 10372,
+          "peak_context_tokens": 48741,
+          "context_used_pct": 18.59
+        },
+        "normal_map_classification": {
+          "name": "normal_map_classification",
+          "earned_score": 5.0,
+          "max_score": 10,
+          "run_time_sec": 866.56,
+          "tokens_in": 807020,
+          "tokens_out": 27970,
+          "peak_context_tokens": 62502,
+          "context_used_pct": 23.84
+        },
+        "chess_movegen": {
+          "name": "chess_movegen",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 553.88,
+          "tokens_in": 455593,
+          "tokens_out": 28259,
+          "peak_context_tokens": 35880,
+          "context_used_pct": 13.69
+        },
+        "trivia": {
+          "name": "trivia",
+          "earned_score": 16.17,
+          "max_score": 20.0,
+          "run_time_sec": 973.21,
+          "tokens_in": 115615,
+          "tokens_out": 61837,
+          "peak_context_tokens": 1651,
+          "context_used_pct": 0.0
+        },
+        "tool-eval-bench": {
+          "name": "tool-eval-bench",
+          "earned_score": 37,
+          "max_score": 40,
+          "run_time_sec": 649.53,
+          "tokens_in": 642845,
+          "tokens_out": 44462,
+          "peak_context_tokens": 0,
+          "context_used_pct": 0.0
+        },
+        "simplebench": {
+          "name": "simplebench",
+          "earned_score": 10.0,
+          "max_score": 20.0,
+          "run_time_sec": 173.29,
+          "tokens_in": 2457,
+          "tokens_out": 11984,
+          "peak_context_tokens": 347,
+          "context_used_pct": 0.0
+        }
+      }
+    },
+    {
+      "eval_id": "19520f8b-acb2-46ef-ae19-9d9d9b4cccdc",
+      "name": "Inkling-2-Mini-low",
+      "company": "thinkingmachines",
+      "base_model": "Inkling-2-Mini",
+      "kv_quant": "FP16",
+      "context_length": 262144,
+      "memory_gb": 61.3,
+      "benchmark_date": "2026-11-23",
+      "llm_server": "vLLM",
+      "speculative_decoding": "dspark",
+      "harness": "opencode cli",
+      "harness_version": "1.19.6",
+      "reasoning": "low",
+      "launch_config": "vllm serve thinkingmachines/Inkling-2-Mini --tensor-parallel-size 1 --max-model-len 262144 --enable-prefix-caching --reasoning-parser inkling --enable-auto-tool-choice --tool-call-parser inkling",
+      "intelligence": 76.7,
+      "task_speed": 7.5,
+      "intelligence_density": 1.251,
+      "test_results": {
+        "multilingual_science_presentation": {
+          "name": "multilingual_science_presentation",
+          "earned_score": 8,
+          "max_score": 8,
+          "run_time_sec": 250.0,
+          "tokens_in": 372775,
+          "tokens_out": 10109,
+          "peak_context_tokens": 20839,
+          "context_used_pct": 7.95
+        },
+        "data_analytics": {
+          "name": "data_analytics",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 65.74,
+          "tokens_in": 198665,
+          "tokens_out": 3130,
+          "peak_context_tokens": 15583,
+          "context_used_pct": 5.94
+        },
+        "kotlin_code": {
+          "name": "kotlin_code",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 324.22,
+          "tokens_in": 1303904,
+          "tokens_out": 13199,
+          "peak_context_tokens": 48242,
+          "context_used_pct": 18.4
+        },
+        "normal_map_classification": {
+          "name": "normal_map_classification",
+          "earned_score": 5.0,
+          "max_score": 10,
+          "run_time_sec": 689.76,
+          "tokens_in": 651451,
+          "tokens_out": 23668,
+          "peak_context_tokens": 58623,
+          "context_used_pct": 22.36
+        },
+        "chess_movegen": {
+          "name": "chess_movegen",
+          "earned_score": 4,
+          "max_score": 10,
+          "run_time_sec": 710.1,
+          "tokens_in": 1036765,
+          "tokens_out": 31990,
+          "peak_context_tokens": 50335,
+          "context_used_pct": 19.2
+        },
+        "trivia": {
+          "name": "trivia",
+          "earned_score": 16.17,
+          "max_score": 20.0,
+          "run_time_sec": 973.21,
+          "tokens_in": 115615,
+          "tokens_out": 61837,
+          "peak_context_tokens": 1651,
+          "context_used_pct": 0.0
+        },
+        "tool-eval-bench": {
+          "name": "tool-eval-bench",
+          "earned_score": 37,
+          "max_score": 40,
+          "run_time_sec": 649.53,
+          "tokens_in": 642845,
+          "tokens_out": 44462,
+          "peak_context_tokens": 0,
+          "context_used_pct": 0.0
+        },
+        "simplebench": {
+          "name": "simplebench",
+          "earned_score": 10.0,
+          "max_score": 20.0,
+          "run_time_sec": 173.29,
+          "tokens_in": 2457,
+          "tokens_out": 11984,
+          "peak_context_tokens": 347,
+          "context_used_pct": 0.0
+        }
+      }
+    }
+  ]
+}

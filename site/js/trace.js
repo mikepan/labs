@@ -2,10 +2,8 @@
  * trace.js - Client-side live parser and interactive timeline renderer.
  * 
  * Supports:
- * - Dynamic URL parameter resolution (?trace_id=... or ?file=...)
- * - Fallback lookup in site/data/benchmark-data.json
- * - Local file drag-and-drop / file upload for full_trace.json / results.json
- * - Live parsing with zero prerendering
+ * - Dynamic URL parameter resolution (?eval_id=... or ?file=...)
+ * - Live parsing of full_trace.json with zero prerendering
  * - Horizontal multi-column layout for chat turns, thinking, tools, and assertions
  */
 
@@ -94,26 +92,6 @@ function loadTraceById(evalId) {
     .catch(err => {
       showError('Evaluation Not Found', err.message);
     });
-}
-
-function handleLocalFileUpload(event) {
-  const file = event.target.files[0];
-  if (!file) return;
-
-  showLoading();
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    try {
-      const parsed = JSON.parse(e.target.result);
-      renderTracePage(parsed);
-    } catch (err) {
-      showError('Invalid JSON Format', `Failed to parse uploaded JSON file: ${err.message}`);
-    }
-  };
-  reader.onerror = () => {
-    showError('Read Error', 'Could not read local file.');
-  };
-  reader.readAsText(file);
 }
 
 /**

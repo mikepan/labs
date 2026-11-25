@@ -698,6 +698,8 @@ function renderTopScatterChart(evaluations, viewMode = 'time', colorMode = 'base
   if (!chart) return;
 
   const isNarrow = isNarrowChart(chartEl);
+  const ACTIVE_OPACITY = 0.8;
+  const DIMMED_OPACITY = 0.15;
 
   // 1. Prepare raw data points
   const rawPoints = [];
@@ -755,12 +757,14 @@ function renderTopScatterChart(evaluations, viewMode = 'time', colorMode = 'base
     const data = groupsMap.get(groupName);
 
     return {
+      id: groupName,
       name: groupName,
       type: 'scatter',
       symbolSize: isNarrow ? 13 : 11,
       data: data,
       itemStyle: {
         color: color,
+        opacity: ACTIVE_OPACITY,
         borderWidth: 1,
         borderColor: 'rgba(255, 255, 255, 0.9)',
         shadowColor: shadow,
@@ -930,43 +934,59 @@ function renderTopScatterChart(evaluations, viewMode = 'time', colorMode = 'base
     }
   });
 
-  // Track selected legend items set (null means default: all items visible)
+  // Track selected legend items set (null means default: all items active)
   let activeSelectedSet = null;
+
+  const isActiveGroup = (name) => !activeSelectedSet || activeSelectedSet.has(name);
+
+  // Dim unselected groups in place. All series stay rendered, so the axes keep
+  // their full data range and dimmed points remain as visual context.
+  function applySelectionState() {
+    const selected = {};
+    const legendData = sortedGroupKeys.map(name => {
+      selected[name] = true;
+      return {
+        name: name,
+        textStyle: { color: isActiveGroup(name) ? '#64748b' : '#cbd5e1' }
+      };
+    });
+
+    chart.setOption({
+      legend: { data: legendData, selected: selected },
+      series: series.map(s => ({
+        id: s.id,
+        silent: !isActiveGroup(s.name),
+        itemStyle: { opacity: isActiveGroup(s.name) ? ACTIVE_OPACITY : DIMMED_OPACITY }
+      }))
+    });
+
+    if (legendEl && isNarrow) {
+      legendEl.querySelectorAll('.legend-chip').forEach(chip => {
+        chip.classList.toggle('is-inactive', !isActiveGroup(chip.dataset.name));
+      });
+    }
+  }
 
   chart.off('legendselectchanged');
   chart.on('legendselectchanged', function (params) {
     const clickedName = params.name;
 
     if (!activeSelectedSet) {
-      // Nothing was soloed yet (all were visible): solo this clicked item
+      // Nothing was soloed yet (all were active): solo this clicked item
       activeSelectedSet = new Set([clickedName]);
     } else if (activeSelectedSet.has(clickedName)) {
       // If currently active and clicked again: toggle it off
       activeSelectedSet.delete(clickedName);
-      // If none left selected, restore all to visible
+      // If none left selected, restore all to active
       if (activeSelectedSet.size === 0) {
         activeSelectedSet = null;
       }
     } else {
-      // Add this new item to the active visible subset (both/all shown)
+      // Add this new item to the active subset (both/all highlighted)
       activeSelectedSet.add(clickedName);
     }
 
-    const selected = {};
-    sortedGroupKeys.forEach(k => {
-      selected[k] = activeSelectedSet ? activeSelectedSet.has(k) : true;
-    });
-
-    chart.setOption({
-      legend: { selected: selected }
-    });
-
-    if (legendEl && isNarrow) {
-      legendEl.querySelectorAll('.legend-chip').forEach(chip => {
-        const isActive = !activeSelectedSet || activeSelectedSet.has(chip.dataset.name);
-        chip.classList.toggle('is-inactive', !isActive);
-      });
-    }
+    applySelectionState();
   });
 }
 

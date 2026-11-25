@@ -692,6 +692,25 @@ function getDistinctGroupColor(groupName, index, colorMode) {
   return hslToHex(hue, 75, 48);
 }
 
+/**
+ * Returns the non-dominated points for a lower-x / higher-y trade-off.
+ * A point is dominated when another point is at least as fast/lean and more intelligent.
+ */
+function getParetoFrontier(points) {
+  const sorted = [...points].sort((a, b) => a.x - b.x || b.y - a.y);
+  const frontier = [];
+  let bestY = -Infinity;
+
+  sorted.forEach(p => {
+    if (p.y > bestY) {
+      frontier.push(p);
+      bestY = p.y;
+    }
+  });
+
+  return frontier;
+}
+
 function renderTopScatterChart(evaluations, viewMode = 'time', colorMode = 'base_model') {
   const chartEl = document.getElementById('chart-top-scatter');
   const chart = getOrCreateChart(chartEl);
@@ -790,6 +809,21 @@ function renderTopScatterChart(evaluations, viewMode = 'time', colorMode = 'base
     };
   });
 
+  // Frontier is drawn behind the model points using raw values, so axis
+  // scaling does not change which models are non-dominated.
+  const paretoSeries = {
+    id: 'pareto-frontier',
+    name: 'Pareto frontier',
+    type: 'line',
+    silent: true,
+    smooth: true,
+    smoothMonotone: 'x',
+    symbol: 'none',
+    data: getParetoFrontier(rawPoints).map(p => [p.x, p.y]),
+    lineStyle: { color: '#64748b', width: 1.5, type: 'dashed', opacity: 0.45 },
+    z: 1
+  };
+
   const xAxisName = viewMode === 'time' ? 'Total Completion Time (min)' : 'Memory / VRAM Size (GB)';
 
   const option = {
@@ -843,8 +877,8 @@ function renderTopScatterChart(evaluations, viewMode = 'time', colorMode = 'base
       type: 'value',
       name: 'Intelligence',
       max: 100,
-      min: 0,
-      nameTextStyle: { color: '#94a3b8', fontFamily: 'system-ui, -apple-system, sans-serif', fontSize: isNarrow ? 11 : 12 },
+      min: 20,
+      nameTextStyle: { align: 'left', color: '#94a3b8', fontFamily: 'system-ui, -apple-system, sans-serif', fontSize: isNarrow ? 11 : 12 },
       axisLine: { lineStyle: { color: '#cbd5e1' } },
       splitLine: { lineStyle: { color: '#f1f5f9' } },
       axisLabel: {
@@ -853,7 +887,7 @@ function renderTopScatterChart(evaluations, viewMode = 'time', colorMode = 'base
         fontSize: isNarrow ? 11 : 12
       }
     },
-    series: series
+    series: [...series, paretoSeries]
   };
 
   chart.setOption(option, true);

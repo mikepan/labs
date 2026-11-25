@@ -6,9 +6,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>FiniBench | Agentic AI Velocity & Efficiency Benchmark</title>
   <meta name="description"
-    content="FiniBench by Pixelary Labs evaluates local AI models (Llama 3.3, Qwen 2.5 Coder, DeepSeek R1, Gemma, Kimi K3, GLM, MiniMax, MiMo, Inkling, Hy3, Nemotron, Muse Glimmer, Mistral), GGUF & EXL2 quantization formats, and agent harnesses across llama.cpp, Ollama, vLLM, and LM Studio." />
+    content="FiniBench by Pixelary Labs tracks open-weight LLMs including Qwen, Llama, Gemma, DeepSeek, Mistral, Nemotron, Inkling and Muse Glimmer across precision, reasoning budgets and agent harnesses on eight agentic tasks." />
   <meta name="keywords"
-    content="FiniBench, Pixelary Labs, AI, AI benchmark, agentic AI, llama.cpp, Ollama, vLLM, EXL2, LM Studio, KServe, TGI, GGUF, AWQ, GPTQ, K-quants, Q4_K_M, Q5_K_M, Q8_0, Q2_K, IQ2_XXS, FP8, INT4, NVFP4, SWE-bench, LiveCodeBench, GAIA, TAU-bench, HumanEval, MBPP, MMLU, Gemma, Kimi K3, GLM, MiniMax, MiMo, Inkling, Hy3, Nemotron, Muse Glimmer, Mistral, Llama 3.3, Qwen 2.5 Coder, DeepSeek R1, OpenCode, Pi, Claude Code, Aider, Cline, Roo Code, AutoGen, CrewAI, Mike Pan" />
+    content="FiniBench, Pixelary Labs, AI benchmark, agentic AI, vLLM, NVIDIA DGX Spark, Nvidia RTX Spark, GB10, Blackwell, NVFP4, FP8, W4A4, KV cache quantization, speculative decoding, Qwen3.8, Qwen3.6, Llama 3.3, Gemma, DeepSeek R1, Mistral, GLM, MiniMax, Kimi K3, MiMo, Hy3, Nemotron-3.5, Inkling-2-Mini, Muse Glimmer, diffusiongemma, Pi, OpenCode, task completion, intelligence density, Mike Pan" />
   <meta name="author" content="Mike Pan, The Pixelary" />
   <meta name="robots" content="index, follow" />
   <link rel="canonical" href="https://labs.thepixelary.com/finibench" />
@@ -18,14 +18,14 @@
   <meta property="og:site_name" content="Pixelary Labs" />
   <meta property="og:title" content="FiniBench | Agentic AI Velocity & Efficiency Benchmark" />
   <meta property="og:description"
-    content="FiniBench evaluates local AI models (Llama 3.3, Qwen 2.5 Coder, DeepSeek R1, Gemma, Kimi K3, GLM, MiniMax, MiMo, Inkling, Hy3, Nemotron, Muse Glimmer, Mistral), GGUF & EXL2 quantization formats, and agent harnesses." />
+    content="FiniBench by Pixelary Labs tracks open-weight LLMs including Qwen, Llama, Gemma, DeepSeek, Mistral, Nemotron, Inkling and Muse Glimmer across precision, reasoning budgets and agent harnesses on eight agentic tasks." />
   <meta property="og:url" content="https://labs.thepixelary.com/finibench" />
 
   <!-- Twitter Card Metadata -->
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="FiniBench | Agentic AI Velocity & Efficiency Benchmark" />
   <meta name="twitter:description"
-    content="Evaluating local AI models, quantization levels (FP16 down to IQ2_XXS), and agent harnesses across multi-turn task completion rates." />
+    content="FiniBench by Pixelary Labs tracks open-weight LLMs including Qwen, Llama, Gemma, DeepSeek, Mistral, Nemotron, Inkling and Muse Glimmer across precision, reasoning budgets and agent harnesses on eight agentic tasks." />
 
   <!-- Schema.org JSON-LD Structured Data for Search Engine Bots -->
   <script type="application/ld+json">
@@ -33,7 +33,7 @@
       "@context": "https://schema.org",
       "@type": "TechArticle",
       "headline": "FiniBench: Agentic AI Velocity & Efficiency Benchmark",
-      "description": "Evaluates local open-weight AI models, quantization formats (GGUF, EXL2, NVFP4, FP8), and agent edit harnesses across multi-turn task completion rates.",
+      "description": "Tracks open-weight LLMs including Qwen, Llama, Gemma, DeepSeek, Mistral, Nemotron, Inkling and Muse Glimmer across precision formats, reasoning budgets and agent harnesses on eight agentic tasks.",
       "author": {
         "@type": "Person",
         "name": "Mike Pan",
@@ -47,7 +47,7 @@
       "mainEntity": {
         "@type": "Dataset",
         "name": "FiniBench Agentic AI Benchmark Dataset",
-        "description": "Multi-turn task pass rate, completion velocity (tasks/hr), and hardware efficiency (tasks/GB) across local LLMs.",
+        "description": "Average task score, throughput (tasks/hr), and intelligence density (score/GB) across open-weight LLM configurations.",
         "license": "https://creativecommons.org/licenses/by/4.0/",
         "distribution": [
           {
@@ -93,14 +93,12 @@
       <div class="hero-grid-bg" aria-hidden="true"></div>
       <h1 class="hero-title">FiniBench: Agentic AI Efficiency Benchmark</h1>
       <p class="hero-subtitle">
-        Why does your self-hosted model feel dumber than the official benchmarks suggest? </br> </br> We evaluate the
-        combination of
-        <strong>LLM &times; Quantization Level
-          &times;
-          Harness</strong>
-        across a wide range of multi-turn agentic AI tasks. By focusing on end-to-end task completion rates, FiniBench
-        cuts through the advertised FP16 quality and reveals which quantization levels you can run and actually solve
-        problems without collapsing.
+        Why does your self-hosted model feel dumber than the official benchmarks suggest?<br /><br />
+        We benchmark the full stack —
+        <strong>LLM &times; Weight Precision &times; Reasoning Effort &times; Harness</strong> — across a wide range
+        of multi-turn agentic AI tasks. By scoring end-to-end task completion instead of single-turn trivia, FiniBench
+        cuts through advertised FP16 quality and reveals which local configurations still solve real problems when
+        context, tool calls, and compiler errors pile up.
       </p>
     </section>
 
@@ -130,6 +128,9 @@
             <button type="button" class="toggle-btn active" data-view="time">Completion Time (min)</button>
             <button type="button" class="toggle-btn" data-view="size">Memory Use (GB)</button>
           </div>
+          <span class="chart-note"
+            title="Non-dominated runs: no other run is both faster or leaner and more intelligent.">Pareto
+            frontier</span>
         </div>
       </div>
 
@@ -148,7 +149,8 @@
         <div class="chart-card">
           <div class="chart-header">
             <h3 class="chart-title">Intelligence Density Leaderboard</h3>
-            <p class="chart-desc">Comparing hardware efficiency (tasks/GB) across evaluated model configurations.</p>
+            <p class="chart-desc">Comparing hardware efficiency (score/GB) across evaluated model configurations; higher
+              is better.</p>
           </div>
           <div id="chart-model-density" class="chart-container chart-container--compact"></div>
         </div>
@@ -160,7 +162,8 @@
         <div class="chart-card">
           <div class="chart-header">
             <h3 class="chart-title">Problem Solving: Tasks Completed</h3>
-            <p class="chart-desc">Comparing total tasks completed with full score by each harness (pi vs opencode cli).</p>
+            <p class="chart-desc">Comparing total tasks completed with full score by each harness (pi vs opencode cli).
+            </p>
           </div>
           <div id="chart-harness-tasks" class="chart-container chart-container--pie"></div>
         </div>
@@ -189,7 +192,8 @@
             <tr>
               <th data-sort="name" class="sortable-header">Model Name <span class="sort-icon"></span></th>
               <th data-sort="task_speed" class="sortable-header">Speed <span class="sort-icon"></span></th>
-              <th data-sort="intelligence_density" class="sortable-header">Density <span class="sort-icon"></span></th>
+              <th data-sort="intelligence_density" class="sortable-header">Density (score/GB) <span
+                  class="sort-icon"></span></th>
               <th data-sort="intelligence" class="sortable-header">Intelligence <span class="sort-icon"></span></th>
               <th data-sort="memory_gb" class="sortable-header hide-mobile">Memory <span class="sort-icon"></span></th>
               <th data-sort="harness_name" class="sortable-header hide-mobile">Harness <span class="sort-icon"></span>
@@ -218,7 +222,8 @@
               often suffer total task failure when subjected to multi-step tool calls.</p>
           </div>
           <div class="card-insight">
-            <strong>Key Insight:</strong> A Q2 quant should be treated as a separate model from its FP16 equivalent.
+            <strong>Key Insight:</strong> A Q2 quant should be treated as a separate model from its FP16 equivalent, and
+            that's exactly why we test different quants.
           </div>
         </div>
 
@@ -240,13 +245,14 @@
           <div>
             <div class="card-tag">Task Efficiency</div>
             <h3 class="card-title">Token Efficiency and Reasoning Length Confound Results</h3>
-            <p class="card-summary">Evaluating agentic workflows requires shifting from raw generation speed (tokens per
-              second) to outcome-oriented metrics: Task Speed (tasks/hr) and
-              Intelligence Density (tasks/GB). These metrics provide an objective measure of system utility on fixed
+            <p class="card-summary">Evaluating agentic workflows should not focus on raw generation speed (tokens per
+              second), the only thing that matters is how long it takes to complete a given task. These metrics provide
+              an objective measure of system utility on fixed
               hardware footprints.</p>
           </div>
           <div class="card-insight">
-            <strong>Key Insight:</strong> Outcome efficiency measures real work delivered per unit of resources.
+            <strong>Key Insight:</strong> Outcome efficiency measures real work delivered per unit of resources. Token/s
+            is useless due to how different models think.
           </div>
         </div>
       </div>
@@ -269,11 +275,10 @@
           <div class="accordion-content">
             <p>Our model serving infrastructure evaluates open-weight AI models across the two most popular local
               inference runtimes: <code>llama.cpp</code> and <code>vLLM</code>. All models are served on an Nvidia DGX
-              Spark with
-              128GB of VRAM.
+              Spark with 128GB of unified memory.
             </p>
             <ul class="methodology-list">
-              <li><strong>Weight Precision &amp; Quantization:</strong> We test FP16 unquantized baselines alongside
+              <li><strong>Weight Precision &amp; Quantization:</strong> We test FP8 quantized baselines alongside
                 FP8, INT4, NVFP4, and GGUF / EXL2 K-quants (Q8_0, Q6_K, Q4_K_M, Q3_K_M, Q2_K).</li>
               <li><strong>Context &amp; Memory Allocation:</strong> Agentic workflows with reasoning LLMs benefit
                 immensely from long context windows. We default to the model maximum with
@@ -281,7 +286,8 @@
               <li><strong>Speculative Decoding:</strong> When possible, we test models with various speculative decoding
                 methods such as MTP, DFlash, or DSpark for the best single-user performance.</li>
               <li><strong>Sampling &amp; Reproducibility:</strong> Temperature, Top-P, and Top-K are set to
-                model-recommended values. Each test is run 3 times and the results are averaged.</li>
+                model-recommended values. We avoid greedy sampling because it doesn't reflect realworld usage and harms
+                creativity during reasoning. This means we have to run evaluations to get an average.</li>
             </ul>
           </div>
         </details>
@@ -296,17 +302,15 @@
             <span class="accordion-chevron"></span>
           </summary>
           <div class="accordion-content">
-            <p>Our custom agent harness runs in an isolated container and orchestrates multi-turn tool loops,
-              terminal execution, file system
-              modifications, and error feedback recovery. The harness runs on an Apple M1 Pro MacBook Pro with 32GB of
-              RAM.
+            <p>Our custom sandbox runs popular coding agent in isolated containers with no internet access and
+              orchestrates multi-turn tool loops, terminal execution, file system modifications, and error feedback
+              recovery. The harness runs on an Apple M1 Pro MacBook Pro with 32GB of RAM.
             </p>
             <ul class="methodology-list">
               <li><strong>Most Popular Agents:</strong> We evaluate models across popular agent
                 frameworks (such as OpenCode and Pi) in their out-of-the-box configurations.</li>
               <li><strong>Loop Limits:</strong> Agents are permitted up to a predefined maximum number of sequential
-                turns
-                per problem instance before triggering a timeout or unrecoverable loop failure.</li>
+                turns per problem instance before triggering a timeout or unrecoverable loop failure.</li>
             </ul>
           </div>
         </details>
@@ -321,9 +325,8 @@
             <span class="accordion-chevron"></span>
           </summary>
           <div class="accordion-content">
-            <p>We evaluate models across a private test suite of real-world agentic workflows. To prevent benchmark
-              contamination, test prompts remain private, but each test has a descriptive name indicating its scope.
-              Task difficulty varies and is scored accordingly:</p>
+            <p>We evaluate models across a private test suite of real-world agentic workflows, plus some high quality
+              third-party tests:</p>
             <ul class="methodology-list">
               <li><strong>Greenfield Software Engineering:</strong> Building new features, modular components, and
                 applications from scratch based on user specifications.</li>
@@ -351,15 +354,17 @@
             <span class="accordion-chevron"></span>
           </summary>
           <div class="accordion-content">
-            <p>Tasks are evaluated using a combination of deterministic verification tests and LLM-as-a-judge
-              assessments to measure end-to-end task completion.</p>
+            <p>Tasks are scored with deterministic checks: git-diff shape, file content and format assertions, Kotlin
+              syntax checks, Python unit tests, and exact-answer matching.</p>
             <ul class="methodology-list">
-              <li><strong>Automated Verification:</strong> Evaluation combines deterministic checks (e.g., git diff line
-                verification, automated unit tests) and calibrated LLM judges.</li>
-              <li><strong>Task Speed (Tasks/hr):</strong> Quantifies total verified multi-turn tasks completed
-                per 60 minutes of wall-clock execution time.</li>
-              <li><strong>Intelligence Density (Tasks/GB):</strong> Measures model size efficiency by normalizing
-                task throughput against peak run memory consumption.</li>
+              <li><strong>Automated Verification:</strong> Deterministic checks include git diff line verification,
+                file-format assertions, syntax validation, automated unit tests, and exact-answer scoring for Trivia and
+                SimpleBench.</li>
+              <li><strong>Task Speed (Tasks/hr):</strong> Throughput — the eight-task suite divided by total wall-clock
+                run time. It measures how quickly a configuration gets through the fixed workload, not how many tasks
+                it solves correctly.</li>
+              <li><strong>Intelligence Density (Score/GB):</strong> Measures model size efficiency by normalizing
+                average task score against peak run memory consumption.</li>
               <li><strong>Trace Logging:</strong> Every evaluation run generates an execution trace
                 containing input/output token counts, run memory footprint, context utilization, and complete terminal
                 logs.</li>

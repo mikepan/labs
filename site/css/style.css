@@ -547,6 +547,22 @@ header {
   flex-wrap: wrap;
 }
 
+.chart-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.chart-note::before {
+  content: '';
+  width: 20px;
+  border-top: 2px dashed #64748b;
+  opacity: 0.8;
+}
+
 .chart-control-group {
   display: inline-flex;
   align-items: center;
@@ -1752,6 +1768,11 @@ footer a:hover {
 
   .chart-footer-controls .toggle-group {
     width: 100%;
+  }
+
+  .chart-footer-controls .chart-note {
+    width: 100%;
+    justify-content: center;
   }
 
   .chart-container--compact {

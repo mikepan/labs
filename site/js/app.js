@@ -674,7 +674,29 @@ const DISTINCT_PALETTE = [
   '#a855f7'  // Lavender
 ];
 
+const REASONING_STYLES = [
+  { label: 'None', color: '#2563eb' },
+  { label: 'Low', color: '#16a34a' },
+  { label: 'Medium', color: '#eab308' },
+  { label: 'High / xhigh', color: '#dc2626' },
+  { label: 'Other', color: '#64748b' }
+];
+
+function getReasoningGroup(reasoning) {
+  const value = String(reasoning || '').trim().toLowerCase();
+  if (!value || value === 'off' || value === 'none' || value === 'disabled') return REASONING_STYLES[0].label;
+  if (value === 'low') return REASONING_STYLES[1].label;
+  if (value === 'medium' || value === 'med' || value === 'on') return REASONING_STYLES[2].label;
+  if (value === 'high' || value === 'xhigh' || value === 'max') return REASONING_STYLES[3].label;
+  return REASONING_STYLES[4].label;
+}
+
 function getDistinctGroupColor(groupName, index, colorMode) {
+  if (colorMode === 'reasoning') {
+    const style = REASONING_STYLES.find(s => s.label === groupName);
+    if (style) return style.color;
+  }
+
   if (colorMode === 'harness') {
     const harnessColors = {
       'pi': '#f97316',
@@ -734,6 +756,7 @@ function renderTopScatterChart(evaluations, viewMode = 'time', colorMode = 'base
         name: m.modelName,
         baseModel: m.baseModel,
         harnessName: m.harnessName,
+        reasoning: m.reasoning,
         rawEval: e
       });
     }
@@ -741,15 +764,20 @@ function renderTopScatterChart(evaluations, viewMode = 'time', colorMode = 'base
 
   if (rawPoints.length === 0) return;
 
-  // 2. Group points dynamically by colorMode (base_model or harness)
+  // 2. Group points dynamically by colorMode (base_model, harness, or reasoning)
   const groupsMap = new Map();
   rawPoints.forEach(p => {
-    let groupKey = (colorMode === 'harness'
-      ? (p.harnessName || 'Unknown')
-      : (p.baseModel || 'Unknown')
-    ).trim();
+    let groupKey;
+    if (colorMode === 'harness') {
+      groupKey = p.harnessName || 'Unknown';
+    } else if (colorMode === 'reasoning') {
+      groupKey = getReasoningGroup(p.reasoning);
+    } else {
+      groupKey = p.baseModel || 'Unknown';
+    }
+    groupKey = groupKey.trim();
 
-    if (colorMode !== 'harness') {
+    if (colorMode === 'base_model') {
       if (groupKey.startsWith('Nvidia-') || /^nvidia-/i.test(groupKey)) {
         groupKey = groupKey.replace(/^nvidia-/i, '');
       }
@@ -765,9 +793,12 @@ function renderTopScatterChart(evaluations, viewMode = 'time', colorMode = 'base
     });
   });
 
-  const sortedGroupKeys = Array.from(groupsMap.keys()).sort((a, b) =>
-    a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })
-  );
+  const sortedGroupKeys = Array.from(groupsMap.keys()).sort((a, b) => {
+    if (colorMode === 'reasoning') {
+      return REASONING_STYLES.findIndex(s => s.label === a) - REASONING_STYLES.findIndex(s => s.label === b);
+    }
+    return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
+  });
 
   // 3. Build series configuration for each group with distinct colors
   const series = sortedGroupKeys.map((groupName, idx) => {

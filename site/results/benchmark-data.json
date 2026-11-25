@@ -2,6 +2,107 @@
   "$schema": "../../eval/benchmark-data.schema.json",
   "evaluations": [
     {
+      "eval_id": "03fb04f5-441f-4371-a75b-07e4e2ab7bc9",
+      "name": "Nemotron-3-Super-120B-A12B-NVFP4",
+      "company": "nvidia",
+      "base_model": "NVIDIA-Nemotron-3-Super-120B-A12B-NVFP4",
+      "kv_quant": "FP8",
+      "context_length": 262144,
+      "memory_gb": 94.8,
+      "benchmark_date": "2026-11-25",
+      "llm_server": "vLLM",
+      "speculative_decoding": "mtp",
+      "harness": "opencode cli",
+      "harness_version": "1.19.6",
+      "reasoning": "on",
+      "launch_config": "vllm serve nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-NVFP4 --moe-backend cutlass --trust-remote-code --enable-prefix-caching --enable-auto-tool-choice --tool-call-parser qwen3_coder --reasoning-parser nemotron_v3 --mamba-ssm-cache-dtype float16 --attention-backend TRITON_ATTN --max-num-seqs 2 --max-num-batched-tokens 8192",
+      "intelligence": 73.2,
+      "task_speed": 1.6,
+      "intelligence_density": 0.772,
+      "test_results": {
+        "multilingual_science_presentation": {
+          "name": "multilingual_science_presentation",
+          "earned_score": 8,
+          "max_score": 8,
+          "run_time_sec": 637.56,
+          "tokens_in": 521192,
+          "tokens_out": 10557,
+          "peak_context_tokens": 22064,
+          "context_used_pct": 8.42
+        },
+        "data_analytics": {
+          "name": "data_analytics",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 528.24,
+          "tokens_in": 1201622,
+          "tokens_out": 7662,
+          "peak_context_tokens": 45257,
+          "context_used_pct": 17.26
+        },
+        "kotlin_code": {
+          "name": "kotlin_code",
+          "earned_score": 10,
+          "max_score": 10,
+          "run_time_sec": 2023.58,
+          "tokens_in": 3513606,
+          "tokens_out": 34661,
+          "peak_context_tokens": 62128,
+          "context_used_pct": 23.7
+        },
+        "normal_map_classification": {
+          "name": "normal_map_classification",
+          "earned_score": 0,
+          "max_score": 10,
+          "run_time_sec": 439.2,
+          "tokens_in": 400949,
+          "tokens_out": 6169,
+          "peak_context_tokens": 23113,
+          "context_used_pct": 8.82
+        },
+        "chess_movegen": {
+          "name": "chess_movegen",
+          "earned_score": 8,
+          "max_score": 10,
+          "run_time_sec": 9479.24,
+          "tokens_in": 27113159,
+          "tokens_out": 166931,
+          "peak_context_tokens": 181446,
+          "context_used_pct": 69.22
+        },
+        "trivia": {
+          "name": "trivia",
+          "earned_score": 18.05,
+          "max_score": 20.0,
+          "run_time_sec": 1563.29,
+          "tokens_in": 129573,
+          "tokens_out": 51207,
+          "peak_context_tokens": 1583,
+          "context_used_pct": 0.0
+        },
+        "tool-eval-bench": {
+          "name": "tool-eval-bench",
+          "earned_score": 34,
+          "max_score": 40,
+          "run_time_sec": 2397.08,
+          "tokens_in": 735448,
+          "tokens_out": 74268,
+          "peak_context_tokens": 0,
+          "context_used_pct": 0.0
+        },
+        "simplebench": {
+          "name": "simplebench",
+          "earned_score": 6.0,
+          "max_score": 20.0,
+          "run_time_sec": 1335.46,
+          "tokens_in": 2370,
+          "tokens_out": 49507,
+          "peak_context_tokens": 329,
+          "context_used_pct": 0.0
+        }
+      }
+    },
+    {
       "eval_id": "6e458196-8187-4bc4-b3c2-f188f630fd5e",
       "name": "Nemotron-3.5-Lightning-30B-A3B-NVFP4-off",
       "company": "nvidia",

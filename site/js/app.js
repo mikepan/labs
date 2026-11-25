@@ -1118,30 +1118,47 @@ function formatModelCardTooltip(evalRecord) {
   if (!evalRecord) return '';
 
   const m = extractEvalMetrics(evalRecord);
+  const contextLength = Number(evalRecord.context_length) || 0;
+  const contextDisplay = contextLength >= 1e6
+    ? `${(contextLength / 1e6).toFixed(1)}M`
+    : contextLength > 0 ? `${Math.round(contextLength / 1000)}k` : 'N/A';
+  const tokenSpeed = m.totalTimeSec > 0 ? m.tokensOut / m.totalTimeSec : 0;
 
-  const row = (label, val) => `
-    <div style="display:flex; align-items:baseline; justify-content:space-between; font-size:0.825rem; margin-bottom:0.3rem;">
-      <span style="color:#64748b; white-space:nowrap;">${label}</span>
-      <span style="flex:1; border-bottom:1px dotted rgba(148, 163, 184, 0.45); margin:0 0.4rem 0.2rem;"></span>
-      <span style="font-weight:600; color:#0f172a; white-space:nowrap;">${val}</span>
+  const row = (label, val, valueAttrs = '') => `
+    <div class="model-tip-row">
+      <span class="model-tip-key">${label}</span>
+      <span class="model-tip-leader"></span>
+      <span class="model-tip-value"${valueAttrs}>${val}</span>
     </div>
   `;
 
-  return `
-    <div style="font-weight:600; color:#0f172a; font-size:0.95rem; margin-bottom:4px;">${escapeHtml(m.modelName)}</div>
-    <div style="margin-bottom:10px;">
-      <span style="display:inline-block; padding:2px 8px; border-radius:10px; font-family:var(--font-mono, monospace); font-size:0.75rem; font-weight:600; background:#f1f5f9; color:#64748b; border:1px solid #cbd5e1;">${escapeHtml(m.harnessName)}</span>
-    </div>
+  const setting = (label, val) => `
+    <span class="badge model-tip-setting">
+      <span class="model-tip-setting-key">${escapeHtml(label)}</span>${escapeHtml(val)}
+    </span>
+  `;
 
-    <div style="min-width: 210px;">
-      ${row('Intelligence', m.intelligence)}
-      ${row('Completion Time', m.timeMin + ' min')}
-      ${row('Memory Use', m.memoryGb + ' GB')}
-      ${row('Token Sent', formatTokensK(m.tokensIn))}
-      ${row('Token Received', formatTokensK(m.tokensOut))}
-      ${row('Speculative', m.speculativeDecoding)}
-      ${row('Reasoning', m.reasoning)}
-      ${row('KV Cache Quant', m.kvQuant)}
+  return `
+    <div class="model-tip">
+      <div class="model-tip-name">${escapeHtml(m.modelName)}</div>
+
+      <div class="model-tip-settings">
+        ${setting('Harness', m.harnessName)}
+        ${setting('Server', m.llmServer)}
+        ${setting('Speculative', m.speculativeDecoding)}
+        ${setting('Reasoning', m.reasoning)}
+        ${setting('KV Cache', m.kvQuant)}
+        ${setting('Context', contextDisplay)}
+      </div>
+
+      <div class="model-tip-divider"></div>
+
+      ${row('Intelligence', `${Number(m.intelligence).toFixed(1)}%`)}
+      ${row('Task Speed', `${Number(m.taskSpeed).toFixed(1)} tasks/hr`)}
+      ${row('Token Speed', `${tokenSpeed.toFixed(1)} tok/s`, ' title="Average output tokens per second over total run time"')}
+      ${row('Completion Time', `${m.timeMin} min`)}
+      ${row('Memory Use', `${m.memoryGb} GB`)}
+      ${row('Tokens In / Out', `${formatTokensK(m.tokensIn)} / ${formatTokensK(m.tokensOut)}`)}
     </div>
   `;
 }

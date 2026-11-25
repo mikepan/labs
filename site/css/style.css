@@ -468,6 +468,69 @@ header {
   flex: 0 0 9px;
 }
 
+/* Model hover card (ECharts tooltip) */
+.model-tip {
+  min-width: 250px;
+  max-width: 330px;
+}
+
+.model-tip-name {
+  margin-bottom: 9px;
+  color: #0f172a;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.model-tip-settings {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.model-tip-setting {
+  padding: 0.15rem 0.45rem;
+  font-size: 0.7rem;
+}
+
+.model-tip-setting-key {
+  color: var(--text-dim);
+  font-weight: 400;
+}
+
+.model-tip-divider {
+  border-top: 1px solid #e2e8f0;
+  margin: 10px 0;
+}
+
+.model-tip-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 0.3rem;
+  font-size: 0.825rem;
+}
+
+.model-tip-row:last-child {
+  margin-bottom: 0;
+}
+
+.model-tip-key {
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.model-tip-leader {
+  flex: 1;
+  margin: 0 0.4rem 0.2rem;
+  border-bottom: 1px dotted rgba(148, 163, 184, 0.45);
+}
+
+.model-tip-value {
+  color: #0f172a;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 .charts-row {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));

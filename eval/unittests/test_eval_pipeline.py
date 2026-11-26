@@ -47,6 +47,7 @@ class MockDriver(HarnessDriver):
         model_name: str,
         llm_base_url: str,
         reasoning_effort: str | None = None,
+        provider: str = "vllm",
     ) -> str:
         active_model, _ = resolve_model_info(llm_base_url, fallback_name=model_name)
         return active_model

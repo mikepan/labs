@@ -29,6 +29,7 @@ class HarnessDriver(ABC):
         model_name: str,
         llm_base_url: str,
         reasoning_effort: str | None = None,
+        provider: str = "vllm",
     ) -> str:
         """Configure and start the agent server in the sandbox.
 

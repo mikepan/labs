@@ -99,6 +99,25 @@ uv run simplebench --limit 3
 uv run benchmark --model Qwen3.8-27B-NVFP4-xhigh --runs 2
 ```
 
+### OpenRouter Models
+Remote models use a host-side gateway: the API key stays on the host, while the
+sandbox only reaches the gateway over the LAN. OpenRouter models run with the
+same concurrency as local ones (`opencode` and `pi` in parallel; direct
+benchmarks at 2 workers unless `--sequential` is passed).
+
+```bash
+export OPENROUTER_API_KEY='sk-or-v1-...'
+
+# Direct benchmark smoke test
+uv run harness --model DeepSeek-V4.1-Flash-1017-OpenRouter --test simplebench --harness pi
+
+# Full evaluation (all harnesses, all tests)
+uv run eval --model DeepSeek-V4.1-Flash-1017-OpenRouter
+```
+
+Each OpenRouter evaluation records `cost_usd`, the sum of OpenRouter's
+`usage.cost` across every request in the run.
+
 ### 5. Live Reasoning Matrix
 ```bash
 # Fast suite: normal invocation never runs the live model matrix

@@ -65,7 +65,8 @@ function extractEvalMetrics(e) {
     reasoning: e.reasoning || 'off',
     harnessName: e.harness || '',
     taskSpeed: e.task_speed ?? 0,
-    intelligenceDensity: e.intelligence_density ?? 0
+    intelligenceDensity: e.intelligence_density ?? 0,
+    costUsd: e.cost_usd !== undefined && e.cost_usd !== null ? Number(e.cost_usd) : null
   };
 }
 
@@ -96,8 +97,9 @@ function initDashboard(data) {
 
   let currentScatterView = 'time';
   let currentScatterColor = 'base_model';
+  let currentWeightsMode = 'open';
 
-  renderTopScatterChart(evaluations, currentScatterView, currentScatterColor);
+  renderTopScatterChart(evaluations, currentScatterView, currentScatterColor, currentWeightsMode);
   renderModelSpeedChart(evaluations);
   renderModelDensityChart(evaluations);
   renderHarnessPieCharts(evaluations);
@@ -117,11 +119,11 @@ function initDashboard(data) {
       viewToggleGroup.querySelectorAll('.toggle-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
 
-      renderTopScatterChart(evaluations, currentScatterView, currentScatterColor);
+      renderTopScatterChart(evaluations, currentScatterView, currentScatterColor, currentWeightsMode);
     });
   }
 
-  // Bind toggle buttons for Color By (Base Model vs Harness)
+  // Bind toggle buttons for Color By (Base Model vs Harness vs Reasoning)
   const colorToggleGroup = document.getElementById('scatter-color-toggle');
   if (colorToggleGroup) {
     colorToggleGroup.addEventListener('click', (e) => {
@@ -135,7 +137,25 @@ function initDashboard(data) {
       colorToggleGroup.querySelectorAll('.toggle-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
 
-      renderTopScatterChart(evaluations, currentScatterView, currentScatterColor);
+      renderTopScatterChart(evaluations, currentScatterView, currentScatterColor, currentWeightsMode);
+    });
+  }
+
+  // Bind toggle buttons for weight availability (Open, Closed, All)
+  const weightsToggleGroup = document.getElementById('scatter-weights-toggle');
+  if (weightsToggleGroup) {
+    weightsToggleGroup.addEventListener('click', (e) => {
+      const btn = e.target.closest('.toggle-btn');
+      if (!btn) return;
+
+      const weightsMode = btn.getAttribute('data-weights');
+      if (!weightsMode || weightsMode === currentWeightsMode) return;
+
+      currentWeightsMode = weightsMode;
+      weightsToggleGroup.querySelectorAll('.toggle-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+
+      renderTopScatterChart(evaluations, currentScatterView, currentScatterColor, currentWeightsMode);
     });
   }
 }
@@ -238,12 +258,12 @@ function formatChartModelLabel(name) {
 }
 
 function renderRankingBarChart(containerId, evaluations, options) {
-  const { metricKey, yAxisName, gradientColors, hoverColor } = options;
+  const { metricKey, yAxisName, gradientColors, hoverColor, filterFn } = options;
   const chartEl = document.getElementById(containerId);
   const chart = getOrCreateChart(chartEl);
   if (!chart) return;
 
-  const normalized = evaluations.map(e => extractEvalMetrics(e));
+  const normalized = evaluations.map(e => extractEvalMetrics(e)).filter(filterFn || (() => true));
   const sorted = normalized.sort((a, b) => (b[metricKey] || 0) - (a[metricKey] || 0)).slice(0, 10);
   const modelLabels = sorted.map(m => m.modelName);
   const metricValues = sorted.map(m => Number(m[metricKey] || 0).toFixed(1));
@@ -344,7 +364,8 @@ function renderModelDensityChart(evaluations) {
     metricKey: 'intelligenceDensity',
     yAxisName: 'Intelligence Density',
     gradientColors: ['#059669', '#34d399'],
-    hoverColor: '#047857'
+    hoverColor: '#047857',
+    filterFn: m => m.runMemGb > 0
   });
 }
 
@@ -733,7 +754,18 @@ function getParetoFrontier(points) {
   return frontier;
 }
 
-function renderTopScatterChart(evaluations, viewMode = 'time', colorMode = 'base_model') {
+function getScatterAxisMax(value) {
+  if (!Number.isFinite(value) || value <= 0) return 100;
+  const step = value <= 50 ? 10 : value <= 200 ? 20 : 50;
+  return Math.ceil(value / step) * step;
+}
+
+const CLOSED_WEIGHT_PATH = 'M15.26 0 A6.18 6.18 0 0 1 24 8.74 L20.74 12 L24 15.26 A6.18 6.18 0 0 1 15.26 24 L12 20.74 L8.74 24 A6.18 6.18 0 0 1 0 15.26 L3.26 12 L0 8.74 A6.18 6.18 0 0 1 8.74 0 L12 3.26 Z';
+const CLOSED_WEIGHT_SYMBOL = `path://${CLOSED_WEIGHT_PATH}`;
+const CLOSED_WEIGHT_LEGEND_PATH = 'M15.36 0 A6.11 6.11 0 0 1 24 8.64 L20.64 12 L24 15.36 A6.11 6.11 0 0 1 15.36 24 L12 20.64 L8.64 24 A6.11 6.11 0 0 1 0 15.36 L3.36 12 L0 8.64 A6.11 6.11 0 0 1 8.64 0 L12 3.36 Z';
+const CLOSED_WEIGHT_LEGEND_SYMBOL = `path://${CLOSED_WEIGHT_LEGEND_PATH}`;
+
+function renderTopScatterChart(evaluations, viewMode = 'time', colorMode = 'base_model', weightsMode = 'open') {
   const chartEl = document.getElementById('chart-top-scatter');
   const chart = getOrCreateChart(chartEl);
   if (!chart) return;
@@ -742,10 +774,19 @@ function renderTopScatterChart(evaluations, viewMode = 'time', colorMode = 'base
   const ACTIVE_OPACITY = 0.8;
   const DIMMED_OPACITY = 0.15;
 
-  // 1. Prepare raw data points
+  // 1. Prepare raw data points. The axis domain is derived from all evaluations
+  // so switching the weight filter never rescales the chart.
+  const allMetrics = evaluations.map(extractEvalMetrics);
+  const timeMax = Math.max(0, ...allMetrics.map(m => m.timeMin));
+  const memoryMax = Math.max(0, ...allMetrics.filter(m => m.runMemGb > 0).map(m => m.runMemGb));
+  const xMax = getScatterAxisMax(viewMode === 'time' ? timeMax : memoryMax);
+
   const rawPoints = [];
-  evaluations.forEach((e, idx) => {
-    const m = extractEvalMetrics(e);
+  allMetrics.forEach((m, idx) => {
+    const isClosedWeight = String(m.llmServer || '').toLowerCase() === 'openrouter';
+    const isSelected = weightsMode === 'all' || weightsMode === (isClosedWeight ? 'closed' : 'open');
+    if (viewMode === 'size' && isClosedWeight) return;
+
     const yVal = m.intelligence;
     const xVal = viewMode === 'time' ? m.timeMin : m.runMemGb;
     if (xVal !== undefined && yVal !== undefined) {
@@ -757,15 +798,17 @@ function renderTopScatterChart(evaluations, viewMode = 'time', colorMode = 'base
         baseModel: m.baseModel,
         harnessName: m.harnessName,
         reasoning: m.reasoning,
-        rawEval: e
+        isClosedWeight,
+        dimmed: !isSelected,
+        rawEval: m.raw
       });
     }
   });
 
-  if (rawPoints.length === 0) return;
-
   // 2. Group points dynamically by colorMode (base_model, harness, or reasoning)
   const groupsMap = new Map();
+  const activeGroupKeys = new Set();
+  const groupWeights = new Map();
   rawPoints.forEach(p => {
     let groupKey;
     if (colorMode === 'harness') {
@@ -783,13 +826,26 @@ function renderTopScatterChart(evaluations, viewMode = 'time', colorMode = 'base
       }
     }
 
+    if (!p.dimmed) activeGroupKeys.add(groupKey);
+    const weights = groupWeights.get(groupKey) || { open: false, closed: false };
+    if (p.isClosedWeight) weights.closed = true;
+    else weights.open = true;
+    groupWeights.set(groupKey, weights);
+
     if (!groupsMap.has(groupKey)) {
       groupsMap.set(groupKey, []);
     }
+    const pointStyle = {};
+    if (p.isClosedWeight) pointStyle.borderWidth = 0;
+    if (p.dimmed) pointStyle.opacity = DIMMED_OPACITY;
+
     groupsMap.get(groupKey).push({
       name: p.name,
       value: [p.x, p.y],
-      rawEval: p.rawEval
+      rawEval: p.rawEval,
+      symbol: p.isClosedWeight ? CLOSED_WEIGHT_SYMBOL : 'circle',
+      symbolSize: p.isClosedWeight ? (isNarrow ? 15.5 : 13.5) : undefined,
+      itemStyle: Object.keys(pointStyle).length > 0 ? pointStyle : undefined
     });
   });
 
@@ -799,18 +855,30 @@ function renderTopScatterChart(evaluations, viewMode = 'time', colorMode = 'base
     }
     return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
   });
+  const legendGroupKeys = sortedGroupKeys.filter(key => activeGroupKeys.has(key));
+  const isClosedOnlyGroup = (name) => {
+    const weights = groupWeights.get(name) || { open: false, closed: false };
+    return weights.closed && !weights.open;
+  };
+  const legendDataItems = legendGroupKeys.map(name => ({
+    name,
+    icon: isClosedOnlyGroup(name) ? CLOSED_WEIGHT_LEGEND_SYMBOL : 'circle'
+  }));
 
   // 3. Build series configuration for each group with distinct colors
   const series = sortedGroupKeys.map((groupName, idx) => {
     const color = getDistinctGroupColor(groupName, idx, colorMode);
     const shadow = hexToRgba(color, 0.35);
     const data = groupsMap.get(groupName);
+    const weights = groupWeights.get(groupName) || { open: false, closed: false };
+    const isClosedOnly = weights.closed && !weights.open;
 
     return {
       id: groupName,
       name: groupName,
       type: 'scatter',
-      symbolSize: isNarrow ? 13 : 11,
+      symbol: isClosedOnly ? CLOSED_WEIGHT_SYMBOL : 'circle',
+      symbolSize: isClosedOnly ? (isNarrow ? 15.5 : 13.5) : (isNarrow ? 13 : 11),
       data: data,
       itemStyle: {
         color: color,
@@ -850,16 +918,30 @@ function renderTopScatterChart(evaluations, viewMode = 'time', colorMode = 'base
     smooth: true,
     smoothMonotone: 'x',
     symbol: 'none',
-    data: getParetoFrontier(rawPoints).map(p => [p.x, p.y]),
+    data: getParetoFrontier(rawPoints.filter(p => !p.dimmed)).map(p => [p.x, p.y]),
     lineStyle: { color: '#64748b', width: 1.5, type: 'dashed', opacity: 0.45 },
     z: 1
   };
 
-  const xAxisName = viewMode === 'time' ? 'Total Completion Time (min)' : 'Memory / VRAM Size (GB)';
+  const xAxisName = viewMode === 'time' ? 'Total Completion Time (min)' : 'Memory / VRAM Size (GB, local only)';
+  const isEmpty = rawPoints.length === 0;
 
   const option = {
     animation: false,
     backgroundColor: 'transparent',
+    graphic: isEmpty ? {
+      type: 'text',
+      left: 'center',
+      top: 'middle',
+      style: {
+        text: weightsMode === 'closed' && viewMode === 'size'
+          ? 'Closed-weight models run via API and have no local memory footprint.'
+          : 'No benchmark data for this selection.',
+        fill: '#94a3b8',
+        font: '14px system-ui, -apple-system, sans-serif',
+        textAlign: 'center'
+      }
+    } : undefined,
     tooltip: {
       confine: true,
       backgroundColor: 'rgba(255, 255, 255, 0.96)',
@@ -871,18 +953,17 @@ function renderTopScatterChart(evaluations, viewMode = 'time', colorMode = 'base
     },
     legend: isNarrow ? {
       show: false,
-      data: sortedGroupKeys
+      data: legendDataItems
     } : {
       type: 'scroll',
       orient: 'vertical',
-      data: sortedGroupKeys,
+      data: legendDataItems,
       formatter: (name) => (name.startsWith('Nvidia-') || /^nvidia-/i.test(name) ? name.replace(/^nvidia-/i, '') : name),
       top: 'middle',
       right: 12,
       textStyle: { color: '#64748b', fontFamily: 'system-ui, -apple-system, sans-serif', fontSize: 12 },
-      itemWidth: 10,
-      itemHeight: 10,
-      icon: 'circle',
+      itemWidth: 15,
+      itemHeight: 15,
       pageIconColor: '#ea580c',
       pageIconInactiveColor: '#cbd5e1',
       pageTextStyle: { color: '#64748b' }
@@ -893,6 +974,8 @@ function renderTopScatterChart(evaluations, viewMode = 'time', colorMode = 'base
     xAxis: {
       type: 'value',
       name: xAxisName,
+      min: 0,
+      max: xMax,
       nameLocation: 'middle',
       nameGap: isNarrow ? 30 : 32,
       nameTextStyle: { color: '#94a3b8', fontFamily: 'system-ui, -apple-system, sans-serif', fontSize: isNarrow ? 11 : 12 },
@@ -927,12 +1010,17 @@ function renderTopScatterChart(evaluations, viewMode = 'time', colorMode = 'base
   // a wrapping legend beneath the chart instead.
   const legendEl = document.getElementById('scatter-legend');
   if (legendEl) {
-    legendEl.hidden = !isNarrow;
-    legendEl.innerHTML = isNarrow ? sortedGroupKeys.map((name, idx) => {
+    legendEl.hidden = !isNarrow || isEmpty;
+    legendEl.innerHTML = isNarrow ? legendGroupKeys.map(name => {
+      const idx = sortedGroupKeys.indexOf(name);
       const color = getDistinctGroupColor(name, idx, colorMode);
+      const isClosedOnly = isClosedOnlyGroup(name);
+      const marker = isClosedOnly
+        ? `<svg class="legend-x" viewBox="0 0 24 24" aria-hidden="true" style="color:${color};"><path d="${CLOSED_WEIGHT_LEGEND_PATH}" fill="currentColor"/></svg>`
+        : `<span class="legend-dot" style="background:${color};"></span>`;
       return `
         <button type="button" class="legend-chip" data-name="${escapeHtml(name)}">
-          <span class="legend-dot" style="background:${color};"></span>
+          ${marker}
           <span>${escapeHtml(name)}</span>
         </button>
       `;
@@ -946,7 +1034,7 @@ function renderTopScatterChart(evaluations, viewMode = 'time', colorMode = 'base
 
   chartEl._relayout = () => {
     if (isNarrowChart(chartEl) !== isNarrow) {
-      renderTopScatterChart(evaluations, viewMode, colorMode);
+      renderTopScatterChart(evaluations, viewMode, colorMode, weightsMode);
     }
   };
 
@@ -1008,10 +1096,11 @@ function renderTopScatterChart(evaluations, viewMode = 'time', colorMode = 'base
   // their full data range and dimmed points remain as visual context.
   function applySelectionState() {
     const selected = {};
-    const legendData = sortedGroupKeys.map(name => {
+    const legendData = legendDataItems.map(({ name, icon }) => {
       selected[name] = true;
       return {
-        name: name,
+        name,
+        icon,
         textStyle: { color: isActiveGroup(name) ? '#64748b' : '#cbd5e1' }
       };
     });
@@ -1118,6 +1207,8 @@ function renderLeaderboard(models) {
     tbody.innerHTML = filtered.map(m => {
       const evalId = m.eval_id || '';
       const traceHref = evalId ? `./trace.html?eval_id=${encodeURIComponent(evalId)}` : './trace.html';
+      const memoryDisplay = m.memory_gb > 0 ? `${Math.round(m.memory_gb)} GB` : 'Cloud';
+      const densityDisplay = m.memory_gb > 0 ? Number(m.intelligence_density).toFixed(1) : '—';
 
       return `
         <tr onclick="window.location.href='${traceHref}'" style="cursor: pointer;" title="Click to view detailed execution trace log">
@@ -1125,12 +1216,12 @@ function renderLeaderboard(models) {
             <a href="${traceHref}" style="color:inherit; text-decoration:none; display:inline-block;" onclick="event.stopPropagation();">
               <strong>${escapeHtml(m.name)}</strong>
             </a>
-            <div class="mobile-sub-info">${escapeHtml(m.harness_name)} • ${escapeHtml(m.reasoning)} • ${escapeHtml(m.kv_quant)} • ${Math.round(m.memory_gb)} GB</div>
+            <div class="mobile-sub-info">${escapeHtml(m.harness_name)} • ${escapeHtml(m.reasoning)} • ${escapeHtml(m.kv_quant)} • ${memoryDisplay}</div>
           </td>
           <td class="${cls('task_speed')}">${Number(m.task_speed).toFixed(1)}</td>
-          <td class="${cls('intelligence_density')}">${Number(m.intelligence_density).toFixed(1)}</td>
+          <td class="${cls('intelligence_density')}">${densityDisplay}</td>
           <td class="${cls('intelligence')}">${Number(m.intelligence).toFixed(1)}%</td>
-          <td class="hide-mobile ${cls('memory_gb')}">${Math.round(m.memory_gb)} GB</td>
+          <td class="hide-mobile ${cls('memory_gb')}">${memoryDisplay}</td>
           <td class="hide-mobile ${cls('harness_name')}">${escapeHtml(m.harness_name)}</td>
           <td class="hide-mobile ${cls('reasoning')}"><span style="font-family:var(--font-mono); font-size:0.85rem; font-weight:500;">${escapeHtml(m.reasoning)}</span></td>
         </tr>
@@ -1179,6 +1270,13 @@ function formatTokensK(count) {
   return `${Math.max(1, k).toLocaleString()}k`;
 }
 
+function formatCostUsd(value) {
+  if (value === undefined || value === null) return '';
+  const cost = Number(value);
+  if (!Number.isFinite(cost)) return '';
+  return cost >= 0.01 ? `$${cost.toFixed(2)}` : `$${cost.toFixed(6)}`;
+}
+
 function formatModelCardTooltip(evalRecord) {
   if (!evalRecord) return '';
 
@@ -1188,6 +1286,7 @@ function formatModelCardTooltip(evalRecord) {
     ? `${(contextLength / 1e6).toFixed(1)}M`
     : contextLength > 0 ? `${Math.round(contextLength / 1000)}k` : 'N/A';
   const tokenSpeed = m.totalTimeSec > 0 ? m.tokensOut / m.totalTimeSec : 0;
+  const costDisplay = formatCostUsd(m.costUsd);
 
   const row = (label, val, valueAttrs = '') => `
     <div class="model-tip-row">
@@ -1222,7 +1321,9 @@ function formatModelCardTooltip(evalRecord) {
       ${row('Task Speed', `${Number(m.taskSpeed).toFixed(1)} tasks/hr`)}
       ${row('Token Speed', `${tokenSpeed.toFixed(1)} tok/s`, ' title="Average output tokens per second over total run time"')}
       ${row('Completion Time', `${m.timeMin} min`)}
-      ${row('Memory Use', `${m.memoryGb} GB`)}
+      ${m.llmServer === 'OpenRouter'
+        ? row('Run Cost', costDisplay || 'N/A')
+        : row('Memory Use', m.memoryGb > 0 ? `${m.memoryGb} GB` : 'Cloud (N/A)')}
       ${row('Tokens In / Out', `${formatTokensK(m.tokensIn)} / ${formatTokensK(m.tokensOut)}`)}
     </div>
   `;

@@ -83,23 +83,35 @@ def calculate_model_memory_gb(host: str = REMOTE_HOST) -> float:
     return total_mem
 
 
-def get_model_metadata(model_name: str, base_url: str, memory_gb: float | None = None, reasoning_effort: str | None = None) -> dict[str, Any]:
-    """Build model metadata from models.json and live server endpoints."""
+def get_model_metadata(
+    model_name: str,
+    base_url: str,
+    memory_gb: float | None = None,
+    reasoning_effort: str | None = None,
+    model_config: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Build model metadata from the run's model config and live server endpoints."""
     launch_cfg = "vllm serve"
     spec_type = "off"
     kv_type = "FP16"
     effort = reasoning_effort or "off"
     company = "Community"
     base_model = model_name
+    llm_server = "vLLM"
+    cfg = dict(model_config) if model_config is not None else load_models().get(model_name, {})
 
-    models = load_models()
-    if model_name in models:
-        cfg = models[model_name]
+    if cfg:
         spec_arg = cfg.get("model-arg-speculative", "")
         kv_arg = cfg.get("model-arg-kv-quant", "")
         launch_cfg = cfg.get("model-arg", "")
         if not reasoning_effort:
             effort = cfg.get("reasoning_effort", "off")
+
+        company = cfg.get("company", company)
+        base_model = cfg.get("base-model", base_model)
+        kv_type = cfg.get("kv-quant", kv_type)
+        llm_server = cfg.get("llm-server", llm_server)
+        launch_cfg = cfg.get("launch-config", launch_cfg)
 
         m_serve = re.search(r"vllm\s+serve\s+([^\s]+)", launch_cfg)
         if m_serve:
@@ -117,7 +129,6 @@ def get_model_metadata(model_name: str, base_url: str, memory_gb: float | None =
     # Single API call for both model ID and context length
     vllm_info = get_vllm_model_info(base_url=base_url)
     context_length = 0
-    llm_server = "vLLM"
     if vllm_info:
         meta_dict = vllm_info.get("meta") or {}
         context_length = int(vllm_info.get("max_model_len") or meta_dict.get("n_ctx") or 0)
@@ -126,8 +137,8 @@ def get_model_metadata(model_name: str, base_url: str, memory_gb: float | None =
             kv_type = meta_dict.get("ftype", kv_type)
             launch_cfg = f"llama-server --model {model_name}"
 
-    if memory_gb is None or memory_gb <= 0:
-        memory_gb = calculate_model_memory_gb()
+    if memory_gb is None:
+        memory_gb = float(cfg["memory-gb"]) if "memory-gb" in cfg else calculate_model_memory_gb()
 
     return {
         "display_name": model_name,
@@ -153,9 +164,10 @@ def _build_benchmark_fields(
     avg_completion: float,
     task_speed: float,
     intel_density: float,
+    cost_usd: float | None = None,
 ) -> dict[str, Any]:
     """Build the common field set shared by suite_trace and benchmark record."""
-    return {
+    fields = {
         "eval_id": eval_id,
         "name": meta["display_name"],
         "company": meta["company"],
@@ -174,6 +186,9 @@ def _build_benchmark_fields(
         "task_speed": task_speed,
         "intelligence_density": intel_density,
     }
+    if cost_usd is not None:
+        fields["cost_usd"] = round(cost_usd, 6)
+    return fields
 
 
 def save_evaluation_results(
@@ -186,6 +201,8 @@ def save_evaluation_results(
     results_dir: str = RESULTS_DIR,
     benchmark_data_file: str | None = BENCHMARK_DATA_FILE,
     reasoning_effort: str | None = None,
+    total_cost_usd: float | None = None,
+    model_config: dict[str, Any] | None = None,
 ) -> str:
     """Save full results, trace, artifacts and optionally update benchmark-data.json."""
     eval_id = evaluation_output["eval_id"]
@@ -210,7 +227,10 @@ def save_evaluation_results(
         shutil.rmtree(stage_root, ignore_errors=True)
 
     # 2. Calculate aggregate scores & metadata
-    meta = get_model_metadata(model_name, base_url=base_url, memory_gb=memory_gb, reasoning_effort=reasoning_effort)
+    meta = get_model_metadata(
+        model_name, base_url=base_url, memory_gb=memory_gb,
+        reasoning_effort=reasoning_effort, model_config=model_config,
+    )
     total_completion = 0.0
     total_time = 0.0
     num_tests = len(test_results_summary)
@@ -229,7 +249,7 @@ def save_evaluation_results(
     benchmark_date = suite_trace["start_time"].split("T")[0]
     common = _build_benchmark_fields(
         eval_id, meta, benchmark_date, harness_name, harness_version,
-        avg_completion, task_speed, intel_density,
+        avg_completion, task_speed, intel_density, cost_usd=total_cost_usd,
     )
 
     suite_trace.update(common)

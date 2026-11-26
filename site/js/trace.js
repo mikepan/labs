@@ -115,6 +115,7 @@ function renderExecutiveSummary(data) {
   const harness = data.harness || 'opencode';
   const harnessVer = data.harness_version || '';
   const llmServer = data.llm_server || 'vLLM';
+  const isRemote = String(llmServer).toLowerCase() === 'openrouter';
   const specDecoding = data.speculative_decoding || 'off';
   const reasoning = data.reasoning || 'off';
   const kvQuant = data.kv_quant || 'FP16';
@@ -124,8 +125,12 @@ function renderExecutiveSummary(data) {
   const benchDate = data.benchmark_date || (data.start_time ? data.start_time.split('T')[0] : '');
   const intelligence = (data.intelligence !== undefined && data.intelligence !== null && !isNaN(Number(data.intelligence))) ? `${Number(data.intelligence).toFixed(1)}%` : 'N/A';
   const taskSpeed = (data.task_speed !== undefined && data.task_speed !== null && !isNaN(Number(data.task_speed))) ? `${Number(data.task_speed).toFixed(1)} tasks/hr` : 'N/A';
-  const intelDensity = (data.intelligence_density !== undefined && data.intelligence_density !== null && !isNaN(Number(data.intelligence_density))) ? `${Number(data.intelligence_density).toFixed(1)} tasks/GB` : 'N/A';
+  const intelDensity = (Number(data.memory_gb) > 0 && data.intelligence_density !== undefined && data.intelligence_density !== null && !isNaN(Number(data.intelligence_density))) ? `${Number(data.intelligence_density).toFixed(1)} tasks/GB` : 'N/A';
   const launchCfg = data.launch_config || '';
+  const costUsd = Number(data.cost_usd);
+  const costDisplay = (data.cost_usd !== undefined && data.cost_usd !== null && !isNaN(costUsd))
+    ? (costUsd >= 0.01 ? `$${costUsd.toFixed(2)}` : `$${costUsd.toFixed(6)}`)
+    : '';
 
   const testsObj = data.tests || {};
   const testsList = Object.values(testsObj);
@@ -171,29 +176,25 @@ function renderExecutiveSummary(data) {
 
     <div class="summary-kpi-grid">
       <div class="kpi-card">
-        <span class="kpi-label">Intelligence Pass Rate</span>
+        <span class="kpi-label">Intelligence</span>
         <span class="kpi-value" style="color: #16a34a;">${intelligence}</span>
-        <span class="kpi-sub">Overall benchmark completion</span>
       </div>
       <div class="kpi-card">
         <span class="kpi-label">Completion Time</span>
         <span class="kpi-value" style="color: #2563eb;">${completionTimeDisplay}</span>
-        <span class="kpi-sub">Total execution duration</span>
       </div>
       <div class="kpi-card">
         <span class="kpi-label">Task Speed</span>
         <span class="kpi-value" style="color: var(--accent-orange, #f97316);">${taskSpeed}</span>
-        <span class="kpi-sub">Turn completion rate</span>
       </div>
+      ${isRemote ? '' : `
       <div class="kpi-card">
         <span class="kpi-label">Intelligence Density</span>
         <span class="kpi-value">${intelDensity}</span>
-        <span class="kpi-sub">Pass efficiency per GB</span>
-      </div>
+      </div>`}
       <div class="kpi-card">
-        <span class="kpi-label">RAM / VRAM Footprint</span>
-        <span class="kpi-value">${memGb}</span>
-        <span class="kpi-sub">Engine memory consumption with 2 Full size KV cache</span>
+        <span class="kpi-label">${isRemote ? 'Run Cost' : 'RAM Requirement'}</span>
+        <span class="kpi-value">${isRemote ? (costDisplay || 'N/A') : memGb}</span>
       </div>
       <div class="kpi-card kpi-card-split">
         <span class="kpi-label">Total Tokens</span>
@@ -207,7 +208,6 @@ function renderExecutiveSummary(data) {
             <span class="kpi-split-value">${formatTokensK(grandTotalTokensOut)}</span>
           </div>
         </div>
-        <span class="kpi-sub">Prompt vs Generated</span>
       </div>
     </div>
 

@@ -1,4 +1,26 @@
 {
+  "DeepSeek-V4.1-Flash-1017-OpenRouter": {
+    "disabled": true,
+    "provider": "openrouter",
+    "model-id": "deepseek/deepseek-v4.1-flash-1017",
+    "context-window": 1000000,
+    "provider-routing": {
+      "only": [
+        "alibaba"
+      ],
+      "allow_fallbacks": false
+    },
+    "company": "DeepSeek",
+    "base-model": "deepseek/deepseek-v4.1-flash-1017",
+    "kv-quant": "N/A",
+    "llm-server": "OpenRouter",
+    "launch-config": "openrouter deepseek/deepseek-v4.1-flash-1017 (provider: alibaba)",
+    "memory-gb": 0,
+    "reasoning_effort": [
+      "low",
+      "high"
+    ]
+  },
   "Inkling-2-Mini": {
     "image": "vllm-node",
     "model-arg": "vllm serve thinkingmachines/Inkling-2-Mini --tensor-parallel-size 1 --max-model-len 262144 --enable-prefix-caching --reasoning-parser inkling --enable-auto-tool-choice --tool-call-parser inkling",

@@ -123,12 +123,22 @@
             </div>
           </div>
         </div>
+        <div class="chart-top-filter">
+          <div class="toggle-group" id="scatter-weights-toggle" role="group"
+            aria-label="Highlight runs by weight availability">
+            <button type="button" class="toggle-btn active" data-weights="open">Open Weight</button>
+            <button type="button" class="toggle-btn" data-weights="closed"
+              title="API-hosted models are marked with a thick ×">Closed Weight</button>
+            <button type="button" class="toggle-btn" data-weights="all">All</button>
+          </div>
+        </div>
         <div id="chart-top-scatter" class="chart-container chart-container--scatter"></div>
         <div id="scatter-legend" class="chart-legend" hidden></div>
         <div class="chart-footer-controls">
           <div class="toggle-group" id="scatter-view-toggle">
             <button type="button" class="toggle-btn active" data-view="time">Completion Time (min)</button>
-            <button type="button" class="toggle-btn" data-view="size">Memory Use (GB)</button>
+            <button type="button" class="toggle-btn" data-view="size"
+              title="Local model memory; API-hosted models are excluded">Memory Use (GB)</button>
           </div>
           <span class="chart-note"
             title="Non-dominated runs: no other run is both faster or leaner and more intelligent.">Pareto
@@ -151,8 +161,7 @@
         <div class="chart-card">
           <div class="chart-header">
             <h3 class="chart-title">Intelligence Density Leaderboard</h3>
-            <p class="chart-desc">Comparing hardware efficiency (score/GB) across evaluated model configurations; higher
-              is better.</p>
+            <p class="chart-desc">Comparing local-model hardware efficiency (score/GB); higher is better.</p>
           </div>
           <div id="chart-model-density" class="chart-container chart-container--compact"></div>
         </div>

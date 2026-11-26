@@ -13,6 +13,13 @@ REMOTE_VLLM_DIR = "~/apps/spark-vllm-docker"
 REMOTE_VLLM_IMAGE = "vllm-node"
 API_BASE_URL = "http://spark:8000"
 
+# OpenRouter Configuration
+OPENROUTER_API_BASE = "https://openrouter.ai/api"
+OPENROUTER_API_KEY_ENV = "OPENROUTER_API_KEY"
+OPENROUTER_REQUEST_TIMEOUT_SECONDS = 3600
+OPENROUTER_APP_REFERER = "https://labs.thepixelary.com"
+OPENROUTER_APP_TITLE = "FiniBench"
+
 # Docker Sandbox & Harness Defaults
 DEFAULT_BUILDER_SANDBOX_NAME = "workspace-builder"
 DEFAULT_WORKER_SANDBOX_NAME = "workspace-runner"

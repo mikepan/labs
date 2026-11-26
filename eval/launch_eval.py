@@ -104,19 +104,24 @@ def run_model_pipeline(
     logger.info("STARTING PIPELINE FOR: %s (efforts: %s, harness: %s, test: %s)",
                 primary, efforts, harness, test_name)
 
+    is_remote = model_configs[primary].get("provider") == "openrouter"
     failed: list[str] = []
     try:
-        ok, _ = ensure_model_running(
-            model_name=primary,
-            model_config=model_configs[primary],
-            host=host,
-            base_url=base_url,
-            verbose=verbose,
-        )
-        if not ok:
-            return list(model_names)
+        if is_remote:
+            logger.info("Remote provider: skipping local model launch for %s", primary)
+            memory_gb = 0.0
+        else:
+            ok, _ = ensure_model_running(
+                model_name=primary,
+                model_config=model_configs[primary],
+                host=host,
+                base_url=base_url,
+                verbose=verbose,
+            )
+            if not ok:
+                return list(model_names)
 
-        memory_gb = calculate_model_memory_gb(host=host)
+            memory_gb = calculate_model_memory_gb(host=host)
         venv_python = REPO_ROOT / ".venv" / "bin" / "python3"
 
         for model_name in model_names:
@@ -138,10 +143,11 @@ def run_model_pipeline(
                 logger.error("Evaluation harness failed with exit code %d for %s", res.returncode, model_name)
                 failed.append(model_name)
     finally:
-        if not keep_alive:
-            stop_model(host=host)
-        else:
-            logger.info("Keep-alive enabled: leaving vLLM server running.")
+        if not is_remote:
+            if not keep_alive:
+                stop_model(host=host)
+            else:
+                logger.info("Keep-alive enabled: leaving vLLM server running.")
 
     status_str = "SUCCESS" if not failed else "FAILED"
     logger.info("FINISHED PIPELINE FOR: %s (Status: %s)", primary, status_str)

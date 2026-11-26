@@ -14,6 +14,7 @@ import sys
 import unittest
 
 UNIT_MODULE = "eval.unittests.test_eval_pipeline"
+OPENROUTER_MODULE = "eval.unittests.test_openrouter"
 LIVE_MODULE = "eval.unittests.reasoning_live"
 
 
@@ -23,6 +24,7 @@ def build_suite(
     """Build the requested test suite, adding live tests only in full mode."""
     loader = unittest.TestLoader()
     suite = loader.loadTestsFromName(UNIT_MODULE)
+    suite.addTests(loader.loadTestsFromName(OPENROUTER_MODULE))
     if mode == "full":
         from eval.unittests import reasoning_live
 

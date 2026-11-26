@@ -51,8 +51,10 @@ class PiDriver(HarnessDriver):
         model_name: str,
         llm_base_url: str,
         reasoning_effort: str | None = None,
+        provider: str = "vllm",
     ) -> str:
         """Configure Pi and start the Pi RPC bridge server inside the sandbox."""
+        self.provider_id = "openrouter" if provider == "openrouter" else "vllm-local"
         active_model, max_context = resolve_model_info(llm_base_url, fallback_name=model_name)
 
         logger.info(

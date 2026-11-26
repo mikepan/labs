@@ -110,6 +110,11 @@
             "minimum": 0,
             "description": "Intelligence score per GB"
           },
+          "cost_usd": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Total API cost of this run in USD (remote providers only)"
+          },
           "test_results": {
             "type": "object",
             "description": "Map of test suite execution metrics",

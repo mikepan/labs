@@ -255,8 +255,12 @@ def load_models() -> dict[str, dict]:
 
 
 def model_launch_key(model_config: dict[str, Any]) -> tuple:
-    """Identify aliases that share one vLLM launch config."""
-    return tuple(sorted((key, value) for key, value in model_config.items() if key != "reasoning_effort"))
+    """Identify aliases that share one launch/endpoint config."""
+    return tuple(sorted(
+        (key, json.dumps(value, sort_keys=True) if isinstance(value, (dict, list)) else value)
+        for key, value in model_config.items()
+        if key != "reasoning_effort"
+    ))
 
 
 def resolve_target_models(models: dict[str, Any], model_arg: str | None = "all") -> list[str]:

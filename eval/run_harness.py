@@ -53,6 +53,7 @@ from eval.config import (
     TESTS_DIR,
 )
 from eval.drivers import HarnessDriver, get_driver
+from eval.openrouter import OpenRouterProxy
 from eval.results import get_vllm_model_info, save_evaluation_results
 from eval.sandbox import SandboxClient, ensure_sandbox_policy_isolated
 from eval.simplebench_eval import run_simplebench_benchmark, SIMPLEBENCH_TEST_KEY
@@ -193,6 +194,7 @@ def run_test_suite_on_agent(
     reasoning_effort: str | None = None,
     harness_name: str | None = None,
     llm_base_url: str = API_BASE_URL,
+    provider: str = "vllm",
 ) -> dict[str, Any]:
     """Execute all test specs sequentially against an agent harness."""
     h_logger = get_harness_logger(harness_name) if harness_name else logger
@@ -251,7 +253,10 @@ def run_test_suite_on_agent(
         # Commit initial test data assets so git change tracking starts with a clean baseline
         sandbox.exec(f"cd {test_ws} && git add -A && git commit --allow-empty -m 'feat: import project assets and resources'")
 
-        active_model = driver.start(sandbox, test_ws, model_name, llm_base_url, reasoning_effort=reasoning_effort)
+        active_model = driver.start(
+            sandbox, test_ws, model_name, llm_base_url,
+            reasoning_effort=reasoning_effort, provider=provider,
+        )
         session_id = driver.create_session(sandbox)
 
         test_start = time.time()
@@ -583,12 +588,30 @@ def run_test_suite_on_agent(
     }
 
 
+def _sandbox_name(harness_name: str, is_openrouter: bool) -> str:
+    """Use a unique sandbox per OpenRouter worker so concurrent runs cannot collide."""
+    base = f"workspace-runner-{harness_name}"
+    return f"{base}-{uuid.uuid4().hex}" if is_openrouter else base
+
+
+def _log_openrouter_cost(proxy: OpenRouterProxy | None) -> None:
+    """Log the accumulated OpenRouter spend for this run."""
+    if proxy is None:
+        return
+    summary = proxy.summary()
+    logger.info(
+        "OpenRouter run cost: $%.6f (%d requests, %d prompt / %d completion tokens, providers: %s)",
+        summary["cost_usd"], summary["requests"], summary["prompt_tokens"], summary["completion_tokens"],
+        ", ".join(summary["providers"]) or "unknown",
+    )
+
+
 def main():
     parser = argparse.ArgumentParser(description="Drive evaluation harness inside isolated Docker sandbox")
     parser.add_argument("--model", required=True, help="Model name (e.g. qwen/Qwen3.6-27B-FP8)")
     parser.add_argument("--test", default="all", help="Specific test to run (e.g. 'test0', 'tool-eval-bench', or 'all', default: all)")
     parser.add_argument("--harness", default="all", help="Harness name (e.g. 'pi', 'opencode', or 'all', default: all)")
-    parser.add_argument("--sequential", action="store_true", help="Run harnesses sequentially instead of in parallel")
+    parser.add_argument("--sequential", action="store_true", help="Run harnesses and direct benchmarks sequentially instead of in parallel")
     parser.add_argument("--reasoning", default=None, help="Reasoning effort override (e.g. 'low', 'medium', 'xhigh', 'off')")
     parser.add_argument("--base-url", default=None, help=f"LLM base URL override (default: {API_BASE_URL})")
     parser.add_argument("--memory-gb", type=float, default=None, help="Measured runtime GPU memory in GB")
@@ -602,138 +625,168 @@ def main():
     target_harnesses = list(harnesses_cfg.keys()) if args.harness == "all" else [args.harness]
 
     models_cfg = load_models()
-    reasoning_effort = args.reasoning if args.reasoning is not None else models_cfg.get(args.model, {}).get("reasoning_effort")
-    llm_base_url = args.base_url if args.base_url else API_BASE_URL
+    model_cfg = models_cfg.get(args.model, {})
+    reasoning_effort = args.reasoning if args.reasoning is not None else model_cfg.get("reasoning_effort")
+    is_openrouter = model_cfg.get("provider") == "openrouter"
 
-    # 1. Run direct-API benchmarks before any sandbox harness execution
-    direct_runners = {
-        TRIVIA_TEST_KEY: lambda: run_trivia_benchmark(
-            base_url=llm_base_url,
-            model=args.model,
-            reasoning_effort=reasoning_effort,
-            parallel=1 if args.sequential else DEFAULT_DIRECT_BENCHMARK_PARALLEL,
-            verbose=args.verbose,
-        ),
-        TOOL_EVAL_TEST_KEY: lambda: run_tool_eval_benchmark(
-            base_url=llm_base_url,
-            model=args.model,
-            parallel=1 if args.sequential else DEFAULT_TOOL_EVAL_PARALLEL,
-            reasoning_effort=reasoning_effort,
-            verbose=args.verbose,
-        ),
-        SIMPLEBENCH_TEST_KEY: lambda: run_simplebench_benchmark(
-            base_url=llm_base_url,
-            model=args.model,
-            reasoning_effort=reasoning_effort,
-            parallel=1 if args.sequential else DEFAULT_DIRECT_BENCHMARK_PARALLEL,
-            verbose=args.verbose,
-        ),
-    }
-    direct_outputs = {
-        key: runner() for key, runner in direct_runners.items()
-        if args.test in ("all", key)
-    }
-
-    # If only running a direct benchmark, save results standalone without a sandbox harness
-    if args.test in DIRECT_BENCHMARKS:
-        standalone_tests = {key: output["trace"] for key, output in direct_outputs.items()}
-        standalone_summaries = {key: output["summary"] for key, output in direct_outputs.items()}
-
-        for harness_name in target_harnesses:
-            harness_version = harnesses_cfg.get(harness_name, {}).get("version", "unknown")
-            eval_id = str(uuid.uuid4())
-            now_str = datetime.now(timezone.utc).isoformat()
-            suite_trace = {
-                "eval_id": eval_id,
-                "model": args.model,
-                "start_time": now_str,
-                "tests": standalone_tests,
-                "end_time": now_str,
-            }
-            evaluation_output = {
-                "eval_id": eval_id,
-                "suite_trace": suite_trace,
-                "test_results_summary": standalone_summaries,
-                "stage_dir": None,
-            }
-            save_evaluation_results(
-                model_name=args.model,
-                harness_name=harness_name,
-                harness_version=harness_version,
-                evaluation_output=evaluation_output,
-                base_url=llm_base_url,
-                memory_gb=args.memory_gb,
-                reasoning_effort=reasoning_effort,
-            )
-        return
-
-    # 2. Run agent harness test suites inside isolated sandbox
-    target_tests = get_available_tests() if args.test == "all" else [args.test]
-    test_specs = []
-    for t_name in target_tests:
-        if t_name in DIRECT_BENCHMARKS:
-            continue
-        run_file = str(TESTS_DIR / t_name / "run.py") if not os.path.isfile(t_name) else t_name
-        test_specs.append((run_file, load_test_spec(run_file)))
-
-    # Ensure host Docker Sandbox policy denies general internet
-    ensure_sandbox_policy_isolated()
-
-    def run_single_harness(harness_name: str) -> None:
-        h_logger = get_harness_logger(harness_name)
-        harness_version = harnesses_cfg.get(harness_name, {}).get("version", "unknown")
-        driver = get_driver(harness_name)
-        h_logger.info("==================================================")
-        h_logger.info("STARTING %s HARNESS (%s) FOR MODEL: %s (Reasoning Effort: %s, Tests: %s)",
-                      harness_name.upper(), type(driver).__name__, args.model, reasoning_effort,
-                      [t[1].name for t in test_specs])
-        h_logger.info("==================================================")
-
-        sandbox = SandboxClient(name=f"workspace-runner-{harness_name}")
-        sandbox.ensure()
-        try:
-            evaluation_output = run_test_suite_on_agent(
-                model_name=args.model,
-                test_specs=test_specs,
-                driver=driver,
-                sandbox=sandbox,
-                reasoning_effort=reasoning_effort,
-                harness_name=harness_name,
-                llm_base_url=llm_base_url,
-            )
-
-            # Attach pre-computed direct-API benchmark results (deep copy for thread safety)
-            for key, output in direct_outputs.items():
-                evaluation_output["test_results_summary"][key] = copy.deepcopy(output["summary"])
-                evaluation_output["suite_trace"]["tests"][key] = copy.deepcopy(output["trace"])
-
-            save_evaluation_results(
-                model_name=args.model,
-                harness_name=harness_name,
-                harness_version=harness_version,
-                evaluation_output=evaluation_output,
-                base_url=llm_base_url,
-                memory_gb=args.memory_gb,
-                reasoning_effort=reasoning_effort,
-            )
-        finally:
-            sandbox.remove()
+    proxy: OpenRouterProxy | None = None
+    if is_openrouter:
+        proxy = OpenRouterProxy(
+            model_id=model_cfg["model-id"],
+            context_window=int(model_cfg["context-window"]),
+            provider_routing=model_cfg.get("provider-routing"),
+        ).start()
+        host_base_url = proxy.local_url
+        sandbox_base_url = proxy.sandbox_url
+    else:
+        host_base_url = args.base_url if args.base_url else API_BASE_URL
+        sandbox_base_url = host_base_url
 
     try:
+        # 1. Run direct-API benchmarks before any sandbox harness execution
+        direct_runners = {
+            TRIVIA_TEST_KEY: lambda: run_trivia_benchmark(
+                base_url=host_base_url,
+                model=args.model,
+                reasoning_effort=reasoning_effort,
+                parallel=1 if args.sequential else DEFAULT_DIRECT_BENCHMARK_PARALLEL,
+                verbose=args.verbose,
+            ),
+            TOOL_EVAL_TEST_KEY: lambda: run_tool_eval_benchmark(
+                base_url=host_base_url,
+                model=args.model,
+                parallel=1 if args.sequential else DEFAULT_TOOL_EVAL_PARALLEL,
+                reasoning_effort=reasoning_effort,
+                verbose=args.verbose,
+            ),
+            SIMPLEBENCH_TEST_KEY: lambda: run_simplebench_benchmark(
+                base_url=host_base_url,
+                model=args.model,
+                reasoning_effort=reasoning_effort,
+                parallel=1 if args.sequential else DEFAULT_DIRECT_BENCHMARK_PARALLEL,
+                verbose=args.verbose,
+            ),
+        }
+        direct_outputs = {
+            key: runner() for key, runner in direct_runners.items()
+            if args.test in ("all", key)
+        }
+
+        # If only running a direct benchmark, save results standalone without a sandbox harness
+        if args.test in DIRECT_BENCHMARKS:
+            standalone_tests = {key: output["trace"] for key, output in direct_outputs.items()}
+            standalone_summaries = {key: output["summary"] for key, output in direct_outputs.items()}
+            run_cost = proxy.summary()["cost_usd"] if proxy else None
+
+            for harness_name in target_harnesses:
+                harness_version = harnesses_cfg.get(harness_name, {}).get("version", "unknown")
+                eval_id = str(uuid.uuid4())
+                now_str = datetime.now(timezone.utc).isoformat()
+                suite_trace = {
+                    "eval_id": eval_id,
+                    "model": args.model,
+                    "start_time": now_str,
+                    "tests": standalone_tests,
+                    "end_time": now_str,
+                }
+                evaluation_output = {
+                    "eval_id": eval_id,
+                    "suite_trace": suite_trace,
+                    "test_results_summary": standalone_summaries,
+                    "stage_dir": None,
+                }
+                save_evaluation_results(
+                    model_name=args.model,
+                    harness_name=harness_name,
+                    harness_version=harness_version,
+                    evaluation_output=evaluation_output,
+                    base_url=host_base_url,
+                    memory_gb=args.memory_gb,
+                    reasoning_effort=reasoning_effort,
+                    total_cost_usd=run_cost,
+                    model_config=model_cfg,
+                )
+            _log_openrouter_cost(proxy)
+            return
+
+        # 2. Run agent harness test suites inside isolated sandbox
+        target_tests = get_available_tests() if args.test == "all" else [args.test]
+        test_specs = []
+        for t_name in target_tests:
+            if t_name in DIRECT_BENCHMARKS:
+                continue
+            run_file = str(TESTS_DIR / t_name / "run.py") if not os.path.isfile(t_name) else t_name
+            test_specs.append((run_file, load_test_spec(run_file)))
+
+        # Ensure host Docker Sandbox policy denies general internet
+        ensure_sandbox_policy_isolated([proxy.lan_ip] if proxy else None)
+
+        def run_single_harness(harness_name: str) -> tuple[str, str, dict[str, Any]]:
+            h_logger = get_harness_logger(harness_name)
+            harness_version = harnesses_cfg.get(harness_name, {}).get("version", "unknown")
+            driver = get_driver(harness_name)
+            h_logger.info("==================================================")
+            h_logger.info("STARTING %s HARNESS (%s) FOR MODEL: %s (Reasoning Effort: %s, Tests: %s)",
+                          harness_name.upper(), type(driver).__name__, args.model, reasoning_effort,
+                          [t[1].name for t in test_specs])
+            h_logger.info("==================================================")
+
+            sandbox = SandboxClient(name=_sandbox_name(harness_name, is_openrouter))
+            sandbox.ensure()
+            try:
+                evaluation_output = run_test_suite_on_agent(
+                    model_name=args.model,
+                    test_specs=test_specs,
+                    driver=driver,
+                    sandbox=sandbox,
+                    reasoning_effort=reasoning_effort,
+                    harness_name=harness_name,
+                    llm_base_url=sandbox_base_url,
+                    provider="openrouter" if is_openrouter else "vllm",
+                )
+
+                # Attach pre-computed direct-API benchmark results (deep copy for thread safety)
+                for key, output in direct_outputs.items():
+                    evaluation_output["test_results_summary"][key] = copy.deepcopy(output["summary"])
+                    evaluation_output["suite_trace"]["tests"][key] = copy.deepcopy(output["trace"])
+
+                return harness_name, harness_version, evaluation_output
+            finally:
+                sandbox.remove()
+
+        results: list[tuple[str, str, dict[str, Any]]] = []
         if len(target_harnesses) == 1 or args.sequential:
             for harness_name in target_harnesses:
-                run_single_harness(harness_name)
+                results.append(run_single_harness(harness_name))
         else:
             logger.info("Executing %d harnesses concurrently in parallel: %s", len(target_harnesses), target_harnesses)
             with concurrent.futures.ThreadPoolExecutor(max_workers=len(target_harnesses)) as executor:
                 futures = [executor.submit(run_single_harness, h) for h in target_harnesses]
                 for f in concurrent.futures.as_completed(futures):
-                    f.result()
+                    results.append(f.result())
+
+        run_cost = proxy.summary()["cost_usd"] if proxy else None
+        for harness_name, harness_version, evaluation_output in results:
+            save_evaluation_results(
+                model_name=args.model,
+                harness_name=harness_name,
+                harness_version=harness_version,
+                evaluation_output=evaluation_output,
+                base_url=host_base_url,
+                memory_gb=args.memory_gb,
+                reasoning_effort=reasoning_effort,
+                total_cost_usd=run_cost,
+                model_config=model_cfg,
+            )
+        _log_openrouter_cost(proxy)
     except NetworkConnectivityError as e:
         logger.error("==================================================")
         logger.error("TEST EXECUTION ABORTED DUE TO NETWORK FAILURE: %s", e)
         logger.error("==================================================")
         sys.exit(2)
+    finally:
+        if proxy:
+            proxy.stop()
 
 
 if __name__ == "__main__":

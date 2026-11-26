@@ -679,6 +679,22 @@ Rule IDs:
             rm_calls = [call for call in mock_cmd.call_args_list if "default-allow-all" in str(call)]
             self.assertTrue(len(rm_calls) > 0)
 
+        # 1b. Failure to remove default-allow-all must abort, not warn
+        with patch("eval.sandbox.run_cmd") as mock_cmd:
+            inspect_output = """Policy: local-policy
+Rules in this policy:
+allow ** network - active
+Rule IDs:
+- default-allow-all yes sbx policy rm network --id default-allow-all
+"""
+            mock_cmd.side_effect = [
+                CompletedProcess(args=["sbx"], returncode=0, stdout=inspect_output, stderr=""),
+                CompletedProcess(args=["sbx"], returncode=1, stdout="", stderr="permission denied"),
+            ]
+            with self.assertRaises(RuntimeError) as ctx:
+                ensure_sandbox_policy_isolated(allowed_hosts=["spark"])
+            self.assertIn("Failed to remove", str(ctx.exception))
+
         # 2. Test isolate_network applies iptables rules
         with patch("eval.sandbox.run_cmd") as mock_cmd:
             mock_cmd.return_value = CompletedProcess(args=["sbx"], returncode=0, stdout="", stderr="")
@@ -694,24 +710,45 @@ Rule IDs:
         # 3. Test verify_network_isolation detecting isolation vs leaks
         sbx = SandboxClient(name="mock-iso-box")
         with patch.object(sbx, "exec_python_json") as mock_exec:
-            # Case A: Isolated (both blocked)
-            mock_exec.return_value = {"ok": True, "details": {"domain_blocked": True, "raw_ip_blocked": True, "leaks": []}}
+            # Case A: Isolated (direct TCP/HTTPS blocked, proxy denies CONNECT)
+            mock_exec.return_value = {
+                "ok": True,
+                "details": {
+                    "checks": {
+                        "direct_tcp": "blocked",
+                        "direct_https": "000",
+                        "connect:ambientcg.com": "403:000",
+                    },
+                    "leaks": [],
+                },
+            }
             is_iso, err = sbx.verify_network_isolation()
             self.assertTrue(is_iso)
             self.assertEqual(err, "")
 
-            # Case B: Internet leak detected
+            # Case B: Proxy forwarded the request instead of denying it
             mock_exec.return_value = {
                 "ok": False,
                 "details": {
-                    "domain_blocked": False,
-                    "raw_ip_blocked": True,
-                    "leaks": ["Public HTTP domain accessible (status 200)"],
+                    "checks": {
+                        "direct_tcp": "blocked",
+                        "direct_https": "000",
+                        "proxy:ambientcg.com": "forwarded",
+                    },
+                    "leaks": [
+                        "Proxy did not deny ambientcg.com (response: 'HTTP/1.1 403 Forbidden')"
+                    ],
                 },
             }
             is_iso, err = sbx.verify_network_isolation()
             self.assertFalse(is_iso)
-            self.assertIn("Public HTTP domain accessible", err)
+            self.assertIn("Proxy did not deny ambientcg.com", err)
+
+            # Case C: Verifier failure must fail closed
+            mock_exec.side_effect = RuntimeError("exec failed")
+            is_iso, err = sbx.verify_network_isolation()
+            self.assertFalse(is_iso)
+            self.assertIn("failed to run", err)
 
         # 4. Test preflight fails if sandbox network has unfixable internet leak
         mock_leaky_sandbox = MagicMock()

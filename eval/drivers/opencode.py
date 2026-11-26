@@ -34,6 +34,11 @@ __all__ = ["OpenCodeDriver"]
 
 logger = setup_logger("driver.opencode")
 
+DEFAULT_QUESTION_ANSWER = (
+    "Proceed with your best judgment. Do not ask the user again; "
+    "make reasonable assumptions and continue."
+)
+
 
 def _reasoning_parameters(reasoning_effort: str | None) -> dict[str, Any] | None:
     """Build OpenCode reasoning parameters for a configured effort."""
@@ -177,6 +182,46 @@ def mark_activity():
     with activity_lock:
         last_activity_time = time.time()
 
+handled_questions = set()
+question_lock = threading.Lock()
+
+def answer_pending_questions():
+    try:
+        req_q = urllib.request.Request('http://127.0.0.1:{self.port}/question')
+        with urllib.request.urlopen(req_q, timeout=2.0) as resp:
+            pending = json.loads(resp.read().decode('utf-8'))
+    except Exception:
+        return
+    if not isinstance(pending, list):
+        return
+    for question in pending:
+        request_id = question.get('id')
+        if not request_id:
+            continue
+        with question_lock:
+            if request_id in handled_questions:
+                continue
+        answers = [[{DEFAULT_QUESTION_ANSWER!r}] for _ in question.get('questions', [])]
+        if not answers:
+            continue
+        body = json.dumps({{'answers': answers}}).encode('utf-8')
+        try:
+            req_r = urllib.request.Request(
+                f'http://127.0.0.1:{self.port}/question/{{request_id}}/reply',
+                data=body,
+                headers={{'Content-Type': 'application/json'}},
+                method='POST',
+            )
+            with urllib.request.urlopen(req_r, timeout=5.0) as resp:
+                resp.read()
+        except Exception as e:
+            sys.stderr.write(f"[question] reply failed for {{request_id}}: {{e}}\\n")
+            continue
+        with question_lock:
+            handled_questions.add(request_id)
+        mark_activity()
+        sys.stderr.write(f"[question] replied to {{request_id}} with default answer\\n")
+
 def worker():
     try:
         res = urllib.request.urlopen(req, timeout={timeout})
@@ -218,6 +263,7 @@ log_path = '{self._log_path}'
 last_log_size = 0
 last_msg_fingerprint = ""
 last_poll_time = 0
+last_question_poll = 0
 
 if os.path.exists(log_path):
     last_log_size = os.path.getsize(log_path)
@@ -245,6 +291,11 @@ while not done_event.wait(timeout=1.0):
                     last_msg_fingerprint = m_fp
         except urllib.error.URLError:
             pass
+
+    # 3. Answer any pending question tool calls so autonomous steps never block
+    if now - last_question_poll >= 2.0:
+        last_question_poll = now
+        answer_pending_questions()
 
     with activity_lock:
         idle_elapsed = now - last_activity_time

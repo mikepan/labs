@@ -128,20 +128,25 @@ def ensure_sandbox_policy_isolated(allowed_hosts: list[str] | None = None) -> bo
 
     Removes 'default-allow-all' from network rules if present, and ensures
     allowed_hosts (defaulting to the LLM backend host/IP) are explicitly allowed.
+    Raises if the policy cannot be made default-deny; an eval must not run with
+    an unrestricted network.
     """
     try:
         res = run_cmd("sbx", "policy", "inspect", "local-policy")
         if res.returncode != 0:
-            logger.warning("Could not inspect sbx policy: %s", res.stderr.strip() or res.stdout.strip())
-            return False
+            raise RuntimeError(
+                f"Could not inspect sbx policy: {res.stderr.strip() or res.stdout.strip()}"
+            )
 
         # If default-allow-all rule exists, remove it to enable default-deny
         if "default-allow-all" in res.stdout:
             rm_res = run_cmd("sbx", "policy", "rm", "network", "--id", "default-allow-all")
-            if rm_res.returncode == 0:
-                logger.info("✓ Removed 'default-allow-all' network policy rule.")
-            else:
-                logger.warning("Failed to remove 'default-allow-all' policy: %s", rm_res.stderr.strip())
+            if rm_res.returncode != 0:
+                raise RuntimeError(
+                    f"Failed to remove 'default-allow-all' policy: "
+                    f"{rm_res.stderr.strip() or rm_res.stdout.strip()}"
+                )
+            logger.info("✓ Removed 'default-allow-all' network policy rule.")
 
         # Determine target hosts to allow
         targets: set[str] = set()
@@ -170,15 +175,18 @@ def ensure_sandbox_policy_isolated(allowed_hosts: list[str] | None = None) -> bo
             if f"allow      {target}" in existing or f"allow {target}" in existing:
                 continue
             add_res = run_cmd("sbx", "policy", "allow", "network", target)
-            if add_res.returncode == 0:
-                logger.info("✓ Added sbx policy network allow: %s", target)
-            else:
-                logger.warning("Failed to add sbx policy allow for %s: %s", target, add_res.stderr.strip())
+            if add_res.returncode != 0:
+                raise RuntimeError(
+                    f"Failed to add sbx policy allow for {target}: "
+                    f"{add_res.stderr.strip() or add_res.stdout.strip()}"
+                )
+            logger.info("✓ Added sbx policy network allow: %s", target)
 
         return True
+    except RuntimeError:
+        raise
     except Exception as e:
-        logger.warning("Exception while ensuring sandbox network policy: %s", e)
-        return False
+        raise RuntimeError(f"Exception while ensuring sandbox network policy: {e}") from e
 
 
 class SandboxClient:
@@ -324,52 +332,86 @@ iptables -P OUTPUT DROP
         return True
 
     def verify_network_isolation(self) -> tuple[bool, str]:
-        """Verify that the sandbox has no general internet access.
+        """Verify that the sandbox has no general internet egress.
+
+        The sbx proxy answers every CONNECT with 200, then terminates TLS and
+        returns 403 with an "Approval required" body for non-allowlisted hosts.
+        Therefore CONNECT status is not a usable signal: a real origin response
+        and a proxy denial can both look like 200 then 403.
 
         Checks:
-        1. HTTP domain access to external internet (google.com) is blocked.
-        2. Direct TCP socket access to external IP (1.1.1.1:80) is blocked.
-
-        Returns:
-            (True, "") if properly isolated.
-            (False, description) if any internet access leak is detected.
+        1. Direct raw TCP to a public IP is blocked.
+        2. Direct HTTPS bypassing the proxy is blocked.
+        3. Non-allowlisted hosts are denied by the proxy (its approval body).
         """
-        script = """import urllib.request, urllib.error, socket, json, sys
+        script = r'''import json, shutil, socket, subprocess
 
-result = {"domain_blocked": False, "raw_ip_blocked": False, "leaks": []}
+def run(cmd):
+    try:
+        p = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+        return p.returncode, p.stdout, p.stderr
+    except Exception as e:
+        return -1, "", str(e)
 
-# 1. Test domain via proxy
+checks = {}
+leaks = []
+
+if not shutil.which("curl"):
+    leaks.append("curl unavailable; cannot verify proxy egress")
+
+# 1. Direct raw TCP to a public IP must fail.
 try:
-    req = urllib.request.Request("http://google.com", headers={"User-Agent": "isolation-probe"})
-    with urllib.request.urlopen(req, timeout=2) as resp:
-        result["leaks"].append(f"Public HTTP domain accessible (status {resp.status})")
-except urllib.error.HTTPError:
-    result["domain_blocked"] = True
-except Exception:
-    result["domain_blocked"] = True
-
-# 2. Test raw direct IP socket (bypassing proxy)
-try:
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.settimeout(2)
-    s.connect(("1.1.1.1", 80))
+    s = socket.create_connection(("1.1.1.1", 80), timeout=2)
     s.close()
-    result["leaks"].append("Direct raw TCP socket to 1.1.1.1:80 succeeded")
+    leaks.append("Direct raw TCP socket to 1.1.1.1:80 succeeded")
 except Exception:
-    result["raw_ip_blocked"] = True
+    checks["direct_tcp"] = "blocked"
 
-ok = result["domain_blocked"] and result["raw_ip_blocked"]
-print("__JSON_START__" + json.dumps({"ok": ok, "details": result}) + "__JSON_END__")
-"""
+# 2. Direct HTTPS, bypassing the proxy, must fail.
+rc, out, err = run([
+    "curl", "--noproxy", "*", "-k", "-sS", "-o", "/dev/null",
+    "-w", "%{http_code}", "--max-time", "3", "https://1.1.1.1",
+])
+out = out.strip()
+checks["direct_https"] = out or (f"curl_error: {err.strip()[:120]}" if err.strip() else "no status")
+if out not in ("", "000"):
+    leaks.append(f"Direct HTTPS egress succeeded (status {out})")
+
+# 3. A non-allowlisted host must get the proxy's approval-required body.
+#    Any other response means the request reached an origin (or a permissive
+#    proxy) and must be treated as a leak, even if the final status is 403.
+for host in ("example.com", "ambientcg.com", "api.ambientcg.com"):
+    rc, out, err = run([
+        "curl", "-sS", "-i", "--max-time", "4", f"https://{host}",
+    ])
+    body = out.strip()
+    denied = (
+        f"Approval required for {host}" in body
+        or "sbx policy approval ls" in body
+    )
+    if denied:
+        checks[f"proxy:{host}"] = "approval required"
+    elif rc == 0 and body:
+        leaks.append(
+            f"Proxy did not deny {host} (response: {body[:160]!r})"
+        )
+    else:
+        checks[f"proxy:{host}"] = "unreachable"
+        if err.strip():
+            checks[f"proxy:{host}:error"] = err.strip()[:120]
+
+ok = not leaks
+print("__JSON_START__" + json.dumps({"ok": ok, "details": {"checks": checks, "leaks": leaks}}) + "__JSON_END__")
+'''
         try:
             data = self.exec_python_json(script, label="network isolation check")
-            if data.get("ok"):
-                return True, ""
-            leaks = data.get("details", {}).get("leaks", [])
-            err_msg = "; ".join(leaks) if leaks else "Internet access not blocked"
-            return False, err_msg
-        except Exception:
+        except Exception as e:
+            return False, f"Network isolation check failed to run: {e}"
+        if data.get("ok"):
             return True, ""
+        leaks = data.get("details", {}).get("leaks", [])
+        err_msg = "; ".join(leaks) if leaks else "Internet access not blocked"
+        return False, err_msg
 
     # ----- Lifecycle management -----
 

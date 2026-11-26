@@ -420,14 +420,14 @@
       "harness_version": "1.6.0",
       "reasoning": "low",
       "launch_config": "openrouter deepseek/deepseek-v4.1-flash-1017 (provider: alibaba)",
-      "intelligence": 81.2,
+      "intelligence": 95.3,
       "task_speed": 12.8,
       "intelligence_density": 0.0,
       "cost_usd": 0.490579,
       "test_results": {
         "multilingual_science_presentation": {
           "name": "multilingual_science_presentation",
-          "earned_score": 7,
+          "earned_score": 8,
           "max_score": 8,
           "run_time_sec": 436.77,
           "tokens_in": 89642,
@@ -457,7 +457,7 @@
         },
         "normal_map_classification": {
           "name": "normal_map_classification",
-          "earned_score": 0,
+          "earned_score": 10,
           "max_score": 10,
           "run_time_sec": 664.09,
           "tokens_in": 0,
@@ -624,14 +624,14 @@
       "harness_version": "1.19.6",
       "reasoning": "high",
       "launch_config": "openrouter deepseek/deepseek-v4.1-flash-1017 (provider: alibaba)",
-      "intelligence": 94.8,
+      "intelligence": 96.3,
       "task_speed": 12.8,
       "intelligence_density": 0.0,
       "cost_usd": 0.564905,
       "test_results": {
         "multilingual_science_presentation": {
           "name": "multilingual_science_presentation",
-          "earned_score": 7,
+          "earned_score": 8,
           "max_score": 8,
           "run_time_sec": 479.78,
           "tokens_in": 99490,
@@ -1030,13 +1030,13 @@
       "harness_version": "1.6.0",
       "reasoning": "off",
       "launch_config": "vllm serve nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-NVFP4 --moe-backend cutlass --trust-remote-code --enable-prefix-caching --enable-auto-tool-choice --tool-call-parser qwen3_coder --reasoning-parser nemotron_v3 --mamba-ssm-cache-dtype float16 --attention-backend TRITON_ATTN --max-num-seqs 2 --max-num-batched-tokens 8192",
-      "intelligence": 55.1,
+      "intelligence": 56.7,
       "task_speed": 2.1,
       "intelligence_density": 0.581,
       "test_results": {
         "multilingual_science_presentation": {
           "name": "multilingual_science_presentation",
-          "earned_score": 7,
+          "earned_score": 8,
           "max_score": 8,
           "run_time_sec": 867.85,
           "tokens_in": 246811,
@@ -3050,13 +3050,13 @@
       "harness_version": "1.6.0",
       "reasoning": "xhigh",
       "launch_config": "vllm serve nvidia/Qwen3.8-27B-NVFP4 --enable-prefix-caching --enable-chunked-prefill --max-num-batched-tokens 8192 --trust-remote-code --reasoning-parser qwen3 --tool-call-parser qwen3_xml --enable-auto-tool-choice",
-      "intelligence": 78.8,
+      "intelligence": 80.3,
       "task_speed": 1.4,
       "intelligence_density": 1.275,
       "test_results": {
         "multilingual_science_presentation": {
           "name": "multilingual_science_presentation",
-          "earned_score": 7,
+          "earned_score": 8,
           "max_score": 8,
           "run_time_sec": 6158.04,
           "tokens_in": 6345239,
@@ -3353,9 +3353,9 @@
       "harness_version": "1.6.0",
       "reasoning": "medium",
       "launch_config": "vllm serve nvidia/Qwen3.8-27B-NVFP4 --enable-prefix-caching --enable-chunked-prefill --max-num-batched-tokens 8192 --trust-remote-code --reasoning-parser qwen3 --tool-call-parser qwen3_xml --enable-auto-tool-choice",
-      "intelligence": 88.2,
+      "intelligence": 90.7,
       "task_speed": 2.9,
-      "intelligence_density": 1.427,
+      "intelligence_density": 1.468,
       "test_results": {
         "multilingual_science_presentation": {
           "name": "multilingual_science_presentation",
@@ -3369,7 +3369,7 @@
         },
         "data_analytics": {
           "name": "data_analytics",
-          "earned_score": 8,
+          "earned_score": 10,
           "max_score": 10,
           "run_time_sec": 420.85,
           "tokens_in": 71195,

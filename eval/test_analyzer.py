@@ -75,13 +75,14 @@ def main():
                 matrix.setdefault(key, {})[eid] = (passed, earned, max_s, "; ".join(fails), sdur)
 
     # 3. Print Compact Matrix Table with Step-by-Step Timing
-    col_w = 5
+    col_w, step_w, rate_w, time_w = 3, 30, 6, 7
+    red, reset = "\033[31m", "\033[0m"
     hdrs = (
-        [f"{'Step':<10}"]
+        [f"{'Step':<{step_w}}"]
         + [f"{code:^{col_w}}" for code, _, _, _ in models]
-        + [f"{'Pass':^6}", f"{'Avg Time':^10}", f"{'Max Time':^10}"]
+        + [f"{'Pass':^{rate_w}}", f"{'Avg':^{time_w}}", f"{'Max':^{time_w}}"]
     )
-    sep = "-" * len(" | ".join(hdrs))
+    sep = "-" * len(" ".join(hdrs))
 
     current_tname = None
     universal_fails = []
@@ -90,7 +91,7 @@ def main():
         if tname != current_tname:
             current_tname = tname
             print(f"\n[{tname}]")
-            print(" | ".join(hdrs))
+            print(" ".join(hdrs))
             print(sep)
 
         row_res = matrix.get((tname, sidx, sname), {})
@@ -101,17 +102,16 @@ def main():
         # Calculate step timing
         durs = step_durations.get((tname, sidx, sname), [])
         if durs:
-            step_avg_sec = sum(durs) / len(durs)
-            step_avg_min = step_avg_sec / 60.0
-            time_str = f"{step_avg_min:.2f} min"
-            step_max_sec = max(durs)
-            step_max_min = step_max_sec / 60.0
-            max_time_str = f"{step_max_min:.2f} min"
+            step_avg_min = sum(durs) / len(durs) / 60.0
+            time_str = f"{step_avg_min:.2f}m"
+            step_max_min = max(durs) / 60.0
+            max_time_str = f"{step_max_min:.2f}m"
         else:
             time_str = "--"
             max_time_str = "--"
 
-        cols = [f"{sname:<10}"]
+        label = sname if len(sname) <= step_w else sname[: step_w - 1] + "…"
+        cols = [f"{label:<{step_w}}"]
         for _, eid, _, _ in models:
             if eid not in row_res:
                 cols.append(f"{'--':^{col_w}}")
@@ -119,13 +119,14 @@ def main():
                 p, _, _, _, _ = row_res[eid]
                 cell = "✓" if p else "✗"
                 cols.append(f"{cell:^{col_w}}")
-        cols.append(f"{rate_str:^6}")
-        cols.append(f"{time_str:^10}")
-        cols.append(f"{max_time_str:^10}")
+        cols.append(f"{rate_str:^{rate_w}}")
+        cols.append(f"{time_str:^{time_w}}")
+        cols.append(f"{max_time_str:^{time_w}}")
 
         is_fail = (passed_n == 0)
-        tag = " ◄ DEFECT (0%)" if is_fail else ""
-        print(" | ".join(cols) + tag)
+        tag = f" {red}◄ DEFECT (0%){reset}" if is_fail else ""
+        line = " ".join(cols) + tag
+        print(line.replace("✗", f"{red}✗{reset}"))
 
         if is_fail:
             universal_fails.append((tname, sname, prompt_snip, row_res))

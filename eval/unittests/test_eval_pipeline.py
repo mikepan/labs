@@ -13,6 +13,7 @@ Exercises the full evaluation chain:
 
 import json
 import os
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -33,6 +34,7 @@ from eval.run_harness import (
     run_test_suite_on_agent,
 )
 from eval.sandbox import SandboxClient
+from eval.tests.framework import git_changes
 from eval.trace import ToolCallEvent, TurnData
 from eval.unittests.dummy_server import start_dummy_server, stop_dummy_server
 
@@ -860,6 +862,39 @@ Rule IDs:
         setup_cmd = sandbox.exec.call_args[0][0]
         self.assertIn('"$var": "thinking.enabled"', setup_cmd)
         self.assertNotIn('"$thinking.enabled"', setup_cmd)
+
+
+class TestGitChangeAssert(unittest.TestCase):
+    """git_changes must verify real git state rather than just file existence."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.ws = self.tmp.name
+        self._git("init")
+        self._git("config", "user.email", "test@example.com")
+        self._git("config", "user.name", "Test User")
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def _git(self, *args: str):
+        subprocess.run(["git", *args], cwd=self.ws, check=True, capture_output=True)
+
+    def test_add_modify_delete(self):
+        Path(self.ws, "a.txt").write_text("one\n")
+        self.assertTrue(git_changes("a.txt", "A").evaluate(self.ws).passed)
+        self.assertFalse(git_changes("a.txt", "M").evaluate(self.ws).passed)
+
+        self._git("add", "-A")
+        self._git("commit", "-m", "init")
+        self.assertFalse(git_changes("a.txt", "M").evaluate(self.ws).passed)
+
+        Path(self.ws, "a.txt").write_text("two\n")
+        self.assertTrue(git_changes("a.txt", "M").evaluate(self.ws).passed)
+        self.assertFalse(git_changes("a.txt", "A").evaluate(self.ws).passed)
+
+        os.remove(Path(self.ws, "a.txt"))
+        self.assertTrue(git_changes("a.txt", "D").evaluate(self.ws).passed)
 
 
 if __name__ == "__main__":

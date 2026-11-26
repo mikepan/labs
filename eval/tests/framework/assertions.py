@@ -52,10 +52,32 @@ class GitChangeAssert(BaseAssertion):
         allow_extra: bool = True,
     ):
         self.filepath = filepath
-        self.status = status.strip().upper() if status else "A"
+        raw_status = status.strip().upper() if status else "A"
+        self.status = {"ADD": "A", "MODIFY": "M", "DELETE": "D"}.get(raw_status, raw_status)
         self.total_lines = total_lines
         self.diff_lines = diff_lines
         self.allow_extra = allow_extra
+
+    def _pending_change_kind(self, workspace_dir: str) -> str | None:
+        """Classify the file's pending change against HEAD as 'A', 'M', 'D', or None."""
+        diff = subprocess.run(
+            ["git", "diff", "HEAD", "--name-status", "--", self.filepath],
+            cwd=workspace_dir,
+            capture_output=True,
+            text=True,
+        )
+        if diff.stdout.strip():
+            return diff.stdout.split("\t", 1)[0].strip()[:1]
+
+        tracked = subprocess.run(
+            ["git", "ls-files", "--error-unmatch", "--", self.filepath],
+            cwd=workspace_dir,
+            capture_output=True,
+            text=True,
+        ).returncode == 0
+        if not tracked and os.path.exists(os.path.join(workspace_dir, self.filepath)):
+            return "A"
+        return None
 
     def evaluate(self, workspace_dir: str, allowed_files: set[str] | None = None) -> CheckResult:
         full_path = os.path.join(workspace_dir, self.filepath)
@@ -105,7 +127,7 @@ class GitChangeAssert(BaseAssertion):
                     )
 
         # Normalize status code (support "A", "ADD", "M", "MODIFY", "D", "DELETE")
-        is_delete = self.status in ("D", "DELETE")
+        is_delete = self.status == "D"
 
         # 2. Check file existence according to status
         if is_delete:
@@ -122,7 +144,17 @@ class GitChangeAssert(BaseAssertion):
                     f"Expected file '{self.filepath}' to exist, but was not found. (Files present in workspace: {available_files})",
                 )
 
-        # 3. Check total lines count if specified
+        # 3. Verify the file actually carries the expected pending git change
+        change = self._pending_change_kind(workspace_dir)
+        if change != self.status:
+            return CheckResult(
+                False,
+                f"Expected '{self.filepath}' to be {self.status} relative to HEAD, but git reports "
+                + (f"'{change}'." if change else "no change."),
+                {"expected": self.status, "actual": change},
+            )
+
+        # 4. Check total lines count if specified
         line_count = 0
         if os.path.exists(full_path):
             with open(full_path, "r", encoding="utf-8", errors="ignore") as f:
@@ -137,7 +169,7 @@ class GitChangeAssert(BaseAssertion):
                     {"line_count": line_count, "expected_range": (min_lines, max_lines)},
                 )
 
-        # 3. Check git diff / numstat lines changed if diff_lines specified
+        # 5. Check git diff / numstat lines changed if diff_lines specified
         if self.diff_lines is not None:
             res = subprocess.run(
                 ["git", "diff", "--numstat", "HEAD", "--", self.filepath],

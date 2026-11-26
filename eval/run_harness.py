@@ -352,8 +352,8 @@ def run_test_suite_on_agent(
                             raw_err = raw_err.strip().splitlines()[-1]
                         friendly_msg = f"Driver error: {raw_err}"
 
-                    h_logger.warning("  ✗ Step %d %s (0/%d pts) (%.2fs): %s",
-                                     idx + 1, fail_reason, step_point, step_elapsed, friendly_msg)
+                    h_logger.warning("  ✗ Step %d %s (%.2fs): %s",
+                                     idx + 1, fail_reason, step_elapsed, friendly_msg)
 
                     # Recover partial messages from the session to capture what the agent did
                     partial_messages: list[dict] = []
@@ -362,6 +362,7 @@ def run_test_suite_on_agent(
                     partial_tokens_in: int = 0
                     partial_tokens_out: int = 0
                     partial_peak_ctx: int = 0
+                    partial_turn = None
                     try:
                         all_msgs = driver.get_all_messages(sandbox, session_id)
                         if all_msgs and len(all_msgs) > prev_msg_count:
@@ -388,12 +389,30 @@ def run_test_suite_on_agent(
                     # Step context usage
                     step_context_used_pct = round((partial_peak_ctx / max_ctx) * 100.0, 2) if max_ctx > 0 else 0.0
 
+                    # The step never settled, but its work may already be on disk: score the
+                    # step's assertions against the workspace instead of discarding it.
+                    partial_response = "\n".join(partial_turn.text).strip() if partial_turn and partial_turn.text else ""
+                    eval_res = evaluate_step_in_sandbox(sandbox, test_path, idx, test_ws, response=partial_response)
+                    eval_res["aborted"] = f"{fail_reason}: {friendly_msg}"
+                    if eval_res.get("passed"):
+                        step_score = step_point
+                        passed_steps += 1
+                        h_logger.warning("  ⚠ Step %d %s, but workspace checks passed (+%d/%d pts)",
+                                         idx + 1, fail_reason, step_score, step_point)
+                    else:
+                        step_score = 0
+                        h_logger.warning("  ✗ Step %d FAILED (0/%d pts) (%.2fs)", idx + 1, step_point, step_elapsed)
+                        for cr in eval_res.get("check_results", []):
+                            if not cr.get("passed"):
+                                h_logger.warning("    - Failure: %s", cr.get("message"))
+                    earned_score += step_score
+
                     step_traces.append(StepTrace(
                         step_index=idx,
                         step_name=step_name,
                         prompt=step.prompt,
                         point=step_point,
-                        earned_score=0,
+                        earned_score=step_score,
                         max_score=step_point,
                         start_time=step_start_iso,
                         end_time=step_end_iso,
@@ -403,16 +422,7 @@ def run_test_suite_on_agent(
                         context_used_pct=step_context_used_pct,
                         used_hint=False,
                         events=partial_events,
-                        evaluation={
-                            "passed": False,
-                            "score": 0,
-                            "point": step_point,
-                            "check_results": [{
-                                "passed": False,
-                                "message": f"Step aborted due to {fail_reason}: {friendly_msg}",
-                                "details": None,
-                            }],
-                        },
+                        evaluation=eval_res,
                         duration_seconds=step_elapsed,
                     ).to_dict())
                     continue

@@ -19,7 +19,7 @@ import unittest
 from pathlib import Path
 from typing import Any
 
-from eval.common import http_json
+from eval.common import build_stuck_nudge, http_json
 from eval.config import (
     DEFAULT_TEMPLATE_TAG,
     TESTS_DIR,
@@ -56,6 +56,9 @@ class MockDriver(HarnessDriver):
 
     def create_session(self, sandbox: SandboxClient) -> str:
         return "dummy-session-123"
+
+    def abort(self, sandbox: SandboxClient, session_id: str) -> None:
+        pass
 
     def send_prompt(
         self,
@@ -603,6 +606,7 @@ class TestEvaluationPipeline(unittest.TestCase):
         class NonMockDriver(HarnessDriver):
             def start(self, *args, **kwargs): return "model"
             def create_session(self, *args, **kwargs): return "s1"
+            def abort(self, *args, **kwargs): pass
             def send_prompt(self, *args, **kwargs): raise AssertionError("Should not be called")
             def get_session_info(self, *args, **kwargs): return {}
             def get_all_messages(self, *args, **kwargs): return []
@@ -637,6 +641,7 @@ class TestEvaluationPipeline(unittest.TestCase):
         class FailingNetDriver(HarnessDriver):
             def start(self, *args, **kwargs): return "model"
             def create_session(self, *args, **kwargs): return "s1"
+            def abort(self, *args, **kwargs): pass
             def send_prompt(self, *args, **kwargs):
                 raise NetworkConnectivityError("OpenCode backend connection failed: dial tcp4 192.168.1.108:8000: connect: no route to host")
             def get_session_info(self, *args, **kwargs): return {}
@@ -758,6 +763,7 @@ Rule IDs:
         class NonMockDriver(HarnessDriver):
             def start(self, *args, **kwargs): return "model"
             def create_session(self, *args, **kwargs): return "s1"
+            def abort(self, *args, **kwargs): pass
             def send_prompt(self, *args, **kwargs): return ""
             def get_session_info(self, *args, **kwargs): return {}
             def get_all_messages(self, *args, **kwargs): return []
@@ -932,6 +938,21 @@ class TestGitChangeAssert(unittest.TestCase):
 
         os.remove(Path(self.ws, "a.txt"))
         self.assertTrue(git_changes("a.txt", "D").evaluate(self.ws).passed)
+
+
+class TestStuckNudge(unittest.TestCase):
+    """The loop nudge must name the repeated action and its unchanged result."""
+
+    def test_bash_command(self):
+        nudge = build_stuck_nudge("bash", '{"command": "grep -n foo source.kt"}', "")
+        self.assertIn("you've now run `grep -n foo source.kt` 10 times", nudge)
+        self.assertIn("(no output)", nudge)
+        self.assertIn("reply with your summary", nudge)
+
+    def test_unknown_tool(self):
+        nudge = build_stuck_nudge("finish", "{}", "Tool finish not found")
+        self.assertIn("the `finish` tool 10 times", nudge)
+        self.assertIn("Tool finish not found", nudge)
 
 
 if __name__ == "__main__":

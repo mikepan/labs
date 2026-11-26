@@ -41,6 +41,10 @@ class HarnessDriver(ABC):
         """Create a new agent session. Returns session_id."""
 
     @abstractmethod
+    def abort(self, sandbox: SandboxClient, session_id: str) -> None:
+        """Request cancellation of the session's in-flight turn."""
+
+    @abstractmethod
     def send_prompt(
         self,
         sandbox: SandboxClient,

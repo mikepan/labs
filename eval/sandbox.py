@@ -207,6 +207,11 @@ class SandboxClient:
         """Run a Python script inside the sandbox, optionally piping stdin."""
         return run_cmd("sbx", "exec", self.name, "python3", "-c", script, input=stdin)
 
+    def exec_python_stdin_json(self, script: str, *, label: str = "sandbox") -> Any:
+        """Run an isolated Python script via stdin, keeping the script out of process argv."""
+        res = run_cmd("sbx", "exec", self.name, "python3", "-I", "-", input=script)
+        return self._parse_python_json(res, label)
+
     def exec_python_json(
         self,
         script: str,
@@ -216,6 +221,9 @@ class SandboxClient:
     ) -> Any:
         """Run Python inside sandbox and extract JSON from __JSON_START__...__JSON_END__ markers."""
         res = self.exec_python(script, stdin=stdin)
+        return self._parse_python_json(res, label)
+
+    def _parse_python_json(self, res: subprocess.CompletedProcess, label: str) -> Any:
         if res.returncode != 0:
             err_text = res.stderr.strip() or res.stdout.strip()
             if "NETWORK_ERROR:" in err_text:

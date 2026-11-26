@@ -4095,6 +4095,11 @@ CHESS_DATA = json.loads(r"""
     "fen": "1r2kb1r/3npp1n/pP1p2p1/P1p3N1/2P2P2/4P2b/3PK1B1/RNBQ3R w - - 4 21",
     "depth": 1,
     "nodes": 42
+   },
+   {
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+    "depth": 0,
+    "nodes": 1
    }
   ],
   "castling2": [
@@ -4554,7 +4559,7 @@ def _run_probe(workspace_dir: str, cases: list[tuple[str, str]], perft_cases: li
         return {"fatal": "could not parse movegen output: %s" % exc}
 
 
-def _check_category(category: str, perft_key: str | None, label: str, moves: bool = True):
+def _check_category(category: str, perft_key: str | None, label: str):
     """Build a check that validates one feature group with exact move sets and perft counts."""
 
     def _validate(workspace_dir: str) -> tuple[bool, str]:
@@ -4562,7 +4567,7 @@ def _check_category(category: str, perft_key: str | None, label: str, moves: boo
         if not os.path.isfile(module_path):
             return False, "movegen.py was not found in the workspace."
 
-        entries = CHESS_DATA[category] if moves else []
+        entries = CHESS_DATA[category]
         cases = [("%s-%d" % (category, i), entry["fen"]) for i, entry in enumerate(entries)]
         expected = {cid: sorted(entry["moves"]) for (cid, _), entry in zip(cases, entries)}
         perft_entries = CHESS_DATA["perft"][perft_key] if perft_key else []
@@ -4665,9 +4670,9 @@ Please stay focused: don't write your own test suite, I'll validate it with my o
             prompt="""Final pass. Make `legal_moves` fully legal: remove any move that leaves or puts your own king in check, including pinned pieces, double checks, and an en passant capture that exposes the king.  Don't create test files or extra scripts, just update movegen.py. Keep the existing function signatures unchanged.""",
             checks=[
                 _check_category("king", "king3", "King safety and perft"),
-                _check_category("castling", "castling2", "Castling under full legality", moves=False),
-                _check_category("ep", "ep2", "En passant under full legality", moves=False),
-                _check_category("promo", "promo2", "Promotion under full legality", moves=False),
+                _check_category("castling", "castling2", "Castling under full legality"),
+                _check_category("ep", "ep2", "En passant under full legality"),
+                _check_category("promo", "promo2", "Promotion under full legality"),
                 _check_category("mixed", "mixed2", "Mixed positions"),
                 _check_category("mixed", "mixed3", "Mixed positions (deep perft)"),
             ],

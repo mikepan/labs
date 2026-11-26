@@ -159,7 +159,7 @@ res = sys.modules['eval.tests.framework'].evaluate_step(step, {workspace_dir!r},
 print("__JSON_START__" + json.dumps(res.to_dict()) + "__JSON_END__")
 """
     try:
-        return sandbox.exec_python_json(eval_script, label=f"evaluate step {step_idx}")
+        return sandbox.exec_python_stdin_json(eval_script, label=f"evaluate step {step_idx}")
     except RuntimeError as e:
         return {
             "step_name": f"Step {step_idx}",
@@ -169,6 +169,29 @@ print("__JSON_START__" + json.dumps(res.to_dict()) + "__JSON_END__")
             "duration_seconds": 0.0,
             "check_results": [{"passed": False, "message": str(e)}],
         }
+
+
+def _abort_and_settle(driver: HarnessDriver, sandbox: SandboxClient, session_id: str, timeout: float = 20.0) -> None:
+    """Abort an in-flight turn and wait until the session stops producing messages."""
+    try:
+        driver.abort(sandbox, session_id)
+    except Exception as exc:
+        logger.warning("Could not abort session %s: %s", session_id, exc)
+        return
+
+    deadline = time.time() + timeout
+    last_count: int | None = None
+    while time.time() < deadline:
+        try:
+            count = len(driver.get_all_messages(sandbox, session_id) or [])
+        except Exception:
+            time.sleep(1.0)
+            continue
+        if count == last_count:
+            return
+        last_count = count
+        time.sleep(1.0)
+    logger.warning("Session %s did not settle within %.0fs after abort", session_id, timeout)
 
 
 # =====================================================================
@@ -354,6 +377,9 @@ def run_test_suite_on_agent(
 
                     h_logger.warning("  ✗ Step %d %s (%.2fs): %s",
                                      idx + 1, fail_reason, step_elapsed, friendly_msg)
+
+                    if is_timeout:
+                        _abort_and_settle(driver, sandbox, session_id)
 
                     # Recover partial messages from the session to capture what the agent did
                     partial_messages: list[dict] = []

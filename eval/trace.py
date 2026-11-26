@@ -45,6 +45,17 @@ class TurnData:
     peak_context_tokens: int = 0
     raw_messages: list[dict[str, Any]] = field(default_factory=list)
 
+    def merge(self, other: "TurnData") -> None:
+        """Append another turn's activity, used when a user nudge resumes the same step."""
+        self.tool_calls.extend(other.tool_calls)
+        self.reasoning.extend(other.reasoning)
+        self.text.extend(other.text)
+        self.events.extend(other.events)
+        self.raw_messages.extend(other.raw_messages)
+        self.tokens_in += other.tokens_in
+        self.tokens_out += other.tokens_out
+        self.peak_context_tokens = max(self.peak_context_tokens, other.peak_context_tokens)
+
 
 @dataclass(slots=True)
 class StepTrace:

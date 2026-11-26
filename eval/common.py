@@ -14,6 +14,8 @@ import urllib.error
 import urllib.request
 from typing import Any
 
+from eval.config import DEFAULT_NUDGE_REPEAT_THRESHOLD
+
 class ColorFormatter(logging.Formatter):
     """Zero-dependency ANSI terminal color formatter for structured logging with harness tagging."""
     RESET = "\033[0m"
@@ -121,6 +123,33 @@ def normalize_reasoning_effort(reasoning_effort: str | None) -> str | None:
     if effort == "on":
         return None
     return "none" if effort == "off" else effort
+
+
+def _nudge_preview(value: Any, limit: int = 180) -> str:
+    """Collapse and truncate a value for the one-line nudge message."""
+    text = " ".join(str(value).split()) if value is not None else ""
+    return text if len(text) <= limit else text[: limit - 1] + "…"
+
+
+def build_stuck_nudge(tool: str, arguments: Any, result: Any) -> str:
+    """Build the user-style nudge sent when an agent repeats one tool call with the same result."""
+    if isinstance(arguments, str):
+        try:
+            arguments = json.loads(arguments)
+        except Exception:
+            pass
+    if isinstance(arguments, dict) and "command" in arguments:
+        signature = f"`{_nudge_preview(arguments['command'])}`"
+    elif isinstance(arguments, dict) and arguments:
+        signature = f"the `{tool}` tool with `{_nudge_preview(json.dumps(arguments, sort_keys=True))}`"
+    else:
+        signature = f"the `{tool}` tool"
+    outcome = _nudge_preview(result) or "no output"
+    return (
+        f"I'm stepping in: you've now run {signature} {DEFAULT_NUDGE_REPEAT_THRESHOLD} times "
+        f"and the result hasn't changed ({outcome}). Stop repeating it. Take a different concrete action, "
+        "or if you're done, reply with your summary."
+    )
 
 
 def reasoning_request_params(reasoning_effort: str | None) -> dict[str, Any]:

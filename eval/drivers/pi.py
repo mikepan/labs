@@ -14,13 +14,14 @@ import time
 from datetime import datetime, timezone
 from typing import Any
 
-from eval.common import setup_logger, load_models
+from eval.common import build_stuck_nudge, setup_logger, load_models
 from eval.results import resolve_model_info
 from eval.config import (
     DEFAULT_CONTEXT_WINDOW,
     DEFAULT_IDLE_TIMEOUT_MINUTES,
     DEFAULT_MAX_OUTPUT_TOKENS,
     DEFAULT_MAX_STEP_TIMEOUT_MINUTES,
+    DEFAULT_NUDGE_REPEAT_THRESHOLD,
     DEFAULT_PI_PORT,
 )
 from eval.drivers import HarnessDriver, register_driver
@@ -87,6 +88,10 @@ class PiDriver(HarnessDriver):
         logger.info("Pi session created: %s", session_id)
         return session_id
 
+    def abort(self, sandbox: SandboxClient, session_id: str) -> None:
+        """Abort the session's in-flight turn."""
+        sandbox.api_request(self.port, f"/session/{session_id}/abort", method="POST", data={}, timeout=5)
+
     def send_prompt(
         self,
         sandbox: SandboxClient,
@@ -96,6 +101,7 @@ class PiDriver(HarnessDriver):
         timeout: int = int(DEFAULT_MAX_STEP_TIMEOUT_MINUTES * 60),
         idle_timeout: int = int(DEFAULT_IDLE_TIMEOUT_MINUTES * 60),
         reasoning_effort: str | None = None,
+        allow_nudge: bool = True,
     ) -> TurnData:
         """Send prompt to Pi, wait for completion, return normalized TurnData."""
         step_start_iso = datetime.now(timezone.utc).isoformat()
@@ -136,7 +142,38 @@ except Exception as e:
 """
         response_data = sandbox.exec_python_json(script, stdin=payload_json, label="Pi message")
         turn_dict = response_data.get("turn", response_data)
-        return self._turn_dict_to_turndata(turn_dict, step_start_iso)
+        turn = self._turn_dict_to_turndata(turn_dict, step_start_iso)
+
+        intervention = turn_dict.get("intervention") if isinstance(turn_dict, dict) else None
+        if allow_nudge and intervention:
+            nudge = build_stuck_nudge(
+                intervention.get("tool", "tool"),
+                intervention.get("input", ""),
+                intervention.get("output", ""),
+            )
+            logger.warning("Repeated tool result detected; nudging agent: %s", nudge)
+            turn.events.append({
+                "type": "user",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "content": nudge,
+            })
+            try:
+                nudge_turn = self.send_prompt(
+                    sandbox,
+                    session_id,
+                    nudge,
+                    model_name,
+                    timeout=timeout,
+                    idle_timeout=idle_timeout,
+                    reasoning_effort=reasoning_effort,
+                    allow_nudge=False,
+                )
+            except Exception as e:
+                logger.warning("Nudge prompt failed: %s", e)
+            else:
+                turn.merge(nudge_turn)
+
+        return turn
 
     def get_session_info(self, sandbox: SandboxClient, session_id: str) -> dict[str, Any]:
         """Retrieve session metadata from Pi."""
@@ -330,6 +367,14 @@ class PiSession:
             env=env,
         )
 
+    def abort(self):
+        try:
+            if self.proc and self.proc.stdin:
+                self.proc.stdin.write(json.dumps({{"type": "abort"}}) + "\\n")
+                self.proc.stdin.flush()
+        except Exception:
+            pass
+
     def _drain_output(self, timeout_sec=0.2):
         """Drain any leftover stdout data to prevent RPC message desynchronization."""
         if not self.proc or not self.proc.stdout:
@@ -379,8 +424,15 @@ class PiSession:
 
             agent_started = False
             last_retry_error = ""
+            last_tool_signature = None
+            repeated_tool_count = 0
+            intervention = None
+            nudge_deadline = None
             try:
                 while True:
+                    if nudge_deadline is not None and time.time() > nudge_deadline:
+                        sys.stderr.write("[pi_server] Nudge abort did not settle; returning partial turn\\n")
+                        break
                     elapsed = time.time() - start_time
                     idle_elapsed = time.time() - last_activity_time
                     if elapsed > timeout:
@@ -488,6 +540,32 @@ class PiSession:
                             tool_calls_map[call_id]["output"] = text_out
                             tool_calls_map[call_id]["duration_ms"] = dur_ms
 
+                            sig = json.dumps(
+                                [tool_calls_map[call_id].get("tool"), tool_calls_map[call_id].get("input"), text_out],
+                                sort_keys=True,
+                            )
+                            if intervention is None:
+                                if sig == last_tool_signature:
+                                    repeated_tool_count += 1
+                                else:
+                                    last_tool_signature = sig
+                                    repeated_tool_count = 1
+                                if repeated_tool_count >= {DEFAULT_NUDGE_REPEAT_THRESHOLD}:
+                                    intervention = {{
+                                        "tool": tool_calls_map[call_id].get("tool", "tool"),
+                                        "input": tool_calls_map[call_id].get("input", "{{}}"),
+                                        "output": text_out,
+                                    }}
+                                    sys.stderr.write(
+                                        f"[pi_server] Same tool result repeated {{repeated_tool_count}}x; aborting turn and nudging\\n"
+                                    )
+                                    try:
+                                        self.proc.stdin.write(json.dumps({{"type": "abort"}}) + "\\n")
+                                        self.proc.stdin.flush()
+                                    except Exception:
+                                        pass
+                                    nudge_deadline = time.time() + 15
+
                     elif e_type == "message_end":
                         msg = event.get("message", {{}})
                         if msg and msg.get("role") == "toolResult":
@@ -536,7 +614,7 @@ class PiSession:
                             sys.stderr.write(f"NETWORK_ERROR: Pi agent backend connection failed: {{last_retry_error.strip()}}\\n")
                             self._start_process()
                             raise RuntimeError(f"NETWORK_ERROR: Pi agent backend connection failed: {{last_retry_error.strip()}}")
-                        if agent_started and not event.get("willRetry"):
+                        if agent_started and (intervention is not None or not event.get("willRetry")):
                             sys.stderr.write(f"[pi_server] Received agent_end (willRetry=False). Turn complete.\\n")
                             break
 
@@ -657,6 +735,7 @@ class PiSession:
                     "role": "assistant",
                     "content": [{{"type": "text", "text": full_text}}] if full_text else [],
                 }}],
+                "intervention": intervention,
             }}
 
             self.turns.append(turn_data)
@@ -717,6 +796,17 @@ class RequestHandler(http.server.BaseHTTPRequestHandler):
             except Exception as e:
                 self.send_error(500, str(e))
 
+        elif self.path.startswith("/session/") and self.path.endswith("/abort"):
+            parts = self.path.strip("/").split("/")
+            session_id = parts[1]
+            with sessions_lock:
+                session = sessions.get(session_id)
+            if not session:
+                self.send_error(404, "Session not found")
+                return
+            session.abort()
+            self._send_json({{"status": "aborted"}})
+
         elif self.path.startswith("/session/") and self.path.endswith("/message"):
             parts = self.path.strip("/").split("/")
             session_id = parts[1]
@@ -752,8 +842,8 @@ class RequestHandler(http.server.BaseHTTPRequestHandler):
 
 
 def main():
-    http.server.HTTPServer.allow_reuse_address = True
-    server = http.server.HTTPServer(("0.0.0.0", PORT), RequestHandler)
+    http.server.ThreadingHTTPServer.allow_reuse_address = True
+    server = http.server.ThreadingHTTPServer(("0.0.0.0", PORT), RequestHandler)
     sys.stderr.write(f"[pi_server] Listening on port {{PORT}}...\\n")
     try:
         server.serve_forever()

@@ -12,13 +12,14 @@ import time
 from datetime import datetime, timezone
 from typing import Any
 
-from eval.common import normalize_reasoning_effort, reasoning_request_params, setup_logger
+from eval.common import build_stuck_nudge, normalize_reasoning_effort, reasoning_request_params, setup_logger
 from eval.results import resolve_model_info
 from eval.config import (
     DEFAULT_CONTEXT_WINDOW,
     DEFAULT_IDLE_TIMEOUT_MINUTES,
     DEFAULT_MAX_OUTPUT_TOKENS,
     DEFAULT_MAX_STEP_TIMEOUT_MINUTES,
+    DEFAULT_NUDGE_REPEAT_THRESHOLD,
     DEFAULT_OPENCODE_PORT,
 )
 from eval.drivers import HarnessDriver, register_driver
@@ -133,6 +134,10 @@ class OpenCodeDriver(HarnessDriver):
         logger.info("OpenCode session created: %s", session_id)
         return session_id
 
+    def abort(self, sandbox: SandboxClient, session_id: str) -> None:
+        """Abort the session's in-flight turn."""
+        sandbox.api_request(self.port, f"/session/{session_id}/abort", method="POST", data={}, timeout=5)
+
     def send_prompt(
         self,
         sandbox: SandboxClient,
@@ -142,6 +147,7 @@ class OpenCodeDriver(HarnessDriver):
         timeout: int = int(DEFAULT_MAX_STEP_TIMEOUT_MINUTES * 60),
         idle_timeout: int = int(DEFAULT_IDLE_TIMEOUT_MINUTES * 60),
         reasoning_effort: str | None = None,
+        allow_nudge: bool = True,
     ) -> TurnData:
         """Send prompt to OpenCode, monitor activity with idle timeout, and return normalized TurnData."""
         # Get message count before sending
@@ -252,6 +258,22 @@ def sse_watcher():
         except Exception:
             time.sleep(1.0)
 
+seen_tool_ids = set()
+last_tool_signature = None
+repeated_tool_count = 0
+intervention = None
+
+# Snapshot the tools already in the session so only this turn's repeats count.
+try:
+    req0 = urllib.request.Request('http://127.0.0.1:{self.port}/session/{session_id}/message')
+    with urllib.request.urlopen(req0, timeout=5.0) as resp0:
+        for msg0 in json.loads(resp0.read().decode('utf-8')):
+            for part0 in msg0.get("parts", []):
+                if part0.get("type") == "tool" and part0.get("callID"):
+                    seen_tool_ids.add(part0["callID"])
+except Exception:
+    pass
+
 t_worker = threading.Thread(target=worker, daemon=True)
 t_worker.start()
 
@@ -289,6 +311,53 @@ while not done_event.wait(timeout=1.0):
                 if m_fp != last_msg_fingerprint:
                     mark_activity()
                     last_msg_fingerprint = m_fp
+                try:
+                    messages = json.loads(m_data.decode('utf-8'))
+                except Exception:
+                    messages = []
+                if not isinstance(messages, list):
+                    messages = []
+                for msg in messages:
+                    for part in msg.get("parts", []):
+                        if part.get("type") != "tool":
+                            continue
+                        state = part.get("state", {{}})
+                        if state.get("status") not in ("completed", "error"):
+                            continue
+                        call_id = part.get("callID")
+                        if not call_id or call_id in seen_tool_ids:
+                            continue
+                        seen_tool_ids.add(call_id)
+                        tool = part.get("tool", "tool")
+                        tool_input = state.get("input")
+                        tool_output = state.get("output")
+                        sig = json.dumps([tool, tool_input, tool_output], sort_keys=True, default=str)
+                        if sig == last_tool_signature:
+                            repeated_tool_count += 1
+                        else:
+                            last_tool_signature = sig
+                            repeated_tool_count = 1
+                        if repeated_tool_count >= {DEFAULT_NUDGE_REPEAT_THRESHOLD}:
+                            intervention = {{
+                                "tool": tool,
+                                "input": tool_input if isinstance(tool_input, str) else json.dumps(tool_input, default=str),
+                                "output": tool_output if isinstance(tool_output, str) else json.dumps(tool_output, default=str),
+                            }}
+                            sys.stderr.write(f"[nudge] Same tool result repeated {{repeated_tool_count}}x; aborting and nudging\\n")
+                            try:
+                                req_a = urllib.request.Request(
+                                    'http://127.0.0.1:{self.port}/session/{session_id}/abort',
+                                    data=b'{{}}',
+                                    headers={{'Content-Type': 'application/json'}},
+                                    method='POST',
+                                )
+                                with urllib.request.urlopen(req_a, timeout=5.0) as resp_a:
+                                    resp_a.read()
+                            except Exception as e:
+                                sys.stderr.write(f"[nudge] abort failed: {{e}}\\n")
+                            time.sleep(0.5)
+                            print("__JSON_START__" + json.dumps({{"intervention": intervention}}) + "__JSON_END__")
+                            sys.exit(0)
         except urllib.error.URLError:
             pass
 
@@ -323,13 +392,49 @@ elif 'type' in err_result:
     sys.exit(1)
 """
         agent_response = sandbox.exec_python_json(script, stdin=payload_json, label="OpenCode message")
+        intervention = agent_response.get("intervention") if isinstance(agent_response, dict) else None
 
         # Get messages after, compute delta
+        if intervention:
+            time.sleep(0.5)
         msgs_after = self._get_messages(sandbox, session_id)
-        step_messages = msgs_after[prev_count:] if len(msgs_after) > prev_count else [agent_response]
+        if len(msgs_after) > prev_count:
+            step_messages = msgs_after[prev_count:]
+        elif intervention:
+            step_messages = []
+        else:
+            step_messages = [agent_response]
+        turn = self._parse_turn(step_messages, step_start_iso) if step_messages else TurnData()
 
-        # Parse into normalized TurnData
-        return self._parse_turn(step_messages, step_start_iso)
+        if allow_nudge and intervention:
+            nudge = build_stuck_nudge(
+                intervention.get("tool", "tool"),
+                intervention.get("input", ""),
+                intervention.get("output", ""),
+            )
+            logger.warning("Repeated tool result detected; nudging agent: %s", nudge)
+            turn.events.append({
+                "type": "user",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "content": nudge,
+            })
+            try:
+                nudge_turn = self.send_prompt(
+                    sandbox,
+                    session_id,
+                    nudge,
+                    model_name,
+                    timeout=timeout,
+                    idle_timeout=idle_timeout,
+                    reasoning_effort=reasoning_effort,
+                    allow_nudge=False,
+                )
+            except Exception as e:
+                logger.warning("Nudge prompt failed: %s", e)
+            else:
+                turn.merge(nudge_turn)
+
+        return turn
 
     def get_session_info(self, sandbox: SandboxClient, session_id: str) -> dict[str, Any]:
         """Retrieve session metadata from OpenCode."""

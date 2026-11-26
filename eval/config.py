@@ -35,6 +35,7 @@ DEFAULT_API_TIMEOUT_SECONDS = 30        # Standard internal API timeout for in-s
 # Evaluation & Scoring Defaults
 DEFAULT_STEP_POINT = 1                  # Default points allocated per test step
 DEFAULT_HINT_SCORE_FACTOR = 0.5         # Score multiplier when hint is utilized
+DEFAULT_NUDGE_REPEAT_THRESHOLD = 10      # Identical tool results before a user-style "you're looping" nudge
 
 # Agent & Model Generation Limits
 DEFAULT_MAX_OUTPUT_TOKENS = 65536       # Max output tokens limit

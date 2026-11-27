@@ -21,6 +21,7 @@ from eval.config import (
     DEFAULT_MAX_STEP_TIMEOUT_MINUTES,
     DEFAULT_NUDGE_REPEAT_THRESHOLD,
     DEFAULT_OPENCODE_PORT,
+    compaction_reserve_tokens,
 )
 from eval.drivers import HarnessDriver, register_driver
 from eval.drivers.proxy import (
@@ -488,10 +489,19 @@ elif 'type' in err_result:
         if active_model != config_alias:
             models_config[config_alias] = _build_model_entry(config_alias, max_context, reasoning_effort)
 
+        compaction_reserve = compaction_reserve_tokens(max_context)
+        logger.info(
+            "OpenCode compaction: %d tokens reserved, triggers at %d / %d tokens",
+            compaction_reserve, max_context - compaction_reserve, max_context,
+        )
         config_data = {
             "$schema": "https://opencode.ai/config.json",
             "share": "disabled",
             "permission": {"*": "allow"},
+            "compaction": {
+                "auto": True,
+                "reserved": compaction_reserve,
+            },
             "provider": {
                 self.provider_id: {
                     "name": self.provider_id,

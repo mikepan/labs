@@ -17,12 +17,14 @@ from typing import Any
 from eval.common import build_stuck_nudge, setup_logger, load_models
 from eval.results import resolve_model_info
 from eval.config import (
+    DEFAULT_COMPACTION_KEEP_RECENT_TOKENS,
     DEFAULT_CONTEXT_WINDOW,
     DEFAULT_IDLE_TIMEOUT_MINUTES,
     DEFAULT_MAX_OUTPUT_TOKENS,
     DEFAULT_MAX_STEP_TIMEOUT_MINUTES,
     DEFAULT_NUDGE_REPEAT_THRESHOLD,
     DEFAULT_PI_PORT,
+    compaction_reserve_tokens,
 )
 from eval.drivers import HarnessDriver, register_driver
 from eval.sandbox import SandboxClient
@@ -256,9 +258,19 @@ except Exception as e:
             }
         }
 
+        compaction_reserve = compaction_reserve_tokens(max_context)
+        logger.info(
+            "Pi compaction: %d tokens reserved, triggers at %d / %d tokens",
+            compaction_reserve, max_context - compaction_reserve, max_context,
+        )
         settings_data = {
             "defaultProjectTrust": "always",
             "quiet": False,
+            "compaction": {
+                "enabled": True,
+                "reserveTokens": compaction_reserve,
+                "keepRecentTokens": DEFAULT_COMPACTION_KEEP_RECENT_TOKENS,
+            },
         }
 
         # Pi's trust store maps project paths to true/false decisions.

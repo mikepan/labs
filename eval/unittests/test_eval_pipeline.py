@@ -25,6 +25,7 @@ from eval.config import (
     TESTS_DIR,
 )
 from eval.drivers import HarnessDriver
+from eval.drivers.opencode import OpenCodeDriver
 from eval.drivers.pi import PiDriver
 from eval.launch_benchmark import write_results_file
 from eval.results import resolve_model_info, save_evaluation_results
@@ -905,6 +906,25 @@ Rule IDs:
         setup_cmd = sandbox.exec.call_args[0][0]
         self.assertIn('"$var": "thinking.enabled"', setup_cmd)
         self.assertNotIn('"$thinking.enabled"', setup_cmd)
+
+    def test_compaction_threshold_tracks_model_context_window(self):
+        """Compaction must be half of each model's resolved window, not a fixed token count."""
+        from unittest.mock import MagicMock
+
+        for window in (131072, 262144, 1048576):
+            expected = window // 2
+
+            pi_sandbox = MagicMock()
+            PiDriver()._write_config(
+                pi_sandbox, "active-model", "alias", "http://localhost:8000/v1", max_context=window
+            )
+            self.assertIn(f'"reserveTokens": {expected}', pi_sandbox.exec.call_args[0][0])
+
+            opencode_sandbox = MagicMock()
+            OpenCodeDriver()._write_config(
+                opencode_sandbox, "active-model", "alias", "http://localhost:8000/v1", max_context=window
+            )
+            self.assertIn(f'"reserved": {expected}', opencode_sandbox.exec.call_args[0][0])
 
 
 class TestGitChangeAssert(unittest.TestCase):

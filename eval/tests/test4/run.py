@@ -4627,11 +4627,19 @@ def _check_category(category: str, perft_key: str | None, label: str):
 # Test definition
 # ==============================================================================
 
+_CHESS_FOCUS = (
+    "Keep this step tight: make the smallest edit that satisfies the change. If you sanity check, "
+    "use only the starting position and one short command, then stop. Do not write a test harness, "
+    "an independent reference implementation, or a script that enumerates positions; do not "
+    "hand-compute expected move lists, and do not invent your own FEN positions. Do not create, "
+    "copy, or rename any files, and do not leave debug prints."
+)
+
 TEST = Test(
     name="chess_movegen",
     steps=[
         Step(
-            prompt="""I'm building a small chess engine for a hobby project. Pure Python, standard library only - no third-party packages and no external engines.
+            prompt=f"""I'm building a small chess engine for a hobby project. Pure Python, standard library only - no third-party packages and no external engines.
 
 Create `movegen.py` with two functions:
 - `legal_moves(fen: str) -> list[str]` returns every move for the side to move in UCI notation (e.g. 'e2e4', 'g1f3', captures included).
@@ -4639,35 +4647,43 @@ Create `movegen.py` with two functions:
 
 For this first pass handle normal piece movement, captures, and pawn double pushes. Don't worry about castling, en passant, promotion, or check/pin legality yet. It must work for any valid FEN, not just the starting position.
 
-Please stay focused: don't write your own test suite, I'll validate it with my own harness. Implement the module, do one quick sanity run, and stop.""",
+{_CHESS_FOCUS}""",
             checks=[
                 _check_category("basic", "basic1", "Basic movement"),
             ],
             point=2,
         ),
         Step(
-            prompt="""Next, add castling to `movegen.py`. Parse the castling rights from the FEN and handle both wings for both colors. A side may not castle out of check, through an attacked square, or into check, and the path must be clear. Don't create test files or extra scripts, just update movegen.py. Keep the existing function signatures unchanged.""",
+            prompt=f"""Next, add castling to `movegen.py`. Parse the castling rights from the FEN and handle both wings for both colors. A side may not castle out of check, through an attacked square, or into check, and the path must be clear. Don't rewrite or re-verify the rest of the module, and keep the existing function signatures unchanged.
+
+{_CHESS_FOCUS}""",
             checks=[
                 _check_category("castling", None, "Castling"),
             ],
             point=2,
         ),
         Step(
-            prompt="""Add en passant. Honour the en passant target square from the FEN, for both colors. Don't create test files or extra scripts, just update movegen.py. Keep the existing function signatures unchanged.""",
+            prompt=f"""Add en passant. Honour the en passant target square from the FEN, for both colors. Don't rewrite or re-verify the rest of the module, and keep the existing function signatures unchanged.
+
+{_CHESS_FOCUS}""",
             checks=[
                 _check_category("ep", None, "En passant"),
             ],
             point=2,
         ),
         Step(
-            prompt="""Add promotion. When a pawn reaches the last rank it must offer all four promotion choices (q, r, b and n), including capture-promotions. Use UCI notation like 'e7e8q'. Don't create test files or extra scripts, just update movegen.py. Keep the existing function signatures unchanged.""",
+            prompt=f"""Add promotion. When a pawn reaches the last rank it must offer all four promotion choices (q, r, b and n), including capture-promotions. Use UCI notation like 'e7e8q'. Don't rewrite or re-verify the rest of the module, and keep the existing function signatures unchanged.
+
+{_CHESS_FOCUS}""",
             checks=[
                 _check_category("promo", None, "Promotion"),
             ],
             point=2,
         ),
         Step(
-            prompt="""Final pass. Make `legal_moves` fully legal: remove any move that leaves or puts your own king in check, including pinned pieces, double checks, and an en passant capture that exposes the king.  Don't create test files or extra scripts, just update movegen.py. Keep the existing function signatures unchanged.""",
+            prompt=f"""Final pass: add legality filtering to `legal_moves` in `movegen.py`. For each candidate move, apply it on a copy of the position and drop the move if the moving side's king is attacked afterward. This one filter covers pins, double check, and the en passant capture that exposes the king; do not rewrite or re-verify castling, en passant, or promotion generation. Edit `movegen.py` in place and keep the existing function signatures unchanged.
+
+{_CHESS_FOCUS}""",
             checks=[
                 _check_category("king", "king3", "King safety and perft"),
                 _check_category("castling", "castling2", "Castling under full legality"),

@@ -241,7 +241,7 @@ def run_trivia_benchmark(
         max_questions: Optional limit on number of questions (for quick validation).
         max_points: Normalized maximum score (default: 20.0 pts).
         context_reset_interval: Number of questions before clearing context (default: 10).
-        parallel: Number of context batches to run concurrently (default: 2).
+        parallel: Number of concurrent question batches (default: 4).
         verbose: Enable verbose logging.
 
     Returns:
@@ -260,8 +260,8 @@ def run_trivia_benchmark(
         reasoning_effort = load_models().get(bench_model_key, {}).get("reasoning_effort")
 
     logger.info("=" * 70)
-    logger.info("RUNNING trivia benchmark (model=%s [server_id=%s], reasoning_effort=%s, reset_interval=%d) against %s",
-                bench_model_key, server_model_id, reasoning_effort or "default", context_reset_interval, base_url)
+    logger.info("RUNNING trivia benchmark (model=%s [server_id=%s], reasoning_effort=%s, reset_interval=%d, parallel=%d) against %s",
+                bench_model_key, server_model_id, reasoning_effort or "default", context_reset_interval, parallel, base_url)
     logger.info("=" * 70)
 
     # 3. Load questions
@@ -480,7 +480,7 @@ def main():
     parser.add_argument("--limit", type=int, default=None, help="Limit number of questions to test")
     parser.add_argument("--quiz", default=None, help="Comma-separated list of quiz numbers (e.g. 1,2 or all)")
     parser.add_argument("--reset-interval", type=int, default=CONTEXT_RESET_INTERVAL, help="Context reset interval")
-    parser.add_argument("--parallel", type=int, default=DEFAULT_DIRECT_BENCHMARK_PARALLEL, help="Number of concurrent context batches")
+    parser.add_argument("--parallel", type=int, default=DEFAULT_DIRECT_BENCHMARK_PARALLEL, help="Number of concurrent question batches")
     parser.add_argument("--v", action="store_true", help="Verbose logging")
     args = parser.parse_args()
 

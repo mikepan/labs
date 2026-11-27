@@ -103,7 +103,7 @@ uv run benchmark --model Qwen3.8-27B-NVFP4-xhigh --runs 2
 Remote models use a host-side gateway: the API key stays on the host, while the
 sandbox only reaches the gateway over the LAN. OpenRouter models run with the
 same concurrency as local ones (`opencode` and `pi` in parallel; direct
-benchmarks at 2 workers unless `--sequential` is passed).
+benchmarks at 4 concurrent questions unless `--sequential` is passed).
 
 ```bash
 export OPENROUTER_API_KEY='sk-or-v1-...'

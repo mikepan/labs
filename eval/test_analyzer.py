@@ -58,6 +58,11 @@ def main():
             for s in tdata.get("steps", []):
                 sidx = s.get("step_index", 0)
                 sname = s.get("step_name") or f"Step {sidx+1}"
+                if tname_str == "tool-eval-bench":
+                    # Scenario step names embed the model's run-specific outcome
+                    # summary; collapse them to the stable TC id so every model
+                    # shares one row.
+                    sname = sname.split(":", 1)[0]
                 key = (tname_str, sidx, sname)
                 if key not in seen_steps:
                     seen_steps.add(key)
@@ -95,9 +100,10 @@ def main():
             print(sep)
 
         row_res = matrix.get((tname, sidx, sname), {})
-        passed_n = sum(1 for _, eid, _, _ in models if row_res.get(eid, (False,))[0])
-        total_n = len(models)
-        rate_str = f"{passed_n}/{total_n}"
+        models_with_data = [eid for _, eid, _, _ in models if eid in row_res]
+        passed_n = sum(1 for eid in models_with_data if row_res[eid][0])
+        total_n = len(models_with_data)
+        rate_str = f"{passed_n}/{total_n}" if total_n else "--"
 
         # Calculate step timing
         durs = step_durations.get((tname, sidx, sname), [])
@@ -123,7 +129,7 @@ def main():
         cols.append(f"{time_str:^{time_w}}")
         cols.append(f"{max_time_str:^{time_w}}")
 
-        is_fail = (passed_n == 0)
+        is_fail = total_n > 0 and passed_n == 0
         tag = f" {red}◄ DEFECT (0%){reset}" if is_fail else ""
         line = " ".join(cols) + tag
         print(line.replace("✗", f"{red}✗{reset}"))

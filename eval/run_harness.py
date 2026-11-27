@@ -49,7 +49,6 @@ from eval.config import (
     DEFAULT_IDLE_TIMEOUT_MINUTES,
     DEFAULT_MAX_STEP_TIMEOUT_MINUTES,
     DEFAULT_DIRECT_BENCHMARK_PARALLEL,
-    DEFAULT_TOOL_EVAL_PARALLEL,
     TESTS_DIR,
 )
 from eval.drivers import HarnessDriver, get_driver
@@ -647,7 +646,7 @@ def main():
     parser.add_argument("--model", required=True, help="Model name (e.g. qwen/Qwen3.6-27B-FP8)")
     parser.add_argument("--test", default="all", help="Specific test to run (e.g. 'test0', 'tool-eval-bench', or 'all', default: all)")
     parser.add_argument("--harness", default="all", help="Harness name (e.g. 'pi', 'opencode', or 'all', default: all)")
-    parser.add_argument("--sequential", action="store_true", help="Run harnesses and direct benchmarks sequentially instead of in parallel")
+    parser.add_argument("--sequential", action="store_true", help="Run harnesses one at a time and direct benchmarks one question at a time")
     parser.add_argument("--reasoning", default=None, help="Reasoning effort override (e.g. 'low', 'medium', 'xhigh', 'off')")
     parser.add_argument("--base-url", default=None, help=f"LLM base URL override (default: {API_BASE_URL})")
     parser.add_argument("--memory-gb", type=float, default=None, help="Measured runtime GPU memory in GB")
@@ -691,7 +690,7 @@ def main():
             TOOL_EVAL_TEST_KEY: lambda: run_tool_eval_benchmark(
                 base_url=host_base_url,
                 model=args.model,
-                parallel=1 if args.sequential else DEFAULT_TOOL_EVAL_PARALLEL,
+                parallel=1 if args.sequential else DEFAULT_DIRECT_BENCHMARK_PARALLEL,
                 reasoning_effort=reasoning_effort,
                 verbose=args.verbose,
             ),
@@ -703,6 +702,7 @@ def main():
                 verbose=args.verbose,
             ),
         }
+        # One direct test at a time: each test fans out across its own questions.
         direct_outputs = {
             key: runner() for key, runner in direct_runners.items()
             if args.test in ("all", key)

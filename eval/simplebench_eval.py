@@ -85,7 +85,7 @@ def run_simplebench_benchmark(
         max_questions: Optional limit on number of questions (for quick validation).
         max_points: Normalized maximum score (default: 20.0 pts).
         timeout: Request timeout per question in seconds.
-        parallel: Number of concurrent question requests (default: 2).
+        parallel: Number of concurrent question requests (default: 4).
         verbose: Enable verbose logging.
 
     Returns:

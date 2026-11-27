@@ -40,14 +40,20 @@ DEFAULT_NUDGE_REPEAT_THRESHOLD = 10      # Identical tool results before a user-
 # Agent & Model Generation Limits
 DEFAULT_MAX_OUTPUT_TOKENS = 65536       # Max output tokens limit
 DEFAULT_CONTEXT_WINDOW = 262144         # Fallback max context window limit
+DEFAULT_COMPACTION_CONTEXT_FRACTION = 0.5  # Compact when this share of the context is used
+DEFAULT_COMPACTION_KEEP_RECENT_TOKENS = 20000  # Pi: recent tokens retained beside the summary
+
+
+def compaction_reserve_tokens(context_window: int) -> int:
+    """Tokens kept free so compaction triggers at the configured fraction of each model's window."""
+    return int(context_window * DEFAULT_COMPACTION_CONTEXT_FRACTION)
 
 # Tool-Eval-Bench Quality Benchmark Defaults
 DEFAULT_TOOL_EVAL_TIMEOUT_SECONDS = 600   # Request timeout per scenario in seconds
-DEFAULT_TOOL_EVAL_PARALLEL = 2           # Number of parallel workers
 DEFAULT_TOOL_EVAL_MAX_POINTS = 40.0      # Normalized maximum score points
 
 # Direct Benchmark Defaults
-DEFAULT_DIRECT_BENCHMARK_PARALLEL = 2    # Concurrent question requests
+DEFAULT_DIRECT_BENCHMARK_PARALLEL = 4    # Concurrent questions; direct tests themselves still run sequentially
 
 # Data & Config Paths (Path objects)
 MODELS_CONFIG_FILE = REPO_ROOT / "eval" / "models.json"

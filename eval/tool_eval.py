@@ -20,8 +20,8 @@ if str(REPO_ROOT) not in sys.path:
 from eval.common import get_harness_logger, normalize_reasoning_effort, reasoning_request_params
 from eval.config import (
     API_BASE_URL,
+    DEFAULT_DIRECT_BENCHMARK_PARALLEL,
     DEFAULT_TOOL_EVAL_MAX_POINTS,
-    DEFAULT_TOOL_EVAL_PARALLEL,
     DEFAULT_TOOL_EVAL_TIMEOUT_SECONDS,
 )
 
@@ -156,7 +156,7 @@ def run_tool_eval_benchmark(
     base_url: str = API_BASE_URL,
     model: str = "",
     timeout: int = DEFAULT_TOOL_EVAL_TIMEOUT_SECONDS,
-    parallel: int = DEFAULT_TOOL_EVAL_PARALLEL,
+    parallel: int = DEFAULT_DIRECT_BENCHMARK_PARALLEL,
     hardmode: bool = True,
     reasoning_effort: str | None = None,
     verbose: bool = False,
